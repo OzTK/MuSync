@@ -1,0 +1,43 @@
+language: node_js
+node_js:
+  - "8"
+
+cache:
+  - elm-stuff/build-artifacts
+  - tests/elm-stuff/build-artifacts
+  - sysconfcpus
+
+before_install:
+  - | # epic build time improvement - see https://github.com/elm-lang/elm-compiler/issues/1473#issuecomment-245704142
+    if [ ! -d sysconfcpus/bin ];
+    then
+      git clone https://github.com/obmarg/libsysconfcpus.git;
+      cd libsysconfcpus;
+      ./configure --prefix=$TRAVIS_BUILD_DIR/sysconfcpus;
+      make && make install;
+      cd ..;
+    fi
+
+install:
+  - npm i -g npm@latest
+  - npm i -g elm@0.18
+  - npm i -g elm-test@0.18
+  - mv $(npm config get prefix)/bin/elm-make $(npm config get prefix)/bin/elm-make-old
+  - printf '%s\n\n' '#!/bin/bash' 'echo "Running elm-make with sysconfcpus -n 2"' '$TRAVIS_BUILD_DIR/sysconfcpus/bin/sysconfcpus -n 2 elm-make-old "$@"' > $(npm config get prefix)/bin/elm-make
+  - chmod +x $(npm config get prefix)/bin/elm-make
+  - npm install
+  - travis_retry elm-package install --yes
+  - cd tests && elm-package install --yes && cd ..
+
+script:
+  - elm-make --output=/dev/null --yes
+  - cd tests && elm-make --output=/dev/null --yes && cd ..
+  - npm run test
+
+deploy:
+  provider: heroku
+  buildpack: nodejs
+  app: playlist-importer
+  api_key:
+    secure: x334pwy5thxf2vVh3MEN3Rd15xCGawAY5WW1wIqhAI5trolxAYuYFrB/FUIpV6ERoYY+G9kyu/igEDc3lx9FisJo7oJmhGjZEHtA6INpXVJwlKy3d/snXGFQ955kTkBfDHHg1gZZgVYgBzNVh1UvV8Hr74hq7+zGvzPc4Z4Cr2u9VtdY7Kv1MBCTib5ZyGnyQMkdxlaq9IT5NGZask/wB+Wssh7o9oP3wE1kGiUAKGi8QhOhw6ymgKDZsMo4fCIvwNXFGZRqysy9mLD9YHMOa3I2pWCtPRC1tBrbbdkbW78tqvLTN0/u6AMnd+2DRZnad6+6zANevF5EQZ0vfB4hD9DBY/ItahvOMAJdmKJMMMdUCSkHmkxGoEVP94hK4OINNOejeq5luLSeNnBg8QmXoCaLhs0ad8J3Yt4BXM/3Z3/oGX41FUy9HaOcIJCgsfh9Cspil9Saa7Ir3tt49+PoLfZt1r2eBSGWwSrw/ai/xDWv/P6leeU/335CeyqJEJlX7RXYC04VyIN5JVV/nYPZN2DOe0Atv92nctBrLXDBcYO7G2+NykDmzv6oRZ5glwjSztJX4yMHENHNhHJzx4sHN4Hqw47jxWlaDhRga0mnsio9W4oqe9IOJOIPJH4/pEKs3lHCV7LXIOyObtPJ/Mcu5GL3bW1QZNCHe54NPVQpgdY=
+  skip_cleanup: true

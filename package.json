@@ -1,0 +1,33 @@
+{
+  "name": "playlist-importer",
+  "version": "1.0.0",
+  "description": "Import your playlist from and to Spotify, Deezer, Amazon Music, Google Music and so on!",
+  "main": "index.js",
+  "scripts": {
+    "test": "elm-test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OzTK/playlist-importer.git"
+  },
+  "keywords": [
+    "deezer",
+    "spotify",
+    "amazon",
+    "music",
+    "google",
+    "music",
+    "playlist",
+    "import",
+    "export",
+    "importer",
+    "exporter",
+    "elm"
+  ],
+  "author": "Paul Duguet",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/OzTK/playlist-importer/issues"
+  },
+  "homepage": "https://github.com/OzTK/playlist-importer#readme"
+}
