@@ -34,9 +34,6 @@ script:
   - cd tests && elm-make --output=/dev/null --yes && cd ..
   - npm run test
 
-# deploy:
-#   provider: heroku
-#   buildpack: php
-#   app: playlist-importer
-#   api_key: $HEROKU_API_KEY
-#   skip_cleanup: true
+deploy:
+  provider: surge
+  skip_cleanup: true
