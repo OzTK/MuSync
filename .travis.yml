@@ -36,6 +36,7 @@ script:
 
 deploy:
   provider: heroku
+  buildpack: php
   app: playlist-importer
   api_key: $HEROKU_API_KEY
   skip_cleanup: true
