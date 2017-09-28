@@ -1,1 +1,0 @@
-web: ./heroku_deploy.bash
