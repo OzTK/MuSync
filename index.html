@@ -1,13 +1,103 @@
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="dzn" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Playlist Importer</title>
-  </head>
-  <body>
-    <h1>Playlist Importer</h1>
-    <h3>Welcome!</h3>
-    <script src="elm.js"></script>
-  </body>
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="dzn" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playlist Importer</title>
+</head>
+
+<body>
+  <!-- Deezer init -->
+  <div id="dz-root"></div>
+  <script>
+    var dzInitialized = false;
+    var isDzConnecte = false;
+    window.dzAsyncInit = function () {
+      DZ.init({
+        appId: '254002',
+        channelUrl: 'http://localhost/deezer_channel.html'
+      });
+
+      dzInitialized = true;
+      if (typeof (elmApp) != 'undefined') {
+        getDeezerStatus(elmApp.ports.updateDeezerStatus.send);
+      }
+    };
+
+    (function () {
+      var e = document.createElement('script');
+      e.src = 'https://e-cdns-files.dzcdn.net/js/min/dz.js';
+      e.async = true;
+      document.getElementById('dz-root').appendChild(e);
+    }());
+
+    function getDeezerStatus(cb) {
+      DZ.getLoginStatus(function (response) {
+        isDzConnected = response.authResponse != undefined;
+        cb(isDzConnected);
+      });
+    }
+
+    function connectDeezer(cb) {
+      DZ.login(function (response) {
+        isDzConnecte = response.authResponse != undefined;
+        cb(isDzConnected);
+      }, { perms: 'basic_access' });
+    }
+
+    function loadDeezerPlaylists(cb) {
+      DZ.api('/user/me/playlists', function (response) {
+        cb(response.data ? response.data : null);
+      });
+    }
+
+    function loadDeezerPlaylistSongs(pid, cb) {
+      DZ.api('/playlist/' + pid, function (response) {
+        cb(response.tracks && response.tracks.data ? response.tracks.data.map(s => ({ title: s.title, artist: s.artist.name })) : null);
+      });
+    }
+  </script>
+
+  <!-- Layout -->
+  <h1>Playlist Importer</h1>
+  <h3>Welcome!</h3>
+  <div id="app"></div>
+
+  <!-- Scripts -->
+  <script src="elm.js"></script>
+  <script>
+    var elmApp = Elm.Main.embed(document.getElementById('app'));
+
+    elmApp.ports.loadDeezerPlaylists.subscribe(function () {
+      if (!isDzConnected) {
+        elmApp.ports.receiveDeezerPlaylists.send(false);
+        return;
+      }
+
+      loadDeezerPlaylists(elmApp.ports.receiveDeezerPlaylists.send);
+    });
+
+    elmApp.ports.connectDeezer.subscribe(function () {
+      if (!dzInitialized) {
+        return;
+      }
+
+      connectDeezer(elmApp.ports.updateDeezerStatus.send)
+    });
+
+    elmApp.ports.loadDeezerPlaylistSongs.subscribe(function (pid) {
+      if (!isDzConnected) {
+        return;
+      }
+
+      loadDeezerPlaylistSongs(pid, elmApp.ports.receiveDeezerPlaylistSongs.send)
+    });
+
+    if (typeof(dzInitialized) != undefined) {
+      getDeezerStatus(elmApp.ports.updateDeezerStatus.send);
+    }
+  </script>
+</body>
+
 </html>

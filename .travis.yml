@@ -30,7 +30,7 @@ install:
   - cd tests && elm-package install --yes && cd ..
 
 script:
-  - elm-make --output=/dev/null --yes
+  - npm run build
   - cd tests && elm-make --output=/dev/null --yes && cd ..
   - npm run test
 

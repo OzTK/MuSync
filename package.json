@@ -4,6 +4,8 @@
   "description": "Import your playlist from and to Spotify, Deezer, Amazon Music, Google Music and so on!",
   "main": "index.js",
   "scripts": {
+    "build": "elm-make elm/Main.elm --yes --output=elm.js",
+    "build:dev": "elm-make elm/Main.elm --yes --output=elm.js --debug",
     "test": "elm-test"
   },
   "repository": {
@@ -29,5 +31,6 @@
   "bugs": {
     "url": "https://github.com/OzTK/playlist-importer/issues"
   },
-  "homepage": "https://github.com/OzTK/playlist-importer#readme"
+  "homepage": "https://github.com/OzTK/playlist-importer#readme",
+  "dependencies": {}
 }
