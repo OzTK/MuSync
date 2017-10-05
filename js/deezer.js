@@ -5,7 +5,7 @@ function loadDeezer() {
   window.dzAsyncInit = function() {
     DZ.init({
       appId: config.deezerAppId,
-      channelUrl: 'http://' + config.domain + '/deezer_channel.html',
+      channelUrl: config.scheme + '://' + config.domain + '/deezer_channel.html',
     });
 
     dzInitialized = true;
