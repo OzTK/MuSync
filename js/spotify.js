@@ -5,4 +5,5 @@ if (window.location.hash) {
   window.opener.onSpotifyLoginError(err);
 }
 
+window.open('', '_self', '');
 window.close();
