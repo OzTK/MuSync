@@ -27,6 +27,12 @@ port loadDeezerPlaylistSongs : Int -> Cmd msg
 port receiveDeezerPlaylistSongs : (Maybe (List DeezerSong) -> msg) -> Sub msg
 
 
+port connectSpotify : () -> Cmd msg
+
+
+port onSpotifyConnected : (( Maybe String, String ) -> msg) -> Sub msg
+
+
 
 -- Model
 
@@ -54,18 +60,25 @@ type DeezerConnectionStatus
     | Failed String
 
 
+type SpotifyConnectionStatus
+    = SpotDisconnected
+    | SpotConnecting
+    | SpotConnected String
+    | SpotFailed String
+
+
 type PlaylistSelection
     = None PlaylistsData
     | Selected (List DeezerPlaylist) DeezerPlaylist SongsData
 
 
 type alias Model =
-    { dzConnectionStatus : DeezerConnectionStatus }
+    { dzConnectionStatus : DeezerConnectionStatus, spotifyConnectionStatus : SpotifyConnectionStatus }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { dzConnectionStatus = Disconnected }, Cmd.none )
+    ( { dzConnectionStatus = Disconnected, spotifyConnectionStatus = SpotDisconnected }, Cmd.none )
 
 
 
@@ -79,6 +92,8 @@ type Msg
     | ReceiveDeezerSongs (Maybe (List DeezerSong))
     | RequestDeezerSongs (List DeezerPlaylist) DeezerPlaylist
     | BackToPlaylists
+    | ConnectSpotify
+    | SpotifyConnected ( Maybe String, String )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -107,6 +122,15 @@ update msg model =
 
         BackToPlaylists ->
             { model | dzConnectionStatus = backToPlaylists model.dzConnectionStatus } ! []
+
+        ConnectSpotify ->
+            ( { model | spotifyConnectionStatus = SpotConnecting }, connectSpotify () )
+
+        SpotifyConnected ( Nothing, token ) ->
+            { model | spotifyConnectionStatus = SpotConnected token } ! []
+
+        SpotifyConnected ( Just err, _ ) ->
+            { model | spotifyConnectionStatus = SpotFailed err } ! []
 
 
 backToPlaylists : DeezerConnectionStatus -> DeezerConnectionStatus
@@ -140,12 +164,16 @@ view : Model -> Html Msg
 view model =
     div []
         ([ deezerButton model
-         , button [ disabled True ] [ text "Connect Spotify" ]
+         , spotifyButton model
          , button [ disabled True ] [ text "Connect Amazon Music" ]
          , button [ disabled True ] [ text "Connect Google Music" ]
          , playlists model
          ]
         )
+
+
+
+-- Deezer
 
 
 playlists : { m | dzConnectionStatus : DeezerConnectionStatus } -> Html Msg
@@ -206,6 +234,29 @@ deezerButton { dzConnectionStatus } =
 
 
 
+-- Spotify
+
+
+spotifyButton : { m | spotifyConnectionStatus : SpotifyConnectionStatus } -> Html Msg
+spotifyButton { spotifyConnectionStatus } =
+    case spotifyConnectionStatus of
+        SpotConnected _ ->
+            button [ disabled True ] [ text "Connected to Spotify" ]
+
+        SpotConnecting ->
+            button [ disabled True ] [ text "Connecting Spotify..." ]
+
+        SpotDisconnected ->
+            button [ onClick ConnectSpotify ] [ text "Connect Spotify" ]
+
+        SpotFailed err ->
+            span []
+                [ button [ onClick ConnectSpotify ] [ text "Connect Spotify" ]
+                , text err
+                ]
+
+
+
 -- Program
 
 
@@ -229,4 +280,5 @@ subscriptions model =
         [ updateDeezerStatus DeezerStatusUpdate
         , receiveDeezerPlaylists ReceiveDeezerPlaylists
         , receiveDeezerPlaylistSongs ReceiveDeezerSongs
+        , onSpotifyConnected SpotifyConnected
         ]
