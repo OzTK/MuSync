@@ -4,8 +4,8 @@ var isDzConnected = false;
 function loadDeezer() {
   window.dzAsyncInit = function() {
     DZ.init({
-      appId: "254002",
-      channelUrl: "http://localhost/deezer_channel.html",
+      appId: config.deezerAppId,
+      channelUrl: 'http://' + config.domain + '/deezer_channel.html',
     });
 
     dzInitialized = true;
@@ -57,3 +57,5 @@ function loadDeezerPlaylistSongs(pid, cb) {
     );
   });
 }
+
+loadDeezer();

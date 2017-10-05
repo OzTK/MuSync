@@ -8,19 +8,29 @@
 </head>
 
 <body>
+  <!-- Config -->
+  <script src="js/config.dev.js"></script>
+  <script>
+    if (typeof config === 'undefined') {
+      (function () {
+        var e = document.createElement("script");
+        e.src = "js/config.js";
+        e.async = true;
+        document.appendChild(e);
+      })();
+    }
+  </script>
+
   <!-- Deezer init -->
   <div id="dz-root"></div>
   <script src="js/deezer.js"></script>
-  <script>
-    loadDeezer();
-  </script>
 
   <!-- Layout -->
   <h1>Playlist Importer</h1>
   <h3>Welcome!</h3>
   <div id="app"></div>
 
-  <!-- Scripts -->
+  <!-- Elm (ports, init, ...) -->
   <script src="js/elm.js"></script>
   <script>
     var elmApp = Elm.Main.embed(document.getElementById('app'));
@@ -51,8 +61,20 @@
     });
 
     elmApp.ports.connectSpotify.subscribe(function () {
-      window.open("https://accounts.spotify.com/authorize?client_id=1d870e0c94764f68add93d63a41d2f5c&response_type=token&redirect_uri=http://localhost/spotify-callback.html&scopes=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false", '',
-        'top=' + screen.availHeight/4 + ',left=' + screen.availWidth/4 + ',height=600,width=800');
+      var w = window.open('https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId + '&response_type=token&redirect_uri=http://' + config.domain + '/spotify-callback.html&scopes=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false'
+        , 'Spotify Login'
+        , 'top=' + (screen.availHeight/2 - 300) + ',left=' + (screen.availWidth/2 - 400) + ',height=600,width=800');
+
+      window.spotifyLoginCompleted = false;
+      var timer = setInterval(function () {
+        if (w.closed) {
+          clearInterval(timer);
+
+          if (!spotifyLoginCompleted) {
+            onSpotifyLoginError('Spotify login window was closed');
+          }
+        }
+      }, 800);
     })
 
     if (typeof (dzInitialized) != undefined && dzInitialized) {
@@ -60,10 +82,12 @@
     }
 
     function onSpotifyLogin(token) {
+      window.spotifyLoginCompleted = true;
       elmApp.ports.onSpotifyConnected.send([null, token]);
     }
 
     function onSpotifyLoginError(err) {
+      window.spotifyLoginCompleted = true;
       elmApp.ports.onSpotifyConnected.send([err, '']);
     }
   </script>

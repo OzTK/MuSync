@@ -5,3 +5,4 @@ tests/
 elm-package.json
 package-lock.json
 package.json
+js/config.dev.js
