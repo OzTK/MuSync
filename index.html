@@ -13,11 +13,9 @@
   <script src="js/config.dev.js"></script>
   <script>
     if (typeof config === 'undefined') {
-      (function () {
-        var e = document.createElement("script");
-        e.src = "js/config.js";
-        document.body.appendChild(e);
-      })();
+      var e = document.createElement("script");
+      e.src = "js/config.js";
+      document.body.appendChild(e);
     }
   </script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
