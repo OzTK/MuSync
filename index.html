@@ -12,11 +12,7 @@
   <!-- Config -->
   <script src="js/config.dev.js"></script>
   <script>
-    if (typeof config === 'undefined') {
-      var e = document.createElement("script");
-      e.src = "js/config.js";
-      document.body.appendChild(e);
-    }
+    config || document.write('<script src="js/config">\x3C/script>');
   </script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
   <script>
