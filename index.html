@@ -10,15 +10,13 @@
 
 <body>
   <!-- Config -->
+  <script src="js/config.js"></script>
   <script src="js/config.dev.js"></script>
-  <script>
-    config || document.write('<script src="js/config">\x3C/script>');
-  </script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
   <script>
-      if (config.offline && config.allowedIps.indexOf(ip) < 0) {
-        window.location = 'offline.html';
-      }
+    if (config.offline && config.allowedIps.indexOf(ip) < 0) {
+      window.location = 'offline.html';
+    }
   </script>
 
   <!-- Deezer init -->
