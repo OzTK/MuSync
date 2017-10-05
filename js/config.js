@@ -1,4 +1,6 @@
 var config = {
+  offline: true,
+  allowedIps: ['71.232.25.148'],
   scheme: 'https',
   domain: 'playlist-importer.surge.sh',
   deezerAppId: '254002',
