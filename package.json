@@ -32,5 +32,8 @@
     "url": "https://github.com/OzTK/playlist-importer/issues"
   },
   "homepage": "https://github.com/OzTK/playlist-importer#readme",
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "elm-live": "^2.7.5"
+  }
 }
