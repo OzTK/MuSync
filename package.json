@@ -6,6 +6,7 @@
   "scripts": {
     "build": "elm-make elm/Main.elm --yes --output=js/elm.js",
     "build:dev": "elm-make elm/Main.elm --yes --output=js/elm.js --debug",
+    "debug": "elm-live elm/Main.elm --output=js/elm.js --host=192.168.15.9 --open",
     "test": "elm-test"
   },
   "repository": {
