@@ -1,4 +1,4 @@
-port module Main exposing (Model, Msg, update, view, subscriptions, init)
+port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import Html exposing (Html, text, div, button, span, ul, li)
 import Html.Attributes exposing (disabled, style)
@@ -11,16 +11,11 @@ import Model
         , Playlist
         , MusicProvider(..)
         , MusicProviderType(..)
-        , ProviderInfo
-        , deezer
-        , spotify
-        , allProviders
         )
 import SelectableList exposing (SelectableList)
 import Provider
     exposing
-        ( OAuthToken
-        , WithProviderSelection
+        ( WithProviderSelection
         , ProviderConnection(..)
         , ConnectedProvider(..)
         )
@@ -171,7 +166,7 @@ update msg model =
             }
                 ! []
 
-        ReceiveDeezerSongs songs ->
+        ReceiveDeezerSongs _ ->
             model ! []
 
         RequestDeezerSongs id ->
@@ -221,7 +216,7 @@ update msg model =
                       else
                         []
 
-        SpotifyConnectionStatusUpdate ( Just err, _ ) ->
+        SpotifyConnectionStatusUpdate ( Just _, _ ) ->
             { model
                 | availableProviders =
                     Provider.flatMap
@@ -238,7 +233,7 @@ update msg model =
         SearchInSpotify track ->
             model ! [ searchMatchingSong track model ]
 
-        SpotifySearchResult track tracksData ->
+        SpotifySearchResult _ _ ->
             model ! []
 
         ReceivePlaylists playlistsData ->
@@ -292,7 +287,11 @@ providerConnector connection =
 view : Model -> Html Msg
 view model =
     div []
-        (List.map (\p -> p |> providerConnector |> connectButton p) model.availableProviders ++ [ playlists model ])
+        (List.map
+            (\p -> p |> providerConnector |> connectButton p)
+            model.availableProviders
+            ++ [ playlists model ]
+        )
 
 
 playlists :
@@ -301,12 +300,12 @@ playlists :
         , comparedProvider : WithProviderSelection MusicProviderType ()
     }
     -> Html Msg
-playlists ({ playlists, comparedProvider } as model) =
+playlists { playlists, comparedProvider } =
     case ( playlists, comparedProvider ) of
         ( Provider.SelectedConnecting _, _ ) ->
             div [] [ text "Loading playlists..." ]
 
-        ( Provider.SelectedConnected provider (Success p), _ ) ->
+        ( Provider.SelectedConnected _ (Success p), _ ) ->
             p
                 |> SelectableList.selected
                 |> Maybe.map .songs
@@ -317,7 +316,7 @@ playlists ({ playlists, comparedProvider } as model) =
                         [ ul [] <| SelectableList.toList <| SelectableList.map (playlist PlaylistSelected) p ]
                     )
 
-        ( Provider.SelectedConnected provider (Failure err), _ ) ->
+        ( Provider.SelectedConnected _ (Failure err), _ ) ->
             err |> toString |> text
 
         _ ->
@@ -354,7 +353,7 @@ song results s =
                 , span [ style [ ( "color", "red" ) ] ] [ text "No track found" ]
                 ]
 
-        Just (Success (track1 :: rest)) ->
+        Just (Success (_ :: _)) ->
             li []
                 [ text <| s.title ++ " - " ++ s.artist
                 , span [ style [ ( "color", "green" ) ] ] [ text "found!" ]
@@ -396,13 +395,13 @@ provider pType =
 connectButton : ProviderConnection MusicProviderType -> Msg -> Html Msg
 connectButton connection tagger =
     case connection of
-        Provider.Connected con ->
+        Provider.Connected _ ->
             button [ disabled True ] [ text (connection |> Provider.provider |> provider |> (++) "Connected to ") ]
 
-        Provider.Connecting con ->
+        Provider.Connecting _ ->
             button [ disabled True ] [ text <| (connection |> Provider.provider |> provider |> (++) "Connecting ") ++ "..." ]
 
-        Provider.Inactive con ->
+        Provider.Inactive _ ->
             button [] [ text (connection |> Provider.provider |> provider) ]
 
         Provider.Disconnected _ ->
@@ -428,7 +427,7 @@ main =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ updateDeezerStatus DeezerStatusUpdate
         , receiveDeezerPlaylists ReceiveDeezerPlaylists

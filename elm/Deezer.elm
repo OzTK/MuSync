@@ -1,7 +1,7 @@
-module Deezer exposing (..)
+module Deezer exposing (playlist, track)
 
-import Json.Decode exposing (Decoder, string, list, int, andThen, map)
-import Json.Decode.Pipeline exposing (required, decode, hardcoded, custom)
+import Json.Decode exposing (Decoder, string, int, map)
+import Json.Decode.Pipeline exposing (required, decode, hardcoded)
 import RemoteData exposing (RemoteData(NotAsked))
 import Model exposing (Track, Playlist)
 

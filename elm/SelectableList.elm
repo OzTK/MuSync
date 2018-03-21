@@ -29,7 +29,7 @@ clear (SelectableList l _) =
 
 
 selected : SelectableList a -> Maybe a
-selected (SelectableList l selected) =
+selected (SelectableList _ selected) =
     selected
 
 

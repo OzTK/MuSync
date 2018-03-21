@@ -31,7 +31,9 @@ type alias ProviderName =
 
 
 type alias ProviderInfo =
-    { name : ProviderName, status : RemoteData String () }
+    { name : ProviderName
+    , status : RemoteData String ()
+    }
 
 
 
@@ -66,7 +68,9 @@ type alias Playlist =
 
 
 type alias Track =
-    { title : String, artist : String }
+    { title : String
+    , artist : String
+    }
 
 
 seed : Int

@@ -1,8 +1,8 @@
 module Spotify exposing (searchTrack, getPlaylists)
 
-import Http as H exposing (header, encodeUri)
+import Http exposing (header, encodeUri)
 import RemoteData.Http as Http exposing (defaultConfig, Config)
-import Json.Decode as JD exposing (Decoder, string, int, at, list, succeed, fail)
+import Json.Decode exposing (Decoder, string, int, list, succeed, fail)
 import Json.Decode.Pipeline as Pip
 import RemoteData exposing (WebData, RemoteData(NotAsked))
 import Model exposing (Track, Playlist)
@@ -15,10 +15,6 @@ type alias Artist =
     { name : String }
 
 
-type alias SpotifySearchResponse =
-    { tracks : List Track }
-
-
 artist : Decoder Artist
 artist =
     Pip.decode Artist |> Pip.required "name" string
@@ -27,7 +23,7 @@ artist =
 toArtistName : List { a | name : String } -> Decoder String
 toArtistName artists =
     case artists of
-        first :: others ->
+        first :: _ ->
             succeed first.name
 
         [] ->
@@ -92,12 +88,11 @@ searchTrack token tagger ({ artist, title } as track) =
         (endpoint
             ++ "search?type=track&limit=1&q="
             ++ (encodeUri
-                    ("artist:\""
-                        ++ artist
-                        ++ "\" track:\""
-                        ++ title
-                        ++ "\""
-                    )
+                    "artist:\""
+                    ++ artist
+                    ++ "\" track:\""
+                    ++ title
+                    ++ "\""
                )
         )
         (tagger track)

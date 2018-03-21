@@ -23,7 +23,7 @@ module Provider
         , flatMap
         )
 
-import RemoteData exposing (RemoteData, RemoteData(NotAsked, Success))
+import RemoteData exposing (RemoteData(NotAsked, Success))
 import Http
 
 
@@ -154,7 +154,7 @@ flatMap f =
                     Connected (ConnectedProvider pType) ->
                         fcon pType
 
-                    Connected (ConnectedProviderWithToken pType token) ->
+                    Connected (ConnectedProviderWithToken pType _) ->
                         fcon pType
         )
 
@@ -200,7 +200,7 @@ isSelected selection =
 setData : WithProviderSelection providerType data -> RemoteData ProviderError data -> WithProviderSelection providerType data
 setData selection data =
     case selection of
-        SelectedConnected provider d ->
+        SelectedConnected provider _ ->
             SelectedConnected provider data
 
         _ ->
