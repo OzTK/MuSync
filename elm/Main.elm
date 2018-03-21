@@ -216,7 +216,10 @@ update msg model =
                         else
                             model.playlists
                 }
-                    ! [ Spotify.getPlaylists token ReceivePlaylists ]
+                    ! if canSelect then
+                        [ Spotify.getPlaylists token ReceivePlaylists ]
+                      else
+                        []
 
         SpotifyConnectionStatusUpdate ( Just err, _ ) ->
             { model
