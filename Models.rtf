@@ -1,0 +1,98 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf200
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;\red252\green83\blue8;\red252\green83\blue8;\red53\green20\blue255;
+\red0\green0\blue0;\red248\green0\blue255;\red248\green0\blue255;\red53\green20\blue255;}
+{\*\expandedcolortbl;;\cssrgb\c100000\c41713\c26;\cssrgb\c100000\c41713\c26;\cssrgb\c27596\c22925\c100000;
+\cssrgb\c0\c0\c0;\cssrgb\c98922\c17037\c100000;\cssrgb\c98922\c17037\c100000;\cssrgb\c27596\c22925\c100000;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww20860\viewh15880\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\b\fs36 \cf0 Track 
+\b0 = \{ id, title, artist \}
+\b \
+\
+Playlist
+\b0  = \{ name, Webdata[List Tracks] \}\
+\
+
+\b ProviderType
+\b0  = Spotify | Deezer | Play | Amazon \'85\
+\
+
+\b OAuthToken
+\b0  = String\
+\
+
+\b SelectableList
+\b0 \
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\b \cf2 ConnectedProvider
+\b0 \cf0  = ConnectedProvider 
+\b ProviderType
+\b0  | ConnectedProviderWithToken 
+\b ProviderType
+\b0  
+\b OAuthToken
+\b0 \
+\
+
+\b \cf2 DisconnectedProvider
+\b0 \cf0  = DisconnectedProvider 
+\b ProviderType\
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+\cf3 InactiveProvider
+\b0 \cf0  = InactiveProvider 
+\b ProviderType
+\b0 \
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\b \cf4 ProviderConnection
+\b0 \cf0  = \cf2 InactiveProvider \cf5 |\cf0  \cf3 DisconnectedProvider\cf0  | \cf3 ConnectedProvider\cf0 \
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\b \cf3 PlaylistsLoadableSelectList
+\b0 \cf0  = Webdata (
+\b SelectableList
+\b0  
+\b Playlist
+\b0 )\
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\b \cf4 WithProviderSelection
+\b0 \cf0  a = NoProviderSelected |\'a0\cf3 DisconnectedProvider\cf0  | \cf3 ConnectedProvider\cf0  a\
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\b \cf6 PlaylistsData
+\b0 \cf0  =  \cf4 WithProviderSelection 
+\b \cf0 ProviderType
+\b0  \cf3 PlaylistsLoadableSelectList\cf0 \
+\
+
+\b \cf6 ProviderSelection
+\b0 \cf0  = \cf4 WithProviderSelection 
+\b \cf0 ProviderType
+\b0  ()\
+\
+my thing \{\
+	playlists : 
+\b \cf7 PlaylistsData
+\b0 \cf0 \
+\
+	compareProvider :  
+\b \cf7 ProviderSelection
+\b0 \cf0 \
+\
+	providers : Dict 
+\b ProviderType
+\b0   
+\b \cf8 ProviderConnection
+\b0 \cf0 \
+\}\
+}

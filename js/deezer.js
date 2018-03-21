@@ -5,7 +5,7 @@ function loadDeezer() {
   window.dzAsyncInit = function() {
     DZ.init({
       appId: config.deezerAppId,
-      channelUrl: config.scheme + '://' + config.domain + '/deezer_channel.html',
+      channelUrl: config.scheme + "://" + config.domain + "/deezer_channel.html"
     });
 
     dzInitialized = true;
@@ -24,7 +24,10 @@ function loadDeezer() {
 
 function getDeezerStatus(cb) {
   DZ.getLoginStatus(function(response) {
-    isDzConnected = response.authResponse != undefined;
+    isDzConnected = response.authResponse != undefined && !response.fromCookie;
+    DZ.logout(() => {
+      document.cookie = "currentAuthResponse=;";
+    });
     cb(isDzConnected);
   });
 }
@@ -51,7 +54,7 @@ function loadDeezerPlaylistSongs(pid, cb) {
       response.tracks && response.tracks.data
         ? response.tracks.data.map(s => ({
             title: s.title,
-            artist: s.artist.name,
+            artist: s.artist.name
           }))
         : null
     );

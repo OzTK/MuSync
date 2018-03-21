@@ -14,7 +14,7 @@
   <script src="js/config.dev.js"></script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
   <script>
-    if (config.offline && config.allowedIps.indexOf(ip) < 0) {
+    if (config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
       window.location = 'offline.html';
     }
   </script>
@@ -59,9 +59,11 @@
     });
 
     elmApp.ports.connectSpotify.subscribe(function () {
-      var w = window.open('https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId + '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/spotify-callback.html&scopes=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false'
-        , 'Spotify Login'
-        , 'top=' + (screen.availHeight/2 - 300) + ',left=' + (screen.availWidth/2 - 400) + ',height=600,width=800');
+      var w = window.open('https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
+        '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain +
+        '/spotify-callback.html&scopes=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false',
+        'Spotify Login', 'top=' + (screen.availHeight / 2 - 300) + ',left=' + (screen.availWidth / 2 - 400) +
+        ',height=600,width=800');
 
       window.spotifyLoginCompleted = false;
       var timer = setInterval(function () {

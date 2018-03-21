@@ -1,12 +1,14 @@
 {
   "name": "playlist-importer",
   "version": "1.0.0",
-  "description": "Import your playlist from and to Spotify, Deezer, Amazon Music, Google Music and so on!",
+  "description":
+    "Import your playlist from and to Spotify, Deezer, Amazon Music, Google Music and so on!",
   "main": "index.js",
   "scripts": {
     "build": "elm-make elm/Main.elm --yes --output=js/elm.js",
     "build:dev": "elm-make elm/Main.elm --yes --output=js/elm.js --debug",
-    "debug": "elm-live elm/Main.elm --output=js/elm.js --host=192.168.15.9 --open",
+    "debug":
+      "elm-live elm/Main.elm --output=js/elm.js --host=192.168.0.12 --open --debug",
     "test": "elm-test"
   },
   "repository": {
