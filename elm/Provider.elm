@@ -4,6 +4,7 @@ module Provider
         , WithProviderSelection(..)
         , ProviderConnection(..)
         , ConnectedProvider(..)
+        , DisconnectedProvider(..)
         , connected
         , connectedWithToken
         , disconnected
@@ -12,14 +13,19 @@ module Provider
         , provider
         , connectionToMaybe
         , isConnected
+        , isDisconnected
+        , isConnecting
+        , isInactive
         , providerError
         , providerHttpError
         , decodingError
         , noSelection
         , select
+        , disconnectSelection
         , isSelected
         , setData
         , getConnectedProvider
+        , selectionProvider
         , flatMapData
         , flatMap
         , flatMapOn
@@ -141,7 +147,37 @@ connectionToMaybe connection =
 isConnected : ProviderConnection providerType -> Bool
 isConnected connection =
     case connection of
-        Connected p ->
+        Connected _ ->
+            True
+
+        _ ->
+            False
+
+
+isDisconnected : ProviderConnection providerType -> Bool
+isDisconnected connection =
+    case connection of
+        Disconnected _ ->
+            True
+
+        _ ->
+            False
+
+
+isConnecting : ProviderConnection providerType -> Bool
+isConnecting connection =
+    case connection of
+        Connecting _ ->
+            True
+
+        _ ->
+            False
+
+
+isInactive : ProviderConnection providerType -> Bool
+isInactive connection =
+    case connection of
+        Inactive _ ->
             True
 
         _ ->
@@ -274,6 +310,22 @@ select connection =
             NoProviderSelected
 
 
+disconnectSelection : WithProviderSelection providerType data -> WithProviderSelection providerType data
+disconnectSelection selection =
+    case selection of
+        SelectedConnected (ConnectedProvider p) _ ->
+            SelectedDisconnected (DisconnectedProvider p)
+
+        SelectedConnected (ConnectedProviderWithToken p _) _ ->
+            SelectedDisconnected (DisconnectedProvider p)
+
+        SelectedConnecting (ConnectingProvider p) ->
+            SelectedDisconnected (DisconnectedProvider p)
+
+        _ ->
+            selection
+
+
 isSelected : WithProviderSelection providerType data -> Bool
 isSelected selection =
     case selection of
@@ -301,6 +353,25 @@ getConnectedProvider selection =
             Just provider
 
         _ ->
+            Nothing
+
+
+selectionProvider : WithProviderSelection providerType data -> Maybe providerType
+selectionProvider selection =
+    case selection of
+        SelectedConnected (ConnectedProvider pType) _ ->
+            Just pType
+
+        SelectedConnected (ConnectedProviderWithToken pType _) _ ->
+            Just pType
+
+        SelectedConnecting (ConnectingProvider pType) ->
+            Just pType
+
+        SelectedDisconnected (DisconnectedProvider pType) ->
+            Just pType
+
+        NoProviderSelected ->
             Nothing
 
 
