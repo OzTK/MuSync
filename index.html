@@ -50,6 +50,10 @@
       connectDeezer(elmApp.ports.updateDeezerStatus.send)
     });
 
+    elmApp.ports.disconnectDeezer.subscribe(function () {
+      disconnectDeezer();
+    })
+
     elmApp.ports.loadDeezerPlaylistSongs.subscribe(function (pid) {
       if (!isDzConnected) {
         return;

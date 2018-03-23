@@ -24,12 +24,14 @@ function loadDeezer() {
 
 function getDeezerStatus(cb) {
   DZ.getLoginStatus(function(response) {
-    isDzConnected = response.authResponse != undefined && !response.fromCookie;
-    DZ.logout(() => {
-      document.cookie = "currentAuthResponse=;";
-    });
+    isDzConnected = response.authResponse != undefined;
     cb(isDzConnected);
   });
+}
+
+function disconnectDeezer() {
+  DZ.logout();
+  document.cookie = "currentAuthResponse=;";
 }
 
 function connectDeezer(cb) {

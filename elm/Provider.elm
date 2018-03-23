@@ -11,6 +11,7 @@ module Provider
         , inactive
         , provider
         , connectionToMaybe
+        , isConnected
         , providerError
         , providerHttpError
         , decodingError
@@ -21,6 +22,9 @@ module Provider
         , getConnectedProvider
         , flatMapData
         , flatMap
+        , flatMapOn
+        , filterByType
+        , filter
         )
 
 import RemoteData exposing (RemoteData(NotAsked, Success))
@@ -50,6 +54,10 @@ providerHttpError err =
 decodingError : String -> ProviderError
 decodingError err =
     DecodingError err
+
+
+
+-- Provider connection
 
 
 type ConnectedProvider providerType
@@ -130,6 +138,20 @@ connectionToMaybe connection =
             Nothing
 
 
+isConnected : ProviderConnection providerType -> Bool
+isConnected connection =
+    case connection of
+        Connected p ->
+            True
+
+        _ ->
+            False
+
+
+
+-- List Helpers
+
+
 flatMap :
     (ProviderConnection providerType -> providerType -> ProviderConnection providerType)
     -> List (ProviderConnection providerType)
@@ -157,6 +179,71 @@ flatMap f =
                     Connected (ConnectedProviderWithToken pType _) ->
                         fcon pType
         )
+
+
+flatMapOn :
+    providerType
+    -> (ProviderConnection providerType -> ProviderConnection providerType)
+    -> List (ProviderConnection providerType)
+    -> List (ProviderConnection providerType)
+flatMapOn pType f =
+    List.map
+        (\con ->
+            case con of
+                Inactive (InactiveProvider pt) ->
+                    if pt == pType then
+                        f con
+                    else
+                        con
+
+                Disconnected (DisconnectedProvider pt) ->
+                    if pt == pType then
+                        f con
+                    else
+                        con
+
+                Connecting (ConnectingProvider pt) ->
+                    if pt == pType then
+                        f con
+                    else
+                        con
+
+                Connected (ConnectedProvider pt) ->
+                    if pt == pType then
+                        f con
+                    else
+                        con
+
+                Connected (ConnectedProviderWithToken pt _) ->
+                    if pt == pType then
+                        f con
+                    else
+                        con
+        )
+
+
+filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
+filterByType pType =
+    List.filter (\con -> provider con == pType)
+
+
+filter :
+    Maybe providerType
+    -> (ProviderConnection providerType -> Bool)
+    -> List (ProviderConnection providerType)
+    -> List (ProviderConnection providerType)
+filter pType f =
+    List.filter
+        (\con ->
+            pType
+                |> Maybe.map ((==) (provider con))
+                |> Maybe.withDefault True
+                |> (&&) (f con)
+        )
+
+
+
+-- WithProviderSelection
 
 
 type WithProviderSelection providerType data
