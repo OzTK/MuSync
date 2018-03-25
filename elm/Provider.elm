@@ -7,6 +7,7 @@ module Provider
         , DisconnectedProvider(..)
         , connected
         , connectedWithToken
+        , connectedType
         , disconnected
         , connecting
         , inactive
@@ -21,14 +22,16 @@ module Provider
         , decodingError
         , noSelection
         , select
-        , disconnectSelection
         , isSelected
         , setData
-        , getConnectedProvider
         , selectionProvider
-        , flatMapData
+        , mapSelection
+        , connectedProviders
+        , connectedProvider
         , flatMap
-        , flatMapOn
+        , map
+        , mapOn
+        , find
         , filterByType
         , filter
         )
@@ -74,6 +77,16 @@ type ConnectedProvider providerType
 connected : providerType -> ProviderConnection providerType
 connected pType =
     Connected (ConnectedProvider pType)
+
+
+connectedType : ConnectedProvider providerType -> providerType
+connectedType connection =
+    case connection of
+        ConnectedProvider pType ->
+            pType
+
+        ConnectedProviderWithToken pType _ ->
+            pType
 
 
 connectedWithToken : providerType -> OAuthToken -> ProviderConnection providerType
@@ -188,11 +201,46 @@ isInactive connection =
 -- List Helpers
 
 
-flatMap :
+connectedProviders : List (ProviderConnection providerType) -> List (ProviderConnection providerType)
+connectedProviders =
+    List.filterMap
+        (\con ->
+            case con of
+                Connected provider ->
+                    Just con
+
+                _ ->
+                    Nothing
+        )
+
+
+flatMap : (a -> b) -> List (ProviderConnection a) -> List b
+flatMap f =
+    List.map
+        (\con ->
+            case con of
+                Inactive (InactiveProvider pType) ->
+                    f pType
+
+                Disconnected (DisconnectedProvider pType) ->
+                    f pType
+
+                Connecting (ConnectingProvider pType) ->
+                    f pType
+
+                Connected (ConnectedProvider pType) ->
+                    f pType
+
+                Connected (ConnectedProviderWithToken pType _) ->
+                    f pType
+        )
+
+
+map :
     (ProviderConnection providerType -> providerType -> ProviderConnection providerType)
     -> List (ProviderConnection providerType)
     -> List (ProviderConnection providerType)
-flatMap f =
+map f =
     List.map
         (\con ->
             let
@@ -217,12 +265,12 @@ flatMap f =
         )
 
 
-flatMapOn :
+mapOn :
     providerType
     -> (ProviderConnection providerType -> ProviderConnection providerType)
     -> List (ProviderConnection providerType)
     -> List (ProviderConnection providerType)
-flatMapOn pType f =
+mapOn pType f =
     List.map
         (\con ->
             case con of
@@ -258,6 +306,11 @@ flatMapOn pType f =
         )
 
 
+find : providerType -> List (ProviderConnection providerType) -> Maybe (ProviderConnection providerType)
+find pType connections =
+    connections |> filterByType pType |> List.head
+
+
 filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
 filterByType pType =
     List.filter (\con -> provider con == pType)
@@ -284,9 +337,7 @@ filter pType f =
 
 type WithProviderSelection providerType data
     = NoProviderSelected
-    | SelectedDisconnected (DisconnectedProvider providerType)
-    | SelectedConnecting (ConnectingProvider providerType)
-    | SelectedConnected (ConnectedProvider providerType) (RemoteData ProviderError data)
+    | Selected (ProviderConnection providerType) (RemoteData ProviderError data)
 
 
 noSelection : WithProviderSelection providerType data
@@ -297,33 +348,11 @@ noSelection =
 select : ProviderConnection providerType -> WithProviderSelection providerType data
 select connection =
     case connection of
-        Connecting provider ->
-            SelectedConnecting provider
-
-        Disconnected provider ->
-            SelectedDisconnected provider
-
         Connected provider ->
-            SelectedConnected provider NotAsked
-
-        Inactive _ ->
-            NoProviderSelected
-
-
-disconnectSelection : WithProviderSelection providerType data -> WithProviderSelection providerType data
-disconnectSelection selection =
-    case selection of
-        SelectedConnected (ConnectedProvider p) _ ->
-            SelectedDisconnected (DisconnectedProvider p)
-
-        SelectedConnected (ConnectedProviderWithToken p _) _ ->
-            SelectedDisconnected (DisconnectedProvider p)
-
-        SelectedConnecting (ConnectingProvider p) ->
-            SelectedDisconnected (DisconnectedProvider p)
+            Selected connection NotAsked
 
         _ ->
-            selection
+            NoProviderSelected
 
 
 isSelected : WithProviderSelection providerType data -> Bool
@@ -339,47 +368,41 @@ isSelected selection =
 setData : WithProviderSelection providerType data -> RemoteData ProviderError data -> WithProviderSelection providerType data
 setData selection data =
     case selection of
-        SelectedConnected provider _ ->
-            SelectedConnected provider data
+        Selected con _ ->
+            Selected con data
 
         _ ->
             selection
 
 
-getConnectedProvider : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
-getConnectedProvider selection =
+selectionProvider : WithProviderSelection providerType data -> Maybe providerType
+selectionProvider selection =
     case selection of
-        SelectedConnected provider _ ->
+        Selected (Connected (ConnectedProvider pType)) _ ->
+            Just pType
+
+        Selected (Connected (ConnectedProviderWithToken pType _)) _ ->
+            Just pType
+
+        _ ->
+            Nothing
+
+
+connectedProvider : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
+connectedProvider selection =
+    case selection of
+        Selected (Connected provider) _ ->
             Just provider
 
         _ ->
             Nothing
 
 
-selectionProvider : WithProviderSelection providerType data -> Maybe providerType
-selectionProvider selection =
+mapSelection : (a -> a) -> WithProviderSelection providerType a -> WithProviderSelection providerType a
+mapSelection f selection =
     case selection of
-        SelectedConnected (ConnectedProvider pType) _ ->
-            Just pType
-
-        SelectedConnected (ConnectedProviderWithToken pType _) _ ->
-            Just pType
-
-        SelectedConnecting (ConnectingProvider pType) ->
-            Just pType
-
-        SelectedDisconnected (DisconnectedProvider pType) ->
-            Just pType
-
-        NoProviderSelected ->
-            Nothing
-
-
-flatMapData : (a -> a) -> WithProviderSelection providerType a -> WithProviderSelection providerType a
-flatMapData f selection =
-    case selection of
-        SelectedConnected p (Success d) ->
-            SelectedConnected p (Success (f d))
+        Selected con (Success d) ->
+            Selected con (Success (f d))
 
         _ ->
             selection

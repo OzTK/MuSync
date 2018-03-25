@@ -1,8 +1,10 @@
 port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
-import Html exposing (Html, text, div, button, span, ul, li, p)
-import Html.Attributes exposing (disabled, style)
+import List.Extra as List
+import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label)
+import Html.Attributes exposing (disabled, style, for, name, value)
 import Html.Events exposing (onClick)
+import Html.Events.Extra exposing (onChangeTo)
 import Json.Decode as JD
 import RemoteData exposing (RemoteData(..), WebData)
 import Model
@@ -91,6 +93,7 @@ type Msg
     | RequestDeezerSongs Int
     | PlaylistSelected Playlist
     | BackToPlaylists
+    | PlaylistsProviderChanged (ProviderConnection MusicProviderType)
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
     | SearchInSpotify Track
     | SpotifySearchResult Track (WebData (List Track))
@@ -107,14 +110,7 @@ update msg model =
                     else
                         Provider.disconnected Deezer
             in
-                { model
-                    | availableProviders = Provider.flatMapOn Deezer (\_ -> connection) model.availableProviders
-                    , playlists =
-                        if canSelect Deezer model.playlists && isConnected then
-                            Provider.select connection
-                        else
-                            model.playlists
-                }
+                { model | availableProviders = Provider.mapOn Deezer (\_ -> connection) model.availableProviders }
                     ! if isConnected && canSelect Deezer model.playlists then
                         [ loadDeezerPlaylists () ]
                       else
@@ -130,7 +126,7 @@ update msg model =
             in
                 { model
                     | availableProviders =
-                        Provider.flatMapOn pType
+                        Provider.mapOn pType
                             (\con ->
                                 if not (Provider.isConnected con) then
                                     Provider.connecting pType
@@ -140,7 +136,7 @@ update msg model =
                             model.availableProviders
                     , playlists =
                         if wasConnected then
-                            Provider.disconnectSelection model.playlists
+                            Provider.noSelection
                         else
                             model.playlists
                 }
@@ -175,10 +171,10 @@ update msg model =
             model ! [ loadDeezerPlaylistSongs id ]
 
         PlaylistSelected p ->
-            { model | playlists = Provider.flatMapData (SelectableList.select p) model.playlists } ! []
+            { model | playlists = Provider.mapSelection (SelectableList.select p) model.playlists } ! []
 
         BackToPlaylists ->
-            { model | playlists = model.playlists |> Provider.flatMapData SelectableList.clear } ! []
+            { model | playlists = model.playlists |> Provider.mapSelection SelectableList.clear } ! []
 
         SpotifyConnectionStatusUpdate ( Nothing, token ) ->
             let
@@ -187,7 +183,7 @@ update msg model =
             in
                 { model
                     | availableProviders =
-                        Provider.flatMap
+                        Provider.map
                             (\con pType ->
                                 if pType == Spotify then
                                     connection
@@ -195,21 +191,13 @@ update msg model =
                                     con
                             )
                             model.availableProviders
-                    , playlists =
-                        if canSelect Spotify model.playlists then
-                            Provider.select connection
-                        else
-                            model.playlists
                 }
-                    ! if canSelect Spotify model.playlists then
-                        [ Spotify.getPlaylists token ReceivePlaylists ]
-                      else
-                        []
+                    ! []
 
         SpotifyConnectionStatusUpdate ( Just _, _ ) ->
             { model
                 | availableProviders =
-                    Provider.flatMap
+                    Provider.map
                         (\con pType ->
                             if pType == Spotify then
                                 Provider.disconnected pType
@@ -235,6 +223,9 @@ update msg model =
             in
                 { model | playlists = Provider.setData model.playlists data } ! []
 
+        PlaylistsProviderChanged p ->
+            { model | playlists = Provider.select p } ! [ loadPlaylists p ]
+
 
 canSelect : providerType -> WithProviderSelection providerType data -> Bool
 canSelect pType selection =
@@ -244,10 +235,23 @@ canSelect pType selection =
         |> Maybe.withDefault True
 
 
+loadPlaylists : ProviderConnection MusicProviderType -> Cmd Msg
+loadPlaylists connection =
+    case connection of
+        Connected (ConnectedProvider Deezer) ->
+            loadDeezerPlaylists ()
+
+        Connected (ConnectedProviderWithToken Spotify token) ->
+            Spotify.getPlaylists token ReceivePlaylists
+
+        _ ->
+            Cmd.none
+
+
 searchMatchingSong : Track -> { m | comparedProvider : WithProviderSelection MusicProviderType data } -> Cmd Msg
 searchMatchingSong track { comparedProvider } =
     comparedProvider
-        |> Provider.getConnectedProvider
+        |> Provider.connectedProvider
         |> Maybe.map (searchSongFromProvider track)
         |> Maybe.withDefault Cmd.none
 
@@ -288,9 +292,67 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
 view : Model -> Html Msg
 view model =
     div []
-        (List.map (connectButton ToggleConnect) model.availableProviders
-            ++ [ playlists model ]
-        )
+        [ div [ style [ ( "position", "fixed" ), ( "right", "0" ) ] ] (buttons model)
+        , providerSelector PlaylistsProviderChanged model
+        , playlists model
+        ]
+
+
+providerSelector :
+    (ProviderConnection MusicProviderType -> Msg)
+    -> { m | availableProviders : List (ProviderConnection MusicProviderType) }
+    -> Html Msg
+providerSelector tagger { availableProviders } =
+    let
+        connected =
+            Provider.connectedProviders availableProviders
+    in
+        div []
+            [ label [ for "provider-selector" ] [ text "Select a main provider:" ]
+            , select [ name "provider-selector", style [ ( "width", "300" ) ], onChangeTo tagger (connectedProviderDecoder connected) ]
+                (connected
+                    |> List.map (Provider.provider >> providerName >> providerOption)
+                    |> List.withDefault [ providerOption "-- Connect at least one provider --" ]
+                )
+            ]
+
+
+providerOption : String -> Html Msg
+providerOption provider =
+    option [ value provider ] [ text provider ]
+
+
+buttons : { m | availableProviders : List (ProviderConnection MusicProviderType) } -> List (Html Msg)
+buttons { availableProviders } =
+    List.map (connectButton ToggleConnect) availableProviders
+
+
+connectButton : (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Html Msg
+connectButton tagger connection =
+    let
+        connected =
+            Provider.isConnected connection
+
+        connecting =
+            Provider.isConnecting connection
+
+        disco =
+            Provider.isDisconnected connection
+    in
+        div [ style [ ( "margin", "8px" ) ] ]
+            [ button
+                [ style [ ( "width", "100%" ) ], onClick <| tagger (Provider.provider connection), disabled connecting ]
+                [ text <|
+                    (if connected then
+                        "Disconnect "
+                     else if connecting then
+                        "Connecting "
+                     else
+                        "Connect "
+                    )
+                        ++ (connection |> Provider.provider |> providerName)
+                ]
+            ]
 
 
 playlists :
@@ -301,10 +363,7 @@ playlists :
     -> Html Msg
 playlists { playlists, comparedProvider } =
     case ( playlists, comparedProvider ) of
-        ( Provider.SelectedConnecting _, _ ) ->
-            div [] [ text "Loading playlists..." ]
-
-        ( Provider.SelectedConnected _ (Success p), _ ) ->
+        ( Provider.Selected _ (Success p), _ ) ->
             p
                 |> SelectableList.selected
                 |> Maybe.map .songs
@@ -315,14 +374,17 @@ playlists { playlists, comparedProvider } =
                         [ ul [] <| SelectableList.toList <| SelectableList.map (playlist PlaylistSelected) p ]
                     )
 
-        ( Provider.SelectedConnected _ (Failure err), _ ) ->
-            err |> toString |> text
+        ( Provider.Selected _ NotAsked, _ ) ->
+            text "Loading your playlists..."
 
-        ( Provider.SelectedDisconnected (Provider.DisconnectedProvider pType), _ ) ->
-            p [] [ text <| "Please connect " ++ providerName pType ++ " to load your playlists" ]
+        ( Provider.Selected _ Loading, _ ) ->
+            text "Loading your playlists..."
 
-        _ ->
-            text ""
+        ( Provider.Selected _ (Failure err), _ ) ->
+            text ("An error occured loading your playlists: " ++ toString err)
+
+        ( Provider.NoProviderSelected, _ ) ->
+            text "Select a provider to load your playlists"
 
 
 songs : List Track -> Html Msg
@@ -394,30 +456,34 @@ providerName pType =
             "Play"
 
 
-connectButton : (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Html Msg
-connectButton tagger connection =
+connectedProviderDecoder : List (ProviderConnection MusicProviderType) -> JD.Decoder (ProviderConnection MusicProviderType)
+connectedProviderDecoder providers =
     let
-        connected =
-            Provider.isConnected connection
-
-        connecting =
-            Provider.isConnecting connection
-
-        disco =
-            Provider.isDisconnected connection
+        found pType =
+            providers
+                |> Provider.find pType
+                |> Maybe.map JD.succeed
+                |> Maybe.withDefault (JD.fail "The provider requested was not present in the list")
     in
-        button
-            [ onClick <| tagger (Provider.provider connection), disabled connecting ]
-            [ text <|
-                (if connected then
-                    "Disconnect "
-                 else if connecting then
-                    "Connecting "
-                 else
-                    "Connect "
+        JD.string
+            |> JD.andThen
+                (\name ->
+                    case name of
+                        "Spotify" ->
+                            found Spotify
+
+                        "Deezer" ->
+                            found Deezer
+
+                        "Amazon Prime" ->
+                            found Amazon
+
+                        "Play" ->
+                            found Google
+
+                        _ ->
+                            JD.fail "Expected a valid MusicProviderType name to decode"
                 )
-                    ++ (connection |> Provider.provider |> providerName)
-            ]
 
 
 
