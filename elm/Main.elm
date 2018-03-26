@@ -110,37 +110,53 @@ update msg model =
                     else
                         Provider.disconnected Deezer
             in
-                { model | availableProviders = Provider.mapOn Deezer (\_ -> connection) model.availableProviders }
-                    ! if isConnected && canSelect Deezer model.playlists then
-                        [ loadDeezerPlaylists () ]
-                      else
-                        []
+                { model
+                    | availableProviders = Provider.mapOn Deezer (\_ -> connection) model.availableProviders
+                    , playlists = Provider.select connection
+                }
+                    ! [ loadPlaylists connection ]
 
         ToggleConnect pType ->
             let
+                connection =
+                    model.availableProviders |> Provider.find pType
+
                 wasConnected =
-                    model.availableProviders
-                        |> Provider.filter (Just pType) Provider.isConnected
-                        |> List.isEmpty
-                        |> not
+                    connection |> Maybe.map Provider.isConnected |> Maybe.withDefault False
+
+                availableProviders_ =
+                    Provider.mapOn pType
+                        (\con ->
+                            if not (Provider.isConnected con) then
+                                Provider.connecting pType
+                            else
+                                Provider.disconnected pType
+                        )
+                        model.availableProviders
+
+                nextProvider =
+                    availableProviders_ |> Provider.connectedProviders |> List.head
             in
                 { model
-                    | availableProviders =
-                        Provider.mapOn pType
-                            (\con ->
-                                if not (Provider.isConnected con) then
-                                    Provider.connecting pType
-                                else
-                                    Provider.disconnected pType
-                            )
-                            model.availableProviders
+                    | availableProviders = availableProviders_
                     , playlists =
                         if wasConnected then
-                            Provider.noSelection
+                            nextProvider
+                                |> Maybe.map Provider.select
+                                |> Maybe.withDefault Provider.noSelection
                         else
                             model.playlists
                 }
-                    ! [ providerToggleConnectionCmd wasConnected pType ]
+                    ! [ if wasConnected then
+                            nextProvider
+                                |> Maybe.map loadPlaylists
+                                |> Maybe.withDefault Cmd.none
+                        else
+                            connection
+                                |> Maybe.map Provider.provider
+                                |> Maybe.map (providerToggleConnectionCmd False)
+                                |> Maybe.withDefault Cmd.none
+                      ]
 
         ReceiveDeezerPlaylists (Just pJson) ->
             { model
@@ -191,8 +207,9 @@ update msg model =
                                     con
                             )
                             model.availableProviders
+                    , playlists = Provider.select connection
                 }
-                    ! []
+                    ! [ loadPlaylists connection ]
 
         SpotifyConnectionStatusUpdate ( Just _, _ ) ->
             { model
