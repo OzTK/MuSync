@@ -1,5 +1,6 @@
 var config = {
   offline: false,
+  local: true,
   allowedIps: ["localhost", "86.6.108.70"],
   scheme: "http",
   domain: "192.168.0.12:8000",

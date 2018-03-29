@@ -1,5 +1,6 @@
 var config = {
   offline: true,
+  local: false,
   allowedIps: ["86.6.108.70"],
   scheme: "https",
   domain: "playlist-importer.surge.sh",

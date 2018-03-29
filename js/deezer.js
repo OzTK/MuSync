@@ -16,7 +16,9 @@ function loadDeezer() {
 
   (function() {
     var e = document.createElement("script");
-    e.src = "https://e-cdns-files.dzcdn.net/js/min/dz.js";
+    e.src = config.local
+      ? "/js/deezer.mock.js"
+      : "https://e-cdns-files.dzcdn.net/js/min/dz.js";
     e.async = true;
     document.getElementById("dz-root").appendChild(e);
   })();
