@@ -1,7 +1,7 @@
 port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import List.Extra as List
-import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label)
+import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3)
 import Html.Attributes exposing (disabled, style, for, name, value)
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChangeTo)
@@ -384,11 +384,13 @@ playlists { playlists, comparedProvider } =
             p
                 |> SelectableList.selected
                 |> Maybe.map .songs
-                |> Maybe.andThen RemoteData.toMaybe
                 |> Maybe.map songs
                 |> Maybe.withDefault
                     (div []
-                        [ ul [] <| SelectableList.toList <| SelectableList.map (playlist PlaylistSelected) p ]
+                        [ ul [] <|
+                            SelectableList.toList <|
+                                SelectableList.map (playlist PlaylistSelected) p
+                        ]
                     )
 
         ( Provider.Selected _ NotAsked, _ ) ->
@@ -404,56 +406,27 @@ playlists { playlists, comparedProvider } =
             text "Select a provider to load your playlists"
 
 
-songs : List Track -> Html Msg
+songs : WebData (List Track) -> Html Msg
 songs songs =
     div []
         [ button [ onClick BackToPlaylists ] [ text "<< back" ]
-        , ul [] <| List.map (song Nothing) songs
+        , ul []
+            (songs
+                |> RemoteData.map (List.map song)
+                |> RemoteData.withDefault [ h3 [] [ text "Tracks are not ready yet" ] ]
+            )
         ]
 
 
-song : Maybe (WebData (List Track)) -> Track -> Html Msg
-song results s =
-    case results of
-        Just NotAsked ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist
-                , button [ onClick <| SearchInSpotify s ] [ text "find!" ]
-                ]
-
-        Just (Failure err) ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist
-                , button [ onClick <| SearchInSpotify s ] [ text "find again" ]
-                , span [ style [ ( "color", "red" ) ] ] [ text <| toString err ]
-                ]
-
-        Just (Success []) ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist
-                , span [ style [ ( "color", "red" ) ] ] [ text "No track found" ]
-                ]
-
-        Just (Success (_ :: _)) ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist
-                , span [ style [ ( "color", "green" ) ] ] [ text "found!" ]
-                ]
-
-        Just Loading ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist
-                , button [ disabled True ] [ text "searching..." ]
-                ]
-
-        Nothing ->
-            li []
-                [ text <| s.title ++ " - " ++ s.artist ]
+song : Track -> Html Msg
+song track =
+    li []
+        [ text <| track.title ++ " - " ++ track.artist ]
 
 
 playlist : (Playlist -> Msg) -> Playlist -> Html Msg
 playlist tagger p =
-    li [ onClick <| tagger p ]
+    li [ onClick (tagger p) ]
         [ text <| p.name ++ " (" ++ toString p.tracksCount ++ ")" ]
 
 
