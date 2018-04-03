@@ -1,0 +1,22 @@
+module Spotify exposing (searchTrack, getPlaylists)
+
+import Task
+import RemoteData exposing (WebData, RemoteData(NotAsked))
+import Model exposing (Track, Playlist)
+
+
+searchTrack : String -> (Track -> WebData (List Track) -> msg) -> Track -> Cmd msg
+searchTrack token tagger ({ artist, title } as track) =
+    [ Track title artist ] |> Task.succeed |> RemoteData.asCmd |> Cmd.map (tagger track)
+
+
+getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
+getPlaylists _ tagger =
+    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked }
+    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked }
+    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked }
+    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked }
+    ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
