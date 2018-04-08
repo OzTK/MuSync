@@ -124,6 +124,12 @@ update msg model =
                 wasConnected =
                     connection |> Maybe.map Provider.isConnected |> Maybe.withDefault False
 
+                toggleCmd =
+                    connection
+                        |> Maybe.map Provider.provider
+                        |> Maybe.map (providerToggleConnectionCmd wasConnected)
+                        |> Maybe.withDefault Cmd.none
+
                 availableProviders_ =
                     Provider.mapOn pType
                         (\con ->
@@ -151,11 +157,11 @@ update msg model =
                             nextProvider
                                 |> Maybe.map loadPlaylists
                                 |> Maybe.withDefault Cmd.none
+                                |> List.singleton
+                                |> (::) toggleCmd
+                                |> Cmd.batch
                         else
-                            connection
-                                |> Maybe.map Provider.provider
-                                |> Maybe.map (providerToggleConnectionCmd False)
-                                |> Maybe.withDefault Cmd.none
+                            toggleCmd
                       ]
 
         ReceiveDeezerPlaylists (Just pJson) ->
