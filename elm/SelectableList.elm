@@ -1,8 +1,8 @@
-module SelectableList exposing (SelectableList, fromList, toList, select, clear, selected, map)
+module SelectableList exposing (SelectableList, fromList, toList, select, upSelect, clear, selected, map, mapSelected)
 
 
 type SelectableList a
-    = Selected (List a) a
+    = Selected a (List a)
     | NotSelected (List a)
 
 
@@ -14,7 +14,7 @@ fromList list =
 toList : SelectableList a -> List a
 toList sList =
     case sList of
-        Selected list _ ->
+        Selected _ list ->
             list
 
         NotSelected list ->
@@ -28,9 +28,29 @@ select el sList =
             toList sList
     in
         if List.member el list then
-            Selected list el
+            Selected el list
         else
             NotSelected list
+
+
+upSelect : (a -> a) -> a -> SelectableList a -> SelectableList a
+upSelect updater element sList =
+    let
+        list =
+            toList sList
+
+        updated =
+            updater element
+    in
+        list
+            |> List.map
+                (\el ->
+                    if el /= element then
+                        el
+                    else
+                        updated
+                )
+            |> Selected updated
 
 
 clear : SelectableList a -> SelectableList a
@@ -41,7 +61,7 @@ clear sList =
 selected : SelectableList a -> Maybe a
 selected sList =
     case sList of
-        Selected _ el ->
+        Selected el _ ->
             Just el
 
         NotSelected _ ->
@@ -51,8 +71,18 @@ selected sList =
 map : (a -> b) -> SelectableList a -> SelectableList b
 map f sList =
     case sList of
-        Selected list el ->
-            Selected (List.map f list) (f el)
+        Selected el list ->
+            Selected (f el) (List.map f list)
 
         NotSelected list ->
             NotSelected <| List.map f list
+
+
+mapSelected : (a -> a) -> SelectableList a -> SelectableList a
+mapSelected f sList =
+    case sList of
+        Selected el list ->
+            upSelect f el sList
+
+        _ ->
+            sList

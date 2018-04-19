@@ -57,6 +57,7 @@ function loadDeezerPlaylistSongs(pid, cb) {
     cb(
       response.tracks && response.tracks.data
         ? response.tracks.data.map(s => ({
+            id: s.id.toString(),
             title: s.title,
             artist: s.artist.name
           }))

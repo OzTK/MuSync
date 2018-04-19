@@ -1,13 +1,13 @@
-module Spotify exposing (searchTrack, getPlaylists)
+module Spotify exposing (searchTrack, getPlaylists, getTracks)
 
 import Task
 import RemoteData exposing (WebData, RemoteData(NotAsked))
-import Model exposing (Track, Playlist)
+import Model exposing (Track, Playlist, MusicProviderType(Spotify))
 
 
 searchTrack : String -> (Track -> WebData (List Track) -> msg) -> Track -> Cmd msg
-searchTrack token tagger ({ artist, title } as track) =
-    [ Track title artist ] |> Task.succeed |> RemoteData.asCmd |> Cmd.map (tagger track)
+searchTrack token tagger ({ id, artist, title } as track) =
+    [ Track id title artist Spotify Model.emptyMatchingTracks ] |> Task.succeed |> RemoteData.asCmd |> Cmd.map (tagger track)
 
 
 getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
@@ -16,6 +16,22 @@ getPlaylists _ tagger =
     , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked }
     , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked }
     , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked }
+    ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+getTracks : String -> (WebData (List Track) -> msg) -> Playlist -> Cmd msg
+getTracks _ tagger playlist =
+    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "2", artist = "Serge Gainsbourg", title = "Petit", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "3", artist = "The Beatles", title = "Yellow Submarine", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "4", artist = "Iron Maiden", title = "666", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "5", artist = "Mickael Jackson", title = "Beat it", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "6", artist = "RHCP", title = "Californication", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "7", artist = "The Clash", title = "London Calling", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
+    , { id = "8", artist = "The Tiger Lillies", title = "Terrible", provider = Spotify, matchingTracks = Model.emptyMatchingTracks }
     ]
         |> Task.succeed
         |> RemoteData.asCmd

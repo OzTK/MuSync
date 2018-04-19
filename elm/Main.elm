@@ -11,7 +11,7 @@ import Model
     exposing
         ( Track
         , Playlist
-        , MusicProvider(..)
+        , PlaylistId
         , MusicProviderType(..)
         )
 import SelectableList exposing (SelectableList)
@@ -44,10 +44,10 @@ port loadDeezerPlaylists : () -> Cmd msg
 port receiveDeezerPlaylists : (Maybe JD.Value -> msg) -> Sub msg
 
 
-port loadDeezerPlaylistSongs : Int -> Cmd msg
+port loadDeezerPlaylistSongs : PlaylistId -> Cmd msg
 
 
-port receiveDeezerPlaylistSongs : (Maybe (List Track) -> msg) -> Sub msg
+port receiveDeezerPlaylistSongs : (Maybe JD.Value -> msg) -> Sub msg
 
 
 port connectSpotify : () -> Cmd msg
@@ -89,14 +89,14 @@ type Msg
     | DeezerStatusUpdate Bool
     | ReceiveDeezerPlaylists (Maybe JD.Value)
     | ReceivePlaylists (WebData (List Playlist))
-    | ReceiveDeezerSongs (Maybe (List Track))
+    | ReceiveDeezerSongs (Maybe JD.Value)
     | RequestDeezerSongs Int
     | PlaylistSelected Playlist
     | BackToPlaylists
     | PlaylistsProviderChanged (ProviderConnection MusicProviderType)
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
-    | SearchInSpotify Track
-    | SpotifySearchResult Track (WebData (List Track))
+    | SearchMatchingSong Track
+    | MatchingSongResult Track (WebData (List Track))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -131,38 +131,29 @@ update msg model =
                         |> Maybe.withDefault Cmd.none
 
                 availableProviders_ =
-                    Provider.mapOn pType
-                        (\con ->
-                            if not (Provider.isConnected con) then
-                                Provider.connecting pType
-                            else
-                                Provider.disconnected pType
-                        )
-                        model.availableProviders
+                    Provider.toggle pType model.availableProviders
 
                 nextProvider =
                     availableProviders_ |> Provider.connectedProviders |> List.head
+
+                model_ =
+                    { model | availableProviders = availableProviders_ }
             in
-                { model
-                    | availableProviders = availableProviders_
-                    , playlists =
-                        if wasConnected then
+                if wasConnected then
+                    { model_
+                        | playlists =
                             nextProvider
                                 |> Maybe.map Provider.select
                                 |> Maybe.withDefault Provider.noSelection
-                        else
-                            model.playlists
-                }
-                    ! [ if wasConnected then
-                            nextProvider
-                                |> Maybe.map loadPlaylists
-                                |> Maybe.withDefault Cmd.none
-                                |> List.singleton
-                                |> (::) toggleCmd
-                                |> Cmd.batch
-                        else
-                            toggleCmd
-                      ]
+                    }
+                        ! (nextProvider
+                            |> Maybe.map loadPlaylists
+                            |> Maybe.withDefault Cmd.none
+                            |> List.singleton
+                            |> (::) toggleCmd
+                          )
+                else
+                    model_ ! [ toggleCmd ]
 
         ReceiveDeezerPlaylists (Just pJson) ->
             { model
@@ -186,14 +177,46 @@ update msg model =
             }
                 ! []
 
-        ReceiveDeezerSongs _ ->
+        ReceiveDeezerSongs (Just songsValue) ->
+            let
+                songs =
+                    songsValue |> JD.decodeValue (JD.list Deezer.track) |> Result.withDefault []
+            in
+                { model
+                    | playlists =
+                        Provider.mapSelection
+                            (SelectableList.mapSelected (Model.setSongs songs))
+                            model.playlists
+                }
+                    ! []
+
+        ReceiveDeezerSongs Nothing ->
             model ! []
 
         RequestDeezerSongs id ->
-            model ! [ loadDeezerPlaylistSongs id ]
+            model ! [ loadDeezerPlaylistSongs (toString id) ]
 
         PlaylistSelected p ->
-            { model | playlists = Provider.mapSelection (SelectableList.select p) model.playlists } ! []
+            let
+                playlists =
+                    Provider.mapSelection (SelectableList.upSelect Model.loadSongs p) model.playlists
+
+                loadSongs =
+                    playlists
+                        |> Provider.getData
+                        |> Maybe.andThen RemoteData.toMaybe
+                        |> Maybe.andThen SelectableList.selected
+                        |> Maybe.map .songs
+                        |> Maybe.map RemoteData.isLoading
+                        |> Maybe.withDefault False
+            in
+                { model
+                    | playlists = playlists
+                }
+                    ! if loadSongs then
+                        [ loadDeezerPlaylistSongs p.id ]
+                      else
+                        []
 
         BackToPlaylists ->
             { model | playlists = model.playlists |> Provider.mapSelection SelectableList.clear } ! []
@@ -220,22 +243,17 @@ update msg model =
         SpotifyConnectionStatusUpdate ( Just _, _ ) ->
             { model
                 | availableProviders =
-                    Provider.map
-                        (\con pType ->
-                            if pType == Spotify then
-                                Provider.disconnected pType
-                            else
-                                con
-                        )
+                    Provider.mapOn Spotify
+                        (\con -> con |> Provider.provider |> Provider.disconnected)
                         model.availableProviders
             }
                 ! []
 
-        SearchInSpotify track ->
+        SearchMatchingSong track ->
             model ! [ searchMatchingSong track model ]
 
-        SpotifySearchResult _ _ ->
-            model ! []
+        MatchingSongResult track results ->
+            { model | playlists = updateMatchingTracks track results model } ! []
 
         ReceivePlaylists playlistsData ->
             let
@@ -248,6 +266,43 @@ update msg model =
 
         PlaylistsProviderChanged p ->
             { model | playlists = Provider.select p } ! [ loadPlaylists p ]
+
+
+
+-- Very ugly, needs to go soon
+
+
+updateMatchingTracks :
+    Track
+    -> WebData (List Track)
+    -> { c | comparedProvider : WithProviderSelection MusicProviderType (), playlists : WithProviderSelection MusicProviderType (SelectableList Playlist) }
+    -> WithProviderSelection MusicProviderType (SelectableList Playlist)
+updateMatchingTracks track results { playlists, comparedProvider } =
+    playlists
+        |> (Provider.mapSelection
+                (SelectableList.mapSelected
+                    (\p ->
+                        Provider.selectionProvider comparedProvider
+                            |> Maybe.map
+                                (\pType ->
+                                    { p
+                                        | songs =
+                                            p.songs
+                                                |> RemoteData.map
+                                                    (List.map
+                                                        (\t ->
+                                                            if t.id == track.id then
+                                                                Model.updateMatchingTracks pType results t
+                                                            else
+                                                                t
+                                                        )
+                                                    )
+                                    }
+                                )
+                            |> Maybe.withDefault p
+                    )
+                )
+           )
 
 
 canSelect : providerType -> WithProviderSelection providerType data -> Bool
@@ -283,7 +338,7 @@ searchSongFromProvider : Track -> ConnectedProvider MusicProviderType -> Cmd Msg
 searchSongFromProvider track provider =
     case provider of
         ConnectedProviderWithToken Spotify token ->
-            Spotify.searchTrack token SpotifySearchResult track
+            Spotify.searchTrack token MatchingSongResult track
 
         _ ->
             Cmd.none

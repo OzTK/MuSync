@@ -34,6 +34,8 @@ module Provider
         , find
         , filterByType
         , filter
+        , toggle
+        , getData
         )
 
 import RemoteData exposing (RemoteData(NotAsked, Success))
@@ -331,6 +333,18 @@ filter pType f =
         )
 
 
+toggle : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
+toggle pType providers =
+    mapOn pType
+        (\con ->
+            if not (isConnected con) then
+                connecting pType
+            else
+                disconnected pType
+        )
+        providers
+
+
 
 -- WithProviderSelection
 
@@ -406,3 +420,13 @@ mapSelection f selection =
 
         _ ->
             selection
+
+
+getData : WithProviderSelection providerType data -> Maybe (RemoteData ProviderError data)
+getData selection =
+    case selection of
+        Selected _ data ->
+            Just data
+
+        _ ->
+            Nothing
