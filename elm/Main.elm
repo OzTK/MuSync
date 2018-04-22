@@ -13,6 +13,7 @@ import Model
         , Playlist
         , PlaylistId
         , MusicProviderType(..)
+        , MusicData
         )
 import SelectableList exposing (SelectableList)
 import Provider
@@ -91,6 +92,7 @@ type Msg
     | ReceivePlaylists (WebData (List Playlist))
     | ReceiveDeezerSongs (Maybe JD.Value)
     | RequestDeezerSongs Int
+    | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
     | PlaylistsProviderChanged (ProviderConnection MusicProviderType)
@@ -180,7 +182,10 @@ update msg model =
         ReceiveDeezerSongs (Just songsValue) ->
             let
                 songs =
-                    songsValue |> JD.decodeValue (JD.list Deezer.track) |> Result.withDefault []
+                    songsValue
+                        |> JD.decodeValue (JD.list Deezer.track)
+                        |> RemoteData.fromResult
+                        |> RemoteData.mapError Model.musicErrorFromDecoding
             in
                 { model
                     | playlists =
@@ -195,6 +200,19 @@ update msg model =
 
         RequestDeezerSongs id ->
             model ! [ loadDeezerPlaylistSongs (toString id) ]
+
+        ReceiveSpotifyPlaylistSongs playlist songs ->
+            let
+                convertedSongs =
+                    RemoteData.mapError Model.musicErrorFromHttp songs
+            in
+                { model
+                    | playlists =
+                        Provider.mapSelection
+                            (SelectableList.mapSelected <| Model.setSongs convertedSongs)
+                            model.playlists
+                }
+                    ! []
 
         PlaylistSelected p ->
             let
@@ -214,7 +232,7 @@ update msg model =
                     | playlists = playlists
                 }
                     ! if loadSongs then
-                        [ loadDeezerPlaylistSongs p.id ]
+                        [ playlists |> Provider.connectedProvider |> Maybe.map (\pType -> loadPlaylistSongs pType p) |> Maybe.withDefault Cmd.none ]
                       else
                         []
 
@@ -321,6 +339,21 @@ loadPlaylists connection =
 
         Connected (ConnectedProviderWithToken Spotify token) ->
             Spotify.getPlaylists token ReceivePlaylists
+
+        _ ->
+            Cmd.none
+
+
+loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
+loadPlaylistSongs connection ({ id, tracksLink } as playlist) =
+    case connection of
+        ConnectedProvider Deezer ->
+            loadDeezerPlaylistSongs id
+
+        ConnectedProviderWithToken Spotify token ->
+            tracksLink
+                |> Maybe.map (Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist))
+                |> Maybe.withDefault Cmd.none
 
         _ ->
             Cmd.none
@@ -467,7 +500,6 @@ playlists { playlists, comparedProvider } =
             text "Select a provider to load your playlists"
 
 
-songs : WebData (List Track) -> Html Msg
 songs songs =
     div []
         [ button [ onClick BackToPlaylists ] [ text "<< back" ]

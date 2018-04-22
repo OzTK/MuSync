@@ -13,6 +13,7 @@ playlist =
         |> required "title" string
         |> hardcoded NotAsked
         |> required "nb_tracks" int
+        |> hardcoded Nothing
 
 
 track : Decoder Track

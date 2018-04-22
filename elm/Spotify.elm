@@ -1,8 +1,8 @@
-module Spotify exposing (searchTrack, getPlaylists)
+module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink)
 
 import Http exposing (header, encodeUri)
 import RemoteData.Http as Http exposing (defaultConfig, Config)
-import Json.Decode exposing (Decoder, string, int, list, succeed, fail)
+import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
 import Json.Decode.Pipeline as Pip
 import RemoteData exposing (WebData, RemoteData(NotAsked))
 import Model exposing (Track, Playlist, MusicProviderType(Spotify))
@@ -44,6 +44,13 @@ track =
         |> Pip.hardcoded Model.emptyMatchingTracks
 
 
+trackEntry : Decoder Track
+trackEntry =
+    Pip.decode succeed
+        |> Pip.requiredAt [ "track" ] track
+        |> Pip.resolve
+
+
 playlist : Decoder Playlist
 playlist =
     Pip.decode Playlist
@@ -51,12 +58,20 @@ playlist =
         |> Pip.required "name" string
         |> Pip.hardcoded NotAsked
         |> Pip.requiredAt [ "tracks", "total" ] int
+        |> Pip.requiredAt [ "tracks", "href" ] (nullable string)
 
 
 playlistsResponse : Decoder (List Playlist)
 playlistsResponse =
     Pip.decode succeed
         |> Pip.required "items" (list playlist)
+        |> Pip.resolve
+
+
+playlistTracks : Decoder (List Track)
+playlistTracks =
+    Pip.decode succeed
+        |> Pip.required "items" (list trackEntry)
         |> Pip.resolve
 
 
@@ -108,6 +123,11 @@ getPlaylists token tagger =
         (endpoint ++ "me/playlists")
         tagger
         playlistsResponse
+
+
+getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
+getPlaylistTracksFromLink token tagger link =
+    Http.getWithConfig (config token) link tagger playlistTracks
 
 
 config : String -> Config

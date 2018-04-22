@@ -1,9 +1,55 @@
-module SelectableList exposing (SelectableList, fromList, toList, select, upSelect, clear, selected, map, mapSelected)
+module SelectableList
+    exposing
+        ( SelectableList
+        , fromList
+        , toList
+        , select
+        , upSelect
+        , clear
+        , selected
+        , map
+        , mapSelected
+        )
 
 
 type SelectableList a
     = Selected a (List a)
     | NotSelected (List a)
+
+
+
+-- Internal
+
+
+findAndUpdate : (a -> a) -> a -> List a -> List a
+findAndUpdate updater element =
+    List.map
+        (\el ->
+            if el /= element then
+                el
+            else
+                updater el
+        )
+
+
+update : (a -> a) -> a -> SelectableList a -> SelectableList a
+update updater el sList =
+    case sList of
+        Selected selected list ->
+            Selected
+                (if el == selected then
+                    updater el
+                 else
+                    el
+                )
+                (findAndUpdate updater el list)
+
+        NotSelected list ->
+            NotSelected (findAndUpdate updater el list)
+
+
+
+-- Public
 
 
 fromList : List a -> SelectableList a

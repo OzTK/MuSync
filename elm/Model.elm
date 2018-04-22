@@ -4,14 +4,18 @@ module Model
         , Track
         , Playlist
         , PlaylistId
+        , MusicData
         , emptyMatchingTracks
         , updateMatchingTracks
         , loadSongs
         , setSongs
+        , musicErrorFromHttp
+        , musicErrorFromDecoding
         )
 
 import EveryDict as Dict exposing (EveryDict)
 import RemoteData exposing (WebData, RemoteData(NotAsked, Loading, Success))
+import Http
 
 
 type MusicProviderType
@@ -25,11 +29,31 @@ type alias PlaylistId =
     String
 
 
+type MusicApiError
+    = Http Http.Error
+    | DecodingError String
+
+
+type alias MusicData a =
+    RemoteData MusicApiError a
+
+
+musicErrorFromHttp : Http.Error -> MusicApiError
+musicErrorFromHttp =
+    Http
+
+
+musicErrorFromDecoding : String -> MusicApiError
+musicErrorFromDecoding =
+    DecodingError
+
+
 type alias Playlist =
     { id : PlaylistId
     , name : String
-    , songs : WebData (List Track)
+    , songs : MusicData (List Track)
     , tracksCount : Int
+    , tracksLink : Maybe String
     }
 
 
@@ -38,9 +62,9 @@ loadSongs playlist =
     { playlist | songs = Loading }
 
 
-setSongs : List Track -> Playlist -> Playlist
+setSongs : MusicData (List Track) -> Playlist -> Playlist
 setSongs songs playlist =
-    { playlist | songs = Success songs }
+    { playlist | songs = songs }
 
 
 type MatchingTracks
