@@ -33,6 +33,7 @@ module Provider
         , mapOn
         , find
         , filterByType
+        , filterNotByType
         , filter
         , toggle
         , getData
@@ -316,6 +317,11 @@ find pType connections =
 filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
 filterByType pType =
     List.filter (\con -> provider con == pType)
+
+
+filterNotByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
+filterNotByType pType =
+    List.filter (\con -> provider con /= pType)
 
 
 filter :

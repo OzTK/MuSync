@@ -5,12 +5,14 @@ module Model
         , Playlist
         , PlaylistId
         , MusicData
+        , MatchingTracks
         , emptyMatchingTracks
         , updateMatchingTracks
         , loadSongs
         , setSongs
         , musicErrorFromHttp
         , musicErrorFromDecoding
+        , matchingTracks
         )
 
 import EveryDict as Dict exposing (EveryDict)
@@ -74,6 +76,11 @@ type MatchingTracks
 emptyMatchingTracks : MatchingTracks
 emptyMatchingTracks =
     MatchingTracks Dict.empty
+
+
+matchingTracks : MusicProviderType -> MatchingTracks -> RemoteData Http.Error (List Track)
+matchingTracks pType (MatchingTracks dict) =
+    dict |> Dict.get pType |> Maybe.withDefault RemoteData.NotAsked
 
 
 type alias TrackId =
