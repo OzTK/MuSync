@@ -96,8 +96,8 @@ type Msg
     | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
-    | PlaylistsProviderChanged (ConnectedProvider MusicProviderType)
-    | ComparedProviderChanged (ConnectedProvider MusicProviderType)
+    | PlaylistsProviderChanged (Maybe (ConnectedProvider MusicProviderType))
+    | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
     | SearchMatchingSong Track
     | MatchingSongResult Track (WebData (List Track))
@@ -272,11 +272,17 @@ update msg model =
             in
                 { model | playlists = Provider.setData model.playlists data } ! []
 
-        PlaylistsProviderChanged p ->
+        PlaylistsProviderChanged (Just p) ->
             { model | playlists = Provider.select p } ! [ loadPlaylists p ]
 
-        ComparedProviderChanged p ->
+        PlaylistsProviderChanged Nothing ->
+            { model | playlists = Provider.noSelection } ! []
+
+        ComparedProviderChanged (Just p) ->
             { model | comparedProvider = Provider.select p } ! []
+
+        ComparedProviderChanged Nothing ->
+            { model | comparedProvider = Provider.noSelection } ! []
 
 
 
@@ -431,7 +437,7 @@ view model =
 
 
 providerSelector :
-    (ConnectedProvider MusicProviderType -> msg)
+    (Maybe (ConnectedProvider MusicProviderType) -> msg)
     -> SelectableList (ConnectedProvider MusicProviderType)
     -> Html msg
 providerSelector tagger providers =
@@ -441,17 +447,26 @@ providerSelector tagger providers =
         , onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
         ]
         (providers
-            |> SelectableList.map (Provider.providerFromConnected >> providerName)
+            |> SelectableList.map Provider.providerFromConnected
             |> SelectableList.mapBoth (providerOption True) (providerOption False)
             |> SelectableList.toList
-            |> List.nonEmpty ((::) (providerOption (SelectableList.hasSelection providers) "-- Select a provider --"))
-            |> List.withDefault [ providerOption True "-- Connect at least one more provider --" ]
+            |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
+            |> List.withDefault [ placeholderOption True "-- Connect at least one more provider --" ]
         )
 
 
-providerOption : Bool -> String -> Html msg
+providerOption : Bool -> MusicProviderType -> Html msg
 providerOption isSelected provider =
-    option [ value provider, selected isSelected ] [ text provider ]
+    let
+        labelAndValue =
+            (providerName provider)
+    in
+        option [ value labelAndValue, selected isSelected ] [ text labelAndValue ]
+
+
+placeholderOption : Bool -> String -> Html msg
+placeholderOption isSelected label =
+    option [ selected isSelected, value "__placeholder__" ] [ text label ]
 
 
 buttons : { m | availableProviders : List (ProviderConnection MusicProviderType) } -> List (Html Msg)
@@ -597,13 +612,13 @@ providerName pType =
             "Play"
 
 
-connectedProviderDecoder : List (ConnectedProvider MusicProviderType) -> JD.Decoder (ConnectedProvider MusicProviderType)
+connectedProviderDecoder : List (ConnectedProvider MusicProviderType) -> JD.Decoder (Maybe (ConnectedProvider MusicProviderType))
 connectedProviderDecoder providers =
     let
         found pType =
             providers
                 |> Provider.findConnected pType
-                |> Maybe.map JD.succeed
+                |> Maybe.map (Just >> JD.succeed)
                 |> Maybe.withDefault (JD.fail "The provider requested was not present in the list")
     in
         JD.string
@@ -621,6 +636,9 @@ connectedProviderDecoder providers =
 
                         "Play" ->
                             found Google
+
+                        "__placeholder__" ->
+                            JD.succeed Nothing
 
                         _ ->
                             JD.fail "Expected a valid MusicProviderType name to decode"
