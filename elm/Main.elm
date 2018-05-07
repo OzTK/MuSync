@@ -1,5 +1,6 @@
 port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
+import Maybe.Extra as Maybe
 import List.Extra as List
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3)
 import Html.Attributes exposing (disabled, style, for, name, value, selected)
@@ -118,42 +119,27 @@ update msg model =
 
         ToggleConnect pType ->
             let
-                connection =
-                    model.availableProviders |> Provider.find pType
-
-                wasConnected =
-                    connection |> Maybe.map Provider.isConnected |> Maybe.withDefault False
-
                 toggleCmd =
-                    connection
-                        |> Maybe.map Provider.provider
-                        |> Maybe.map (providerToggleConnectionCmd wasConnected)
+                    model.availableProviders
+                        |> Provider.find pType
+                        |> Maybe.mapTogether Provider.isConnected Provider.provider
+                        |> Maybe.map (uncurry providerToggleConnectionCmd)
                         |> Maybe.withDefault Cmd.none
 
-                availableProviders_ =
-                    Provider.toggle pType model.availableProviders
-
-                nextProvider =
-                    availableProviders_ |> Provider.connectedProviders |> List.head
+                wasSelected =
+                    model.playlists |> Provider.selectionProvider |> Maybe.map ((==) pType) |> Maybe.withDefault False
 
                 model_ =
-                    { model | availableProviders = availableProviders_ }
+                    { model | availableProviders = Provider.toggle pType model.availableProviders }
             in
-                if wasConnected then
-                    { model_
-                        | playlists =
-                            nextProvider
-                                |> Maybe.map Provider.select
-                                |> Maybe.withDefault Provider.noSelection
-                    }
-                        ! (nextProvider
-                            |> Maybe.map loadPlaylists
-                            |> Maybe.withDefault Cmd.none
-                            |> List.singleton
-                            |> (::) toggleCmd
-                          )
-                else
-                    model_ ! [ toggleCmd ]
+                { model_
+                    | playlists =
+                        if wasSelected then
+                            Provider.noSelection
+                        else
+                            model.playlists
+                }
+                    ! [ toggleCmd ]
 
         ReceiveDeezerPlaylists (Just pJson) ->
             { model
