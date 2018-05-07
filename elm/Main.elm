@@ -2,7 +2,7 @@ port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import List.Extra as List
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3)
-import Html.Attributes exposing (disabled, style, for, name, value)
+import Html.Attributes exposing (disabled, style, for, name, value, selected)
 import Html.Extra
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChangeTo)
@@ -96,8 +96,8 @@ type Msg
     | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
-    | PlaylistsProviderChanged (ProviderConnection MusicProviderType)
-    | ComparedProviderChanged (ProviderConnection MusicProviderType)
+    | PlaylistsProviderChanged (ConnectedProvider MusicProviderType)
+    | ComparedProviderChanged (ConnectedProvider MusicProviderType)
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
     | SearchMatchingSong Track
     | MatchingSongResult Track (WebData (List Track))
@@ -114,11 +114,7 @@ update msg model =
                     else
                         Provider.disconnected Deezer
             in
-                { model
-                    | availableProviders = Provider.mapOn Deezer (\_ -> connection) model.availableProviders
-                    , playlists = Provider.select connection
-                }
-                    ! [ loadPlaylists connection ]
+                { model | availableProviders = Provider.mapOn Deezer (\_ -> connection) model.availableProviders } ! []
 
         ToggleConnect pType ->
             let
@@ -248,17 +244,9 @@ update msg model =
             in
                 { model
                     | availableProviders =
-                        Provider.map
-                            (\con pType ->
-                                if pType == Spotify then
-                                    connection
-                                else
-                                    con
-                            )
-                            model.availableProviders
-                    , playlists = Provider.select connection
+                        Provider.mapOn Spotify (\_ -> connection) model.availableProviders
                 }
-                    ! [ loadPlaylists connection ]
+                    ! []
 
         SpotifyConnectionStatusUpdate ( Just _, _ ) ->
             { model
@@ -339,13 +327,13 @@ canSelect pType selection =
         |> Maybe.withDefault True
 
 
-loadPlaylists : ProviderConnection MusicProviderType -> Cmd Msg
+loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
     case connection of
-        Connected (ConnectedProvider Deezer) ->
+        ConnectedProvider Deezer ->
             loadDeezerPlaylists ()
 
-        Connected (ConnectedProviderWithToken Spotify token) ->
+        ConnectedProviderWithToken Spotify token ->
             Spotify.getPlaylists token ReceivePlaylists
 
         _ ->
@@ -404,39 +392,66 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
             Cmd.none
 
 
+asSelectableList :
+    WithProviderSelection providerType data
+    -> List (ConnectedProvider providerType)
+    -> SelectableList (ConnectedProvider providerType)
+asSelectableList selection providers =
+    let
+        connected =
+            providers |> SelectableList.fromList
+    in
+        selection
+            |> Provider.connectedProvider
+            |> Maybe.map (SelectableList.select connected)
+            |> Maybe.withDefault connected
+
+
 
 -- View
 
 
-view : Model -> Html Msg
+view :
+    { a
+        | comparedProvider : WithProviderSelection MusicProviderType data
+        , availableProviders : List (ProviderConnection MusicProviderType)
+        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
+    }
+    -> Html Msg
 view model =
     div []
         [ div [ style [ ( "position", "fixed" ), ( "right", "0" ) ] ] (buttons model)
         , label [ for "provider-selector", style [ ( "margin-right", "6px" ) ] ] [ text "Select a main provider:" ]
-        , providerSelector PlaylistsProviderChanged model.availableProviders
+        , model.availableProviders
+            |> Provider.connectedProviders
+            |> asSelectableList model.playlists
+            |> providerSelector PlaylistsProviderChanged
         , playlists model
         ]
 
 
 providerSelector :
-    (ProviderConnection MusicProviderType -> Msg)
-    -> List (ProviderConnection MusicProviderType)
-    -> Html Msg
+    (ConnectedProvider MusicProviderType -> msg)
+    -> SelectableList (ConnectedProvider MusicProviderType)
+    -> Html msg
 providerSelector tagger providers =
-    let
-        connected =
-            Provider.connectedProviders providers
-    in
-        select [ name "provider-selector", style [ ( "display", "inline" ), ( "width", "auto" ) ], onChangeTo tagger (connectedProviderDecoder connected) ]
-            (connected
-                |> List.map (Provider.provider >> providerName >> providerOption)
-                |> List.withDefault [ providerOption "-- Connect at least one more provider --" ]
-            )
+    select
+        [ name "provider-selector"
+        , style [ ( "display", "inline" ), ( "width", "auto" ) ]
+        , onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
+        ]
+        (providers
+            |> SelectableList.map (Provider.providerFromConnected >> providerName)
+            |> SelectableList.mapBoth (providerOption True) (providerOption False)
+            |> SelectableList.toList
+            |> List.nonEmpty ((::) (providerOption (SelectableList.hasSelection providers) "-- Select a provider --"))
+            |> List.withDefault [ providerOption True "-- Connect at least one more provider --" ]
+        )
 
 
-providerOption : String -> Html Msg
-providerOption provider =
-    option [ value provider ] [ text provider ]
+providerOption : Bool -> String -> Html msg
+providerOption isSelected provider =
+    option [ value provider, selected isSelected ] [ text provider ]
 
 
 buttons : { m | availableProviders : List (ProviderConnection MusicProviderType) } -> List (Html Msg)
@@ -495,10 +510,10 @@ playlists model =
                     )
 
         Provider.Selected _ (Failure err) ->
-            text ("An error occured loading your playlists: " ++ toString err)
+            div [] [ text ("An error occured loading your playlists: " ++ toString err) ]
 
         Provider.NoProviderSelected ->
-            text "Select a provider to load your playlists"
+            div [] [ text "Select a provider to load your playlists" ]
 
         Provider.Selected _ _ ->
             div [] [ text "Loading your playlists..." ]
@@ -512,26 +527,25 @@ songs :
     }
     -> RemoteData e (List Track)
     -> Html Msg
-songs ({ playlists, availableProviders } as model) songs =
-    let
-        filter =
-            playlists
-                |> Provider.selectionProvider
-                |> Maybe.map Provider.filterNotByType
-                |> Maybe.withDefault identity
-    in
-        div []
-            [ button [ onClick BackToPlaylists ] [ text "<< back" ]
-            , div []
-                [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "Pick a provider to copy the playlist to: " ]
-                , availableProviders |> filter |> providerSelector ComparedProviderChanged
-                , ul []
-                    (songs
-                        |> RemoteData.map (List.map (song model))
-                        |> RemoteData.withDefault [ h3 [] [ text "Tracks are not ready yet" ] ]
-                    )
-                ]
+songs ({ playlists, availableProviders, comparedProvider } as model) songs =
+    div []
+        [ button [ onClick BackToPlaylists ] [ text "<< back" ]
+        , div []
+            [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "Pick a provider to copy the playlist to: " ]
+            , availableProviders
+                |> Provider.connectedProviders
+                |> asSelectableList playlists
+                |> SelectableList.rest
+                |> asSelectableList comparedProvider
+                |> providerSelector ComparedProviderChanged
+            , button [ disabled (not <| Provider.isSelected comparedProvider) ] [ text "search!" ]
+            , ul []
+                (songs
+                    |> RemoteData.map (List.map (song model))
+                    |> RemoteData.withDefault [ h3 [] [ text "Tracks are not ready yet" ] ]
+                )
             ]
+        ]
 
 
 song : { a | comparedProvider : WithProviderSelection MusicProviderType data } -> Track -> Html msg
@@ -583,12 +597,12 @@ providerName pType =
             "Play"
 
 
-connectedProviderDecoder : List (ProviderConnection MusicProviderType) -> JD.Decoder (ProviderConnection MusicProviderType)
+connectedProviderDecoder : List (ConnectedProvider MusicProviderType) -> JD.Decoder (ConnectedProvider MusicProviderType)
 connectedProviderDecoder providers =
     let
         found pType =
             providers
-                |> Provider.find pType
+                |> Provider.findConnected pType
                 |> Maybe.map JD.succeed
                 |> Maybe.withDefault (JD.fail "The provider requested was not present in the list")
     in

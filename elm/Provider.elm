@@ -12,6 +12,7 @@ module Provider
         , connecting
         , inactive
         , provider
+        , providerFromConnected
         , connectionToMaybe
         , isConnected
         , isDisconnected
@@ -32,6 +33,7 @@ module Provider
         , map
         , mapOn
         , find
+        , findConnected
         , filterByType
         , filterNotByType
         , filter
@@ -143,10 +145,17 @@ provider con =
         Connecting (ConnectingProvider pType) ->
             pType
 
-        Connected (ConnectedProvider pType) ->
+        Connected connected ->
+            providerFromConnected connected
+
+
+providerFromConnected : ConnectedProvider a -> a
+providerFromConnected con =
+    case con of
+        ConnectedProvider pType ->
             pType
 
-        Connected (ConnectedProviderWithToken pType _) ->
+        ConnectedProviderWithToken pType _ ->
             pType
 
 
@@ -204,13 +213,13 @@ isInactive connection =
 -- List Helpers
 
 
-connectedProviders : List (ProviderConnection providerType) -> List (ProviderConnection providerType)
+connectedProviders : List (ProviderConnection providerType) -> List (ConnectedProvider providerType)
 connectedProviders =
     List.filterMap
         (\con ->
             case con of
                 Connected provider ->
-                    Just con
+                    Just provider
 
                 _ ->
                     Nothing
@@ -314,6 +323,11 @@ find pType connections =
     connections |> filterByType pType |> List.head
 
 
+findConnected : a -> List (ConnectedProvider a) -> Maybe (ConnectedProvider a)
+findConnected pType connections =
+    connections |> List.filter (\con -> providerFromConnected con == pType) |> List.head
+
+
 filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
 filterByType pType =
     List.filter (\con -> provider con == pType)
@@ -357,7 +371,7 @@ toggle pType providers =
 
 type WithProviderSelection providerType data
     = NoProviderSelected
-    | Selected (ProviderConnection providerType) (RemoteData ProviderError data)
+    | Selected (ConnectedProvider providerType) (RemoteData ProviderError data)
 
 
 noSelection : WithProviderSelection providerType data
@@ -365,14 +379,9 @@ noSelection =
     NoProviderSelected
 
 
-select : ProviderConnection providerType -> WithProviderSelection providerType data
+select : ConnectedProvider providerType -> WithProviderSelection providerType data
 select connection =
-    case connection of
-        Connected provider ->
-            Selected connection NotAsked
-
-        _ ->
-            NoProviderSelected
+    Selected connection NotAsked
 
 
 isSelected : WithProviderSelection providerType data -> Bool
@@ -398,10 +407,10 @@ setData selection data =
 selectionProvider : WithProviderSelection providerType data -> Maybe providerType
 selectionProvider selection =
     case selection of
-        Selected (Connected (ConnectedProvider pType)) _ ->
+        Selected (ConnectedProvider pType) _ ->
             Just pType
 
-        Selected (Connected (ConnectedProviderWithToken pType _)) _ ->
+        Selected (ConnectedProviderWithToken pType _) _ ->
             Just pType
 
         _ ->
@@ -411,7 +420,7 @@ selectionProvider selection =
 connectedProvider : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
 connectedProvider selection =
     case selection of
-        Selected (Connected provider) _ ->
+        Selected provider _ ->
             Just provider
 
         _ ->

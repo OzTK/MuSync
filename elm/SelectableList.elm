@@ -7,8 +7,12 @@ module SelectableList
         , upSelect
         , clear
         , selected
+        , rest
+        , hasSelection
         , map
         , mapSelected
+        , mapBoth
+        , apply
         )
 
 
@@ -67,8 +71,8 @@ toList sList =
             list
 
 
-select : a -> SelectableList a -> SelectableList a
-select el sList =
+select : SelectableList a -> a -> SelectableList a
+select sList el =
     let
         list =
             toList sList
@@ -114,6 +118,21 @@ selected sList =
             Nothing
 
 
+rest : SelectableList a -> List a
+rest sList =
+    case sList of
+        Selected sel list ->
+            List.filter ((/=) sel) list
+
+        NotSelected list ->
+            list
+
+
+hasSelection : SelectableList a -> Bool
+hasSelection sList =
+    sList |> selected |> (/=) Nothing
+
+
 map : (a -> b) -> SelectableList a -> SelectableList b
 map f sList =
     case sList of
@@ -132,3 +151,38 @@ mapSelected f sList =
 
         _ ->
             sList
+
+
+mapBoth : (a -> b) -> (a -> b) -> SelectableList a -> SelectableList b
+mapBoth fSelected fUnselected sList =
+    case sList of
+        Selected sel list ->
+            Selected (fSelected sel) <|
+                List.map
+                    (\el ->
+                        if el == sel then
+                            fSelected el
+                        else
+                            fUnselected el
+                    )
+                    list
+
+        NotSelected list ->
+            NotSelected <| List.map fUnselected list
+
+
+apply : (List a -> List a) -> SelectableList a -> SelectableList a
+apply f sList =
+    let
+        list =
+            sList |> toList |> f
+    in
+        case sList of
+            Selected sel _ ->
+                if List.member sel list then
+                    Selected sel list
+                else
+                    NotSelected list
+
+            NotSelected _ ->
+                NotSelected list
