@@ -5,7 +5,9 @@ import RemoteData.Http as Http exposing (defaultConfig, Config)
 import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
 import Json.Decode.Pipeline as Pip
 import RemoteData exposing (WebData, RemoteData(NotAsked))
-import Model exposing (Track, Playlist, MusicProviderType(Spotify))
+import Model exposing (MusicProviderType(Spotify))
+import Playlist exposing (Playlist)
+import Track exposing (Track)
 
 
 -- Model
@@ -41,7 +43,7 @@ track =
                 |> Pip.resolve
             )
         |> Pip.hardcoded Spotify
-        |> Pip.hardcoded Model.emptyMatchingTracks
+        |> Pip.hardcoded Track.emptyMatchingTracks
 
 
 trackEntry : Decoder Track

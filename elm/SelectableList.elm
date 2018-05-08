@@ -13,6 +13,7 @@ module SelectableList
         , mapSelected
         , mapBoth
         , apply
+        , find
         )
 
 
@@ -186,3 +187,8 @@ apply f sList =
 
             NotSelected _ ->
                 NotSelected list
+
+
+find : (a -> Bool) -> SelectableList a -> Maybe a
+find predicate sList =
+    sList |> toList |> List.filter predicate |> List.head

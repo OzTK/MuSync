@@ -3,7 +3,9 @@ module Deezer exposing (playlist, track)
 import Json.Decode exposing (Decoder, string, int, map)
 import Json.Decode.Pipeline exposing (required, decode, hardcoded)
 import RemoteData exposing (RemoteData(NotAsked))
-import Model exposing (Track, Playlist, MusicProviderType(Deezer))
+import Model exposing (MusicProviderType(Deezer))
+import Playlist exposing (Playlist)
+import Track exposing (Track)
 
 
 playlist : Decoder Playlist
@@ -23,4 +25,4 @@ track =
         |> required "title" string
         |> required "artist" string
         |> hardcoded Deezer
-        |> hardcoded Model.emptyMatchingTracks
+        |> hardcoded Track.emptyMatchingTracks
