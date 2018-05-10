@@ -1,7 +1,9 @@
-module Deezer exposing (playlist, track)
+module Deezer exposing (playlist, track, httpBadPayloadError)
 
+import Dict
 import Json.Decode exposing (Decoder, string, int, map)
 import Json.Decode.Pipeline exposing (required, decode, hardcoded)
+import Http exposing (Error(BadPayload), Response)
 import RemoteData exposing (RemoteData(NotAsked))
 import Model exposing (MusicProviderType(Deezer))
 import Playlist exposing (Playlist)
@@ -26,3 +28,13 @@ track =
         |> required "artist" string
         |> hardcoded Deezer
         |> hardcoded Track.emptyMatchingTracks
+
+
+httpBadPayloadError : String -> Json.Decode.Value -> String -> Error
+httpBadPayloadError url json =
+    { url = url
+    , status = { code = 200, message = "OK" }
+    , headers = Dict.empty
+    , body = toString json
+    }
+        |> (flip BadPayload)

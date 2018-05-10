@@ -1,10 +1,14 @@
 module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink)
 
+import Task
+import Process
+import Dict
+import Time exposing (inSeconds)
 import Http exposing (header, encodeUri)
 import RemoteData.Http as Http exposing (defaultConfig, Config)
 import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
 import Json.Decode.Pipeline as Pip
-import RemoteData exposing (WebData, RemoteData(NotAsked))
+import RemoteData exposing (WebData, RemoteData(NotAsked, Failure))
 import Model exposing (MusicProviderType(Spotify))
 import Playlist exposing (Playlist)
 import Track exposing (Track)
@@ -102,9 +106,47 @@ version =
 -- Http
 
 
-searchTrack : String -> (Track -> WebData (List Track) -> msg) -> Track -> Cmd msg
+withRateLimitTask : Task.Task Never (WebData a) -> Task.Task Never (WebData a)
+withRateLimitTask task =
+    task
+        |> Task.andThen
+            (\result ->
+                case result of
+                    Failure (Http.BadStatus response) ->
+                        if response.status.code == 429 then
+                            let
+                                delay =
+                                    response.headers
+                                        |> Dict.get "retry-after"
+                                        |> Maybe.map String.toFloat
+                                        |> Maybe.andThen Result.toMaybe
+                            in
+                                delay
+                                    |> Maybe.map
+                                        (\t ->
+                                            t
+                                                |> (+) 1
+                                                |> inSeconds
+                                                |> Process.sleep
+                                                |> Task.andThen (\_ -> withRateLimitTask task)
+                                        )
+                                    |> Maybe.withDefault (Task.succeed result)
+                        else
+                            Task.succeed result
+
+                    _ ->
+                        Task.succeed result
+            )
+
+
+withRateLimit : (WebData a -> msg) -> Task.Task Never (WebData a) -> Cmd msg
+withRateLimit tagger task =
+    withRateLimitTask task |> Task.perform tagger
+
+
+searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
 searchTrack token tagger ({ artist, title } as track) =
-    Http.getWithConfig (config token)
+    Http.getTaskWithConfig (config token)
         (endpoint
             ++ "search?type=track&limit=1&q="
             ++ (encodeUri
@@ -115,21 +157,21 @@ searchTrack token tagger ({ artist, title } as track) =
                     ++ "\""
                )
         )
-        (tagger track)
         searchResponse
+        |> withRateLimit tagger
 
 
 getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
 getPlaylists token tagger =
-    Http.getWithConfig (config token)
+    Http.getTaskWithConfig (config token)
         (endpoint ++ "me/playlists")
-        tagger
         playlistsResponse
+        |> withRateLimit tagger
 
 
 getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
 getPlaylistTracksFromLink token tagger link =
-    Http.getWithConfig (config token) link tagger playlistTracks
+    Http.getTaskWithConfig (config token) link playlistTracks |> withRateLimit tagger
 
 
 config : String -> Config

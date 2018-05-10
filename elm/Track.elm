@@ -10,7 +10,6 @@ module Track
 
 import EveryDict as Dict exposing (EveryDict)
 import RemoteData exposing (WebData, RemoteData(Loading))
-import Http
 import Model exposing (MusicProviderType)
 
 
@@ -36,7 +35,7 @@ emptyMatchingTracks =
     MatchingTracks Dict.empty
 
 
-matchingTracks : MusicProviderType -> MatchingTracks -> RemoteData Http.Error (List Track)
+matchingTracks : MusicProviderType -> MatchingTracks -> WebData (List Track)
 matchingTracks pType (MatchingTracks dict) =
     dict |> Dict.get pType |> Maybe.withDefault RemoteData.NotAsked
 

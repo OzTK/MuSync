@@ -2,6 +2,7 @@ port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import Maybe.Extra as Maybe
 import List.Extra as List
+import Dict
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i)
 import Html.Attributes exposing (disabled, style, for, name, value, selected, class, title)
 import Html.Extra
@@ -9,11 +10,8 @@ import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChangeTo)
 import Json.Decode as JD
 import RemoteData exposing (RemoteData(..), WebData)
-import Model
-    exposing
-        ( MusicProviderType(..)
-        , MusicData
-        )
+import Http exposing (Error(BadPayload), Response)
+import Model exposing (MusicProviderType(..))
 import SelectableList exposing (SelectableList)
 import Provider
     exposing
@@ -175,7 +173,7 @@ update msg model =
                     songsValue
                         |> JD.decodeValue (JD.list Deezer.track)
                         |> RemoteData.fromResult
-                        |> RemoteData.mapError Model.musicErrorFromDecoding
+                        |> RemoteData.mapError (Deezer.httpBadPayloadError "/playlist/songs" songsValue)
             in
                 { model
                     | playlists =
@@ -192,17 +190,13 @@ update msg model =
             model ! [ loadDeezerPlaylistSongs (toString id) ]
 
         ReceiveSpotifyPlaylistSongs playlist songs ->
-            let
-                convertedSongs =
-                    RemoteData.mapError Model.musicErrorFromHttp songs
-            in
-                { model
-                    | playlists =
-                        Provider.mapSelection
-                            (SelectableList.mapSelected <| Playlist.setSongs convertedSongs)
-                            model.playlists
-                }
-                    ! []
+            { model
+                | playlists =
+                    Provider.mapSelection
+                        (SelectableList.mapSelected <| Playlist.setSongs songs)
+                        model.playlists
+            }
+                ! []
 
         PlaylistSelected p ->
             let
@@ -297,7 +291,10 @@ update msg model =
         ReceiveDeezerMatchingSongs ( playlistId, trackId, jsonTracks ) ->
             let
                 tracks =
-                    jsonTracks |> JD.decodeValue (JD.list Deezer.track) |> Result.withDefault []
+                    jsonTracks
+                        |> JD.decodeValue (JD.list Deezer.track)
+                        |> Result.mapError (Deezer.httpBadPayloadError "/search/tracks" jsonTracks)
+                        |> RemoteData.fromResult
 
                 playlists =
                     model.playlists
@@ -354,14 +351,6 @@ updateMatchingTracks track results { playlists, comparedProvider } =
            )
 
 
-canSelect : providerType -> WithProviderSelection providerType data -> Bool
-canSelect pType selection =
-    selection
-        |> Provider.selectionProvider
-        |> Maybe.map ((==) pType)
-        |> Maybe.withDefault True
-
-
 loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
     case connection of
@@ -402,7 +391,7 @@ searchSongFromProvider : PlaylistId -> Track -> ConnectedProvider MusicProviderT
 searchSongFromProvider playlistId track provider =
     case provider of
         ConnectedProviderWithToken Spotify token ->
-            Spotify.searchTrack token MatchingSongResult track
+            Spotify.searchTrack token (MatchingSongResult track) track
 
         ConnectedProvider Deezer ->
             searchDeezerSong ( playlistId, { id = track.id, artist = track.artist, title = track.title } )
@@ -527,9 +516,6 @@ connectButton tagger connection =
 
         connecting =
             Provider.isConnecting connection
-
-        disco =
-            Provider.isDisconnected connection
     in
         div [ style [ ( "margin", "8px" ) ] ]
             [ button
@@ -545,6 +531,10 @@ connectButton tagger connection =
                         ++ (connection |> Provider.provider |> providerName)
                 ]
             ]
+
+
+
+-- View parts
 
 
 playlists :
@@ -578,7 +568,7 @@ playlists model =
             progressBar
 
 
-searchWithComparedProvider :
+compareSearch :
     { a
         | availableProviders : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
@@ -586,7 +576,7 @@ searchWithComparedProvider :
     }
     -> Playlist
     -> Html Msg
-searchWithComparedProvider { availableProviders, playlists, comparedProvider } playlist =
+compareSearch { availableProviders, playlists, comparedProvider } playlist =
     div []
         [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
         , availableProviders
@@ -618,7 +608,7 @@ songs model playlist =
             |> RemoteData.map
                 (\s ->
                     div []
-                        [ searchWithComparedProvider model playlist
+                        [ compareSearch model playlist
                         , ul [] (List.map (song model) s)
                         ]
                 )
@@ -670,7 +660,7 @@ matchingTracks { matchingTracks } pType =
 playlist : (Playlist -> Msg) -> Playlist -> Html Msg
 playlist tagger p =
     li [ onClick (tagger p) ]
-        [ text <| p.name ++ " (" ++ toString p.tracksCount ++ ")" ]
+        [ text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)" ]
 
 
 providerName : MusicProviderType -> String

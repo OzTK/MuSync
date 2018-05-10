@@ -1,8 +1,8 @@
 module Playlist exposing (Playlist, PlaylistId, loadSongs, setSongs, loadSongsMatchingTracks, updateMatchingTracks)
 
-import RemoteData exposing (RemoteData(Loading, Success))
+import RemoteData exposing (WebData, RemoteData(Loading, Success))
 import Track exposing (Track, TrackId)
-import Model exposing (MusicData, MusicProviderType)
+import Model exposing (MusicProviderType)
 
 
 type alias PlaylistId =
@@ -12,7 +12,7 @@ type alias PlaylistId =
 type alias Playlist =
     { id : PlaylistId
     , name : String
-    , songs : MusicData (List Track)
+    , songs : WebData (List Track)
     , tracksCount : Int
     , tracksLink : Maybe String
     }
@@ -23,7 +23,7 @@ loadSongs playlist =
     { playlist | songs = Loading }
 
 
-setSongs : MusicData (List Track) -> Playlist -> Playlist
+setSongs : WebData (List Track) -> Playlist -> Playlist
 setSongs songs playlist =
     { playlist | songs = songs }
 
@@ -38,7 +38,7 @@ loadSongsMatchingTracks provider playlist =
     }
 
 
-updateMatchingTracks : MusicProviderType -> TrackId -> List Track -> Playlist -> Playlist
+updateMatchingTracks : MusicProviderType -> TrackId -> WebData (List Track) -> Playlist -> Playlist
 updateMatchingTracks pType songId tracks playlist =
     { playlist
         | songs =
@@ -46,7 +46,7 @@ updateMatchingTracks pType songId tracks playlist =
                 (List.map
                     (\track ->
                         if track.id == songId then
-                            Track.updateMatchingTracks pType (Success tracks) track
+                            Track.updateMatchingTracks pType tracks track
                         else
                             track
                     )
