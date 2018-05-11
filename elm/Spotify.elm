@@ -106,6 +106,14 @@ version =
 -- Http
 
 
+delayAndRetry : Task.Task Never (WebData a) -> Float -> Task.Task Never (WebData a)
+delayAndRetry task =
+    (+) 1
+        >> inSeconds
+        >> Process.sleep
+        >> Task.andThen (\_ -> withRateLimitTask task)
+
+
 withRateLimitTask : Task.Task Never (WebData a) -> Task.Task Never (WebData a)
 withRateLimitTask task =
     task
@@ -114,23 +122,12 @@ withRateLimitTask task =
                 case result of
                     Failure (Http.BadStatus response) ->
                         if response.status.code == 429 then
-                            let
-                                delay =
-                                    response.headers
-                                        |> Dict.get "retry-after"
-                                        |> Maybe.map String.toFloat
-                                        |> Maybe.andThen Result.toMaybe
-                            in
-                                delay
-                                    |> Maybe.map
-                                        (\t ->
-                                            t
-                                                |> (+) 1
-                                                |> inSeconds
-                                                |> Process.sleep
-                                                |> Task.andThen (\_ -> withRateLimitTask task)
-                                        )
-                                    |> Maybe.withDefault (Task.succeed result)
+                            response.headers
+                                |> Dict.get "retry-after"
+                                |> Maybe.map String.toFloat
+                                |> Maybe.andThen Result.toMaybe
+                                |> Maybe.map (delayAndRetry task)
+                                |> Maybe.withDefault (Task.succeed result)
                         else
                             Task.succeed result
 
