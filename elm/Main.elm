@@ -2,24 +2,24 @@ port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import Maybe.Extra as Maybe
 import List.Extra as List
-import Dict
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i)
 import Html.Attributes exposing (disabled, style, for, name, value, selected, class, title)
 import Html.Extra
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChangeTo)
 import Json.Decode as JD
+import Json.Encode as JE
 import RemoteData exposing (RemoteData(..), WebData)
-import Http exposing (Error(BadPayload), Response)
 import Model exposing (MusicProviderType(..))
 import SelectableList exposing (SelectableList)
 import Provider
     exposing
-        ( WithProviderSelection
-        , ProviderConnection(..)
+        ( ProviderConnection(..)
         , ConnectedProvider(..)
         , DisconnectedProvider(..)
         )
+import Provider.List as Provider
+import Provider.Selection as Provider exposing (WithProviderSelection)
 import Playlist exposing (Playlist, PlaylistId)
 import Track exposing (Track, TrackId)
 import Spotify
@@ -151,7 +151,7 @@ update msg model =
                     pJson
                         |> JD.decodeValue (JD.list Deezer.playlist)
                         |> Result.map SelectableList.fromList
-                        |> Result.mapError Provider.decodingError
+                        |> Result.mapError (Deezer.httpBadPayloadError "/playlists" pJson)
                         |> RemoteData.fromResult
                         |> Provider.setData model.playlists
             }
@@ -161,7 +161,7 @@ update msg model =
             { model
                 | playlists =
                     "No Playlists received"
-                        |> Provider.providerError
+                        |> Deezer.httpBadPayloadError "/playlist/songs" JE.null
                         |> RemoteData.Failure
                         |> Provider.setData model.playlists
             }
@@ -249,9 +249,7 @@ update msg model =
         ReceivePlaylists playlistsData ->
             let
                 data =
-                    playlistsData
-                        |> RemoteData.mapError Provider.providerHttpError
-                        |> RemoteData.map SelectableList.fromList
+                    playlistsData |> RemoteData.map SelectableList.fromList
             in
                 { model | playlists = Provider.setData model.playlists data } ! []
 
