@@ -3,7 +3,7 @@ port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 import Maybe.Extra as Maybe
 import List.Extra as List
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i)
-import Html.Attributes exposing (disabled, style, for, name, value, selected, class, title)
+import Html.Attributes exposing (id, disabled, style, for, name, value, selected, class, title)
 import Html.Extra
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChangeTo)
@@ -450,7 +450,7 @@ view model =
         , model.availableProviders
             |> Provider.connectedProviders
             |> asSelectableList model.playlists
-            |> providerSelector PlaylistsProviderChanged
+            |> providerSelector PlaylistsProviderChanged [ id "playlist-provider-picker" ]
         , playlists model
         ]
 
@@ -470,14 +470,17 @@ progressBar =
 
 providerSelector :
     (Maybe (ConnectedProvider MusicProviderType) -> msg)
+    -> List (Html.Attribute msg)
     -> SelectableList (ConnectedProvider MusicProviderType)
     -> Html msg
-providerSelector tagger providers =
+providerSelector tagger attrs providers =
     select
-        [ name "provider-selector"
-        , style [ ( "display", "inline" ), ( "width", "auto" ) ]
-        , onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
-        ]
+        ([ name "provider-selector"
+         , style [ ( "display", "inline" ), ( "width", "auto" ) ]
+         , onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
+         ]
+            ++ attrs
+        )
         (providers
             |> SelectableList.map Provider.providerFromConnected
             |> SelectableList.mapBoth (providerOption True) (providerOption False)
@@ -582,7 +585,7 @@ compareSearch { availableProviders, playlists, comparedProvider } playlist =
             |> asSelectableList playlists
             |> SelectableList.rest
             |> asSelectableList comparedProvider
-            |> providerSelector ComparedProviderChanged
+            |> providerSelector ComparedProviderChanged []
         , button
             [ onClick (SearchMatchingSongs playlist)
             , disabled (not <| Provider.isSelected comparedProvider)
