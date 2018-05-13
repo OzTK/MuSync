@@ -8,7 +8,8 @@
     "build:dev": "elm-make elm/Main.elm --yes --output=js/elm.js --debug",
     "debug": "elm-live elm/Main.elm --output=js/elm.js --open --debug",
     "test": "elm-test",
-    "cypress": "cypress open"
+    "cypress": "cypress open",
+    "cypress:all": "cypress run"
   },
   "repository": {
     "type": "git",
