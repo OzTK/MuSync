@@ -33,7 +33,8 @@ script:
   - npm run build
   - cd tests && elm-make --output=/dev/null --yes && cd ..
   - npm run test
-  - npm run test:it
+  - cp . it/
+  - cd it && npm run test:it && cd ..
 
 deploy:
   provider: surge
