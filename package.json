@@ -7,9 +7,13 @@
     "build": "elm-make elm/Main.elm --yes --output=js/elm.js",
     "build:dev": "elm-make elm/Main.elm --yes --output=js/elm.js --debug",
     "debug": "elm-live elm/Main.elm --output=js/elm.js --open --debug",
+    "start": "elm-live --output=js/elm.js elm/Main.elm --no-recover",
     "test": "elm-test",
+    "precypress:all": "./test_run.sh",
     "cypress": "cypress open",
-    "cypress:all": "cypress run"
+    "cypress:all": "cypress run",
+    "postcypress:all": "pkill -f elm-live",
+    "cypress:ci": "cypress run --record --key b247fc8f-afef-416b-8471-85713bec5605"
   },
   "repository": {
     "type": "git",
