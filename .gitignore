@@ -6,3 +6,6 @@ repl-temp-*
 elm.js
 
 node_modules
+
+cypress/videos
+cypress/screenshots
