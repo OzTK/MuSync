@@ -33,9 +33,9 @@ script:
   - npm run build
   - cd tests && elm-make --output=/dev/null --yes && cd ..
   - npm run test
-  - mkdir it && cp . it/ && cd it
+  - mkdir it && cp -r !(it) it/ && cd it
   - npm run test:it
-  - cd ..
+  - cd .. && rm -rf it
 
 deploy:
   provider: surge
