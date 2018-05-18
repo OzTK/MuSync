@@ -216,7 +216,11 @@ update msg model =
                     | playlists = playlists
                 }
                     ! if loadSongs then
-                        [ playlists |> Provider.connectedProvider |> Maybe.map (\pType -> loadPlaylistSongs pType p) |> Maybe.withDefault Cmd.none ]
+                        [ playlists
+                            |> Provider.connectedProvider
+                            |> Maybe.map (\pType -> loadPlaylistSongs pType p)
+                            |> Maybe.withDefault Cmd.none
+                        ]
                       else
                         []
 
@@ -445,13 +449,13 @@ view :
     -> Html Msg
 view model =
     div []
-        [ div [ style [ ( "position", "fixed" ), ( "right", "0" ) ] ] (buttons model)
+        [ div [ class "connect-buttons", style [ ( "position", "fixed" ), ( "right", "0" ) ] ] (buttons model)
         , label [ for "provider-selector", style [ ( "margin-right", "6px" ) ] ] [ text "Select a main provider:" ]
         , model.availableProviders
             |> Provider.connectedProviders
             |> asSelectableList model.playlists
             |> providerSelector PlaylistsProviderChanged [ id "playlist-provider-picker" ]
-        , playlists model
+        , Html.main_ [] [ playlists model ]
         ]
 
 
@@ -552,11 +556,9 @@ playlists model =
                 |> SelectableList.selected
                 |> Maybe.map (songs model)
                 |> Maybe.withDefault
-                    (div []
-                        [ ul [] <|
-                            SelectableList.toList <|
-                                SelectableList.map (playlist PlaylistSelected) p
-                        ]
+                    (ul [] <|
+                        SelectableList.toList <|
+                            SelectableList.map (playlist PlaylistSelected) p
                     )
 
         Provider.Selected _ (Failure err) ->
@@ -578,7 +580,7 @@ compareSearch :
     -> Playlist
     -> Html Msg
 compareSearch { availableProviders, playlists, comparedProvider } playlist =
-    div []
+    div [ class "provider-compare" ]
         [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
         , availableProviders
             |> Provider.connectedProviders
@@ -603,14 +605,14 @@ songs :
     -> Playlist
     -> Html Msg
 songs model playlist =
-    div []
+    div [ id "playlist-details" ]
         [ button [ onClick BackToPlaylists ] [ text "<< back" ]
         , playlist.songs
             |> RemoteData.map
                 (\s ->
                     div []
                         [ compareSearch model playlist
-                        , ul [] (List.map (song model) s)
+                        , ul [ id "playlist-songs" ] (List.map (song model) s)
                         ]
                 )
             |> RemoteData.withDefault (progressBar)

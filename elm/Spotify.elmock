@@ -17,10 +17,10 @@ searchTrack token tagger ({ id, artist, title } as track) =
 
 getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
 getPlaylists _ tagger =
-    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, tracksLink = Nothing }
-    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, tracksLink = Nothing }
-    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, tracksLink = Nothing }
-    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, tracksLink = Nothing }
+    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
+    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
+    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
+    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
     ]
         |> Task.succeed
         |> RemoteData.asCmd
