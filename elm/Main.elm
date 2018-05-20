@@ -606,7 +606,7 @@ songs :
     -> Html Msg
 songs model playlist =
     div [ id "playlist-details" ]
-        [ button [ onClick BackToPlaylists ] [ text "<< back" ]
+        [ button [ class "back-to-playlists", onClick BackToPlaylists ] [ text "<< back" ]
         , playlist.songs
             |> RemoteData.map
                 (\s ->

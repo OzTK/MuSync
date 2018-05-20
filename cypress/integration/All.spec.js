@@ -19,15 +19,15 @@ describe('Visiting the website and connecting a music provider', () => {
     });
 
     it('displays playlists from a connected provider', () => {
-        cy.connectProvider('Spotify').get('#playlist-provider-picker').select('Spotify');
+        cy.visit('/').connectProvider('Spotify').get('#playlist-provider-picker').select('Spotify');
         cy.get('main').should('not.contain', 'Select a provider to load your playlists');
         cy.get('main > ul').as('playlists').should('exist');
         cy.get('@playlists').children().should('have.length', 4);
     });
 
-    describe("with a selected playlist", () => {
+    describe('with a selected playlist', () => {
         before(() => {
-            cy.connectProvider('Spotify').selectPlaylist(1);
+            cy.visit('/').connectProvider('Spotify').selectPlaylist(1);
         });
 
         it('displays songs from a clicked playlist', () => {
@@ -40,6 +40,28 @@ describe('Visiting the website and connecting a music provider', () => {
 
         it('disables the search button when no other provider is connected', () => {
             cy.get('#playlist-details .provider-compare > button').should('be.disabled');
+        });
+
+        it('takes back to the playlists when clicking the back button', () => {
+            cy.get('#playlist-details  > .back-to-playlists').as('back').click();
+            cy.get('@back').should('not.exist');
+            cy.get('main > ul').as('playlists').should('exist');
+            cy.get('@playlists').children().should('have.length', 4);
+        });
+
+        describe('when connecting another provider', () => {
+            before(() => {
+                cy.visit('/').connectProvider('Spotify').selectPlaylist(1).connectProvider('Deezer');
+            });
+
+            it('adds it to the compare provider lists', () => {
+                cy.get('#playlist-details .provider-compare > select').children().should('have.length', 2);
+            });
+
+            it('enables the search button when selecting a provider', () => {
+                cy.get('#playlist-details .provider-compare > select').select('Deezer');
+                cy.get('#playlist-details .provider-compare > button').should('be.enabled');
+            });
         });
     });
 });

@@ -1,7 +1,7 @@
 Cypress.Commands.add(
   "connectProvider",
   (providerName) =>
-  cy.visit("/").get('.connect-buttons button').contains(providerName).click().then(() => {
+  cy.get('.connect-buttons button').contains(providerName).click().then(() => {
     return providerName;
   })
 );
