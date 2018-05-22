@@ -9,7 +9,7 @@ import Playlist exposing (Playlist)
 
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
 searchTrack token tagger ({ id, artist, title } as track) =
-    [ Track id title artist Spotify Track.emptyMatchingTracks ]
+    [ Track id title artist ]
         |> Task.succeed
         |> RemoteData.asCmd
         |> Cmd.map tagger
@@ -29,14 +29,14 @@ getPlaylists _ tagger =
 
 getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
 getPlaylistTracksFromLink _ tagger _ =
-    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "2", artist = "Serge Gainsbourg", title = "Petit", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "3", artist = "The Beatles", title = "Yellow Submarine", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "4", artist = "Iron Maiden", title = "666", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "5", artist = "Mickael Jackson", title = "Beat it", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "6", artist = "RHCP", title = "Californication", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "7", artist = "The Clash", title = "London Calling", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
-    , { id = "8", artist = "The Tiger Lillies", title = "Terrible", provider = Spotify, matchingTracks = Track.emptyMatchingTracks }
+    [ { id = ( Spotify, "1" ), artist = "Johnny Halliday", title = "Allmuer le feu" }
+    , { id = ( Spotify, "2" ), artist = "Serge Gainsbourg", title = "Petit" }
+    , { id = ( Spotify, "3" ), artist = "The Beatles", title = "Yellow Submarine" }
+    , { id = ( Spotify, "4" ), artist = "Iron Maiden", title = "666" }
+    , { id = ( Spotify, "5" ), artist = "Mickael Jackson", title = "Beat it" }
+    , { id = ( Spotify, "6" ), artist = "RHCP", title = "Californication" }
+    , { id = ( Spotify, "7" ), artist = "The Clash", title = "London Calling" }
+    , { id = ( Spotify, "8" ), artist = "The Tiger Lillies", title = "Terrible" }
     ]
         |> Task.succeed
         |> RemoteData.asCmd
