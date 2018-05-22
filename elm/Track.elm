@@ -1,49 +1,33 @@
 module Track
     exposing
-        ( MatchingTracks
-        , TrackId
+        ( TrackId
         , Track
-        , emptyMatchingTracks
-        , matchingTracks
-        , updateMatchingTracks
+        , serializeId
+        , deserializeId
         )
 
-import EveryDict as Dict exposing (EveryDict)
-import RemoteData exposing (WebData, RemoteData(Loading))
 import Model exposing (MusicProviderType)
 
 
-type MatchingTracks
-    = MatchingTracks (EveryDict MusicProviderType (WebData (List Track)))
-
-
 type alias TrackId =
-    String
+    ( MusicProviderType, String )
+
+
+serializeId : ( MusicProviderType, String ) -> ( String, String )
+serializeId ( pType, id ) =
+    ( toString pType, id )
+
+
+deserializeId : ( String, String ) -> Result String ( MusicProviderType, String )
+deserializeId ( pName, id ) =
+    pName
+        |> Model.providerFromString
+        |> Maybe.map (\p -> ( p, id ))
+        |> Result.fromMaybe "The provided provider type is not valid"
 
 
 type alias Track =
     { id : TrackId
     , title : String
     , artist : String
-    , provider : MusicProviderType
-    , matchingTracks : MatchingTracks
     }
-
-
-emptyMatchingTracks : MatchingTracks
-emptyMatchingTracks =
-    MatchingTracks Dict.empty
-
-
-matchingTracks : MusicProviderType -> MatchingTracks -> WebData (List Track)
-matchingTracks pType (MatchingTracks dict) =
-    dict |> Dict.get pType |> Maybe.withDefault RemoteData.NotAsked
-
-
-updateMatchingTracks : MusicProviderType -> WebData (List Track) -> Track -> Track
-updateMatchingTracks pType tracks track =
-    let
-        (MatchingTracks matchingTracks) =
-            track.matchingTracks
-    in
-        { track | matchingTracks = MatchingTracks <| Dict.insert pType tracks matchingTracks }

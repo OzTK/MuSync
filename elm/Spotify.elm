@@ -39,15 +39,17 @@ toArtistName artists =
 track : Decoder Track
 track =
     Pip.decode Track
-        |> Pip.required "id" string
+        |> Pip.custom
+            (Pip.decode (,)
+                |> Pip.hardcoded Spotify
+                |> Pip.required "id" string
+            )
         |> Pip.required "name" string
         |> Pip.custom
             (Pip.decode toArtistName
                 |> Pip.requiredAt [ "artists" ] (list artist)
                 |> Pip.resolve
             )
-        |> Pip.hardcoded Spotify
-        |> Pip.hardcoded Track.emptyMatchingTracks
 
 
 trackEntry : Decoder Track
