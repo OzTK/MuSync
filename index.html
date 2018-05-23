@@ -63,9 +63,9 @@
       loadDeezerPlaylistSongs(pid, elmApp.ports.receiveDeezerPlaylistSongs.send)
     });
 
-    elmApp.ports.searchDeezerSong.subscribe(function ([playlistId, track]) {
+    elmApp.ports.searchDeezerSong.subscribe(function (track) {
       searchDeezerSong(track.artist, track.title, (tracks) => {
-        elmApp.ports.receiveDeezerMatchingTracks.send([playlistId, track.id, tracks])
+        elmApp.ports.receiveDeezerMatchingTracks.send([track.id, tracks])
       })
     });
 

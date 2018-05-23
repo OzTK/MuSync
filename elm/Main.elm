@@ -45,10 +45,10 @@ port loadDeezerPlaylists : () -> Cmd msg
 port receiveDeezerPlaylists : (Maybe JD.Value -> msg) -> Sub msg
 
 
-port searchDeezerSong : ( PlaylistId, { id : ( String, String ), title : String, artist : String } ) -> Cmd msg
+port searchDeezerSong : { id : ( String, String ), title : String, artist : String } -> Cmd msg
 
 
-port receiveDeezerMatchingTracks : (( PlaylistId, ( String, String ), JD.Value ) -> msg) -> Sub msg
+port receiveDeezerMatchingTracks : (( ( String, String ), JD.Value ) -> msg) -> Sub msg
 
 
 port loadDeezerPlaylistSongs : PlaylistId -> Cmd msg
@@ -71,7 +71,7 @@ type alias Model =
     { playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableProviders : List (ProviderConnection MusicProviderType)
-    , songs : EveryDict TrackId (WebData (List Track))
+    , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
     }
 
 
@@ -99,7 +99,7 @@ type Msg
     | ReceiveDeezerPlaylists (Maybe JD.Value)
     | ReceivePlaylists (WebData (List Playlist))
     | ReceiveDeezerSongs (Maybe JD.Value)
-    | ReceiveDeezerMatchingSongs ( PlaylistId, ( String, String ), JD.Value )
+    | ReceiveDeezerMatchingSongs ( ( String, String ), JD.Value )
     | RequestDeezerSongs Int
     | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
     | PlaylistSelected Playlist
@@ -108,7 +108,7 @@ type Msg
     | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
     | SearchMatchingSongs Playlist
-    | MatchingSongResult Track (WebData (List Track))
+    | MatchingSongResult Track MusicProviderType (WebData (List Track))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -250,8 +250,8 @@ update msg model =
             }
                 ! []
 
-        MatchingSongResult ({ id } as track) results ->
-            { model | songs = Dict.insert id results model.songs } ! []
+        MatchingSongResult ({ id } as track) pType results ->
+            { model | songs = Dict.insert ( id, pType ) results model.songs } ! []
 
         ReceivePlaylists playlistsData ->
             let
@@ -280,15 +280,24 @@ update msg model =
                         |> RemoteData.withDefault []
 
                 loading =
-                    playlist.songs
-                        |> RemoteData.map (List.foldl (\{ id } d -> Dict.insert id Loading d) model.songs)
+                    model.comparedProvider
+                        |> Provider.selectionProvider
+                        |> Maybe.andThen
+                            (\pType ->
+                                playlist.songs
+                                    |> RemoteData.map
+                                        (\songs ->
+                                            List.foldl (\{ id } d -> Dict.insert ( id, pType ) Loading d) model.songs songs
+                                        )
+                                    |> RemoteData.toMaybe
+                            )
             in
                 { model
-                    | songs = RemoteData.withDefault model.songs loading
+                    | songs = Maybe.withDefault model.songs loading
                 }
                     ! cmds
 
-        ReceiveDeezerMatchingSongs ( playlistId, trackId, jsonTracks ) ->
+        ReceiveDeezerMatchingSongs ( trackId, jsonTracks ) ->
             let
                 tracks =
                     jsonTracks
@@ -300,7 +309,7 @@ update msg model =
                     | songs =
                         trackId
                             |> Track.deserializeId
-                            |> Result.map (\id -> Dict.insert id tracks model.songs)
+                            |> Result.map (\id -> Dict.insert ( id, Deezer ) tracks model.songs)
                             |> Result.withDefault model.songs
                 }
                     ! []
@@ -346,10 +355,10 @@ searchSongFromProvider : PlaylistId -> Track -> ConnectedProvider MusicProviderT
 searchSongFromProvider playlistId track provider =
     case provider of
         ConnectedProviderWithToken Spotify token ->
-            Spotify.searchTrack token (MatchingSongResult track) track
+            Spotify.searchTrack token (MatchingSongResult track Spotify) track
 
         ConnectedProvider Deezer ->
-            searchDeezerSong ( playlistId, { id = Track.serializeId track.id, artist = track.artist, title = track.title } )
+            searchDeezerSong ({ id = Track.serializeId track.id, artist = track.artist, title = track.title })
 
         _ ->
             Cmd.none
@@ -561,38 +570,45 @@ song ({ comparedProvider } as model) track =
         ]
 
 
-matchingTracks { songs } { id, title } pType =
-    case Dict.get id songs of
-        Just (Success []) ->
-            Just
-                (span []
-                    [ i
-                        [ class "fa fa-times"
-                        , style [ ( "margin-left", "6px" ), ( "color", "red" ) ]
-                        , Html.title ("This track doesn't exist on " ++ providerName pType ++ " :(")
+matchingTracks { songs, comparedProvider } { id, title } pType =
+    let
+        pType =
+            Provider.selectionProvider comparedProvider
+
+        mathingSongs =
+            pType |> Maybe.map (\p -> ( p, Dict.get ( id, p ) songs ))
+    in
+        case mathingSongs of
+            Just ( p, Just (Success []) ) ->
+                Just
+                    (span []
+                        [ i
+                            [ class "fa fa-times"
+                            , style [ ( "margin-left", "6px" ), ( "color", "red" ) ]
+                            , Html.title ("This track doesn't exist on " ++ providerName p ++ " :(")
+                            ]
+                            []
+                        , label [ for "correct-title-input" ] [ text "Try correcting song title:" ]
+                        , input [ type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
+                        , button [] [ text "retry" ]
+                        ]
+                    )
+
+            Just ( p, Just (Success _) ) ->
+                Just
+                    (i
+                        [ class "fa fa-check"
+                        , style [ ( "margin-left", "6px" ), ( "color", "green" ) ]
+                        , Html.title ("Hurray! Found your track on " ++ providerName p)
                         ]
                         []
-                    , label [ for "correct-title-input" ] [ text "Try correcting song title:" ]
-                    , input [ type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
-                    , button [] [ text "retry" ]
-                    ]
-                )
+                    )
 
-        Just (Success _) ->
-            Just
-                (i
-                    [ class "fa fa-check"
-                    , style [ ( "margin-left", "6px" ), ( "color", "green" ) ]
-                    , Html.title ("Hurray! Found your track on " ++ providerName pType)
-                    ]
-                    []
-                )
+            Just ( _, Just Loading ) ->
+                Just (span [ class "loader loader-xs" ] [])
 
-        Just Loading ->
-            Just (span [ class "loader loader-xs" ] [])
-
-        _ ->
-            Nothing
+            _ ->
+                Nothing
 
 
 playlist : (Playlist -> Msg) -> Playlist -> Html Msg
