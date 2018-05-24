@@ -7,7 +7,7 @@ import Html exposing (Html, text, div, button, span, ul, li, p, select, option, 
 import Html.Attributes as Html exposing (id, disabled, style, for, name, value, selected, class, title, type_, placeholder)
 import Html.Extra
 import Html.Events exposing (onClick)
-import Html.Events.Extra exposing (onChangeTo)
+import Html.Events.Extra exposing (onChangeTo, onChange)
 import Json.Decode as JD
 import Json.Encode as JE
 import RemoteData exposing (RemoteData(..), WebData)
@@ -68,6 +68,7 @@ type alias Model =
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableConnections : List (ProviderConnection MusicProviderType)
     , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+    , alternativeTitles : EveryDict TrackId String
     }
 
 
@@ -80,6 +81,7 @@ init =
             , Connection.disconnected Deezer
             ]
       , songs = Dict.empty
+      , alternativeTitles = Dict.empty
       }
     , Cmd.none
     )
@@ -104,7 +106,9 @@ type Msg
     | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
     | SearchMatchingSongs Playlist
+    | RetrySearchSong Track String
     | MatchingSongResult Track MusicProviderType (WebData (List Track))
+    | ChangeAltTitle TrackId String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -310,6 +314,17 @@ update msg model =
                 }
                     ! []
 
+        RetrySearchSong track title ->
+            model
+                ! [ model.comparedProvider
+                        |> Selection.connection
+                        |> Maybe.map (searchSongFromProvider { track | title = title })
+                        |> Maybe.withDefault Cmd.none
+                  ]
+
+        ChangeAltTitle id title ->
+            { model | alternativeTitles = Dict.insert id title model.alternativeTitles } ! []
+
 
 loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
@@ -343,12 +358,12 @@ searchMatchingSong : PlaylistId -> { m | comparedProvider : WithProviderSelectio
 searchMatchingSong playlistId { comparedProvider } track =
     comparedProvider
         |> Selection.connection
-        |> Maybe.map (searchSongFromProvider playlistId track)
+        |> Maybe.map (searchSongFromProvider track)
         |> Maybe.withDefault Cmd.none
 
 
-searchSongFromProvider : PlaylistId -> Track -> ConnectedProvider MusicProviderType -> Cmd Msg
-searchSongFromProvider playlistId track provider =
+searchSongFromProvider : Track -> ConnectedProvider MusicProviderType -> Cmd Msg
+searchSongFromProvider track provider =
     case provider of
         ConnectedProviderWithToken Spotify token ->
             Spotify.searchTrack token (MatchingSongResult track Spotify) track
@@ -500,6 +515,7 @@ playlists :
         , comparedProvider : WithProviderSelection MusicProviderType ()
         , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
+        , alternativeTitles : EveryDict TrackId String
     }
     -> Html Msg
 playlists model =
@@ -555,6 +571,7 @@ songs :
         , comparedProvider : WithProviderSelection MusicProviderType ()
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
         , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+        , alternativeTitles : EveryDict TrackId String
     }
     -> Playlist
     -> Html Msg
@@ -577,9 +594,10 @@ song :
     { c
         | songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List b))
         , comparedProvider : WithProviderSelection MusicProviderType data
+        , alternativeTitles : EveryDict TrackId String
     }
     -> Track
-    -> Html msg
+    -> Html Msg
 song ({ comparedProvider } as model) track =
     li []
         [ text <| track.title ++ " - " ++ track.artist
@@ -594,11 +612,12 @@ matchingTracks :
     { c
         | comparedProvider : WithProviderSelection MusicProviderType data
         , songs : EveryDict ( TrackId, MusicProviderType ) (RemoteData e (List b))
+        , alternativeTitles : EveryDict TrackId String
     }
     -> Track
     -> MusicProviderType
-    -> Maybe (Html msg)
-matchingTracks { songs, comparedProvider } { id, title } pType =
+    -> Maybe (Html Msg)
+matchingTracks { songs, comparedProvider, alternativeTitles } ({ id, title } as track) pType =
     let
         pType =
             Selection.providerType comparedProvider
@@ -617,8 +636,8 @@ matchingTracks { songs, comparedProvider } { id, title } pType =
                             ]
                             []
                         , label [ for "correct-title-input" ] [ text "Try correcting song title:" ]
-                        , input [ type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
-                        , button [] [ text "retry" ]
+                        , input [ onChange (ChangeAltTitle id), type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
+                        , button [ onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ text "retry" ]
                         ]
                     )
 
