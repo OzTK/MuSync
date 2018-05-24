@@ -9,7 +9,7 @@ function loadDeezer() {
     });
 
     dzInitialized = true;
-    if (typeof elmApp != "undefined") {
+    if (typeof elmApp !== "undefined") {
       getDeezerStatus(elmApp.ports.updateDeezerStatus.send);
     }
   };
@@ -26,7 +26,7 @@ function loadDeezer() {
 
 function getDeezerStatus(cb) {
   DZ.getLoginStatus(function (response) {
-    isDzConnected = response.authResponse != undefined;
+    isDzConnected = response.authResponse !== undefined;
     cb(isDzConnected);
   });
 }
@@ -39,7 +39,7 @@ function disconnectDeezer() {
 function connectDeezer(cb) {
   DZ.login(
     function (response) {
-      isDzConnected = response.authResponse != undefined;
+      isDzConnected = response.authResponse !== undefined;
       cb(isDzConnected);
     }, {
       perms: "basic_access"

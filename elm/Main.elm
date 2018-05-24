@@ -498,6 +498,14 @@ connectButton tagger connection =
 -- View parts
 
 
+playlists :
+    { b
+        | availableProviders : List (ProviderConnection MusicProviderType)
+        , comparedProvider : WithProviderSelection MusicProviderType ()
+        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
+    }
+    -> Html Msg
 playlists model =
     case model.playlists of
         Provider.Selected _ (Success p) ->
@@ -545,6 +553,15 @@ compareSearch { availableProviders, playlists, comparedProvider } playlist =
         ]
 
 
+songs :
+    { b
+        | availableProviders : List (ProviderConnection MusicProviderType)
+        , comparedProvider : WithProviderSelection MusicProviderType ()
+        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
+        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+    }
+    -> Playlist
+    -> Html Msg
 songs model playlist =
     div [ id "playlist-details" ]
         [ button [ class "back-to-playlists", onClick BackToPlaylists ] [ text "<< back" ]
@@ -560,6 +577,13 @@ songs model playlist =
         ]
 
 
+song :
+    { c
+        | songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List b))
+        , comparedProvider : WithProviderSelection MusicProviderType data
+    }
+    -> Track
+    -> Html msg
 song ({ comparedProvider } as model) track =
     li []
         [ text <| track.title ++ " - " ++ track.artist
@@ -570,13 +594,21 @@ song ({ comparedProvider } as model) track =
         ]
 
 
+matchingTracks :
+    { c
+        | comparedProvider : WithProviderSelection MusicProviderType data
+        , songs : EveryDict ( TrackId, MusicProviderType ) (RemoteData e (List b))
+    }
+    -> Track
+    -> MusicProviderType
+    -> Maybe (Html msg)
 matchingTracks { songs, comparedProvider } { id, title } pType =
     let
         pType =
             Provider.selectionProvider comparedProvider
 
         mathingSongs =
-            pType |> Maybe.map (\p -> ( p, Dict.get ( id, p ) songs ))
+            Maybe.map (\p -> ( p, Dict.get ( id, p ) songs )) pType
     in
         case mathingSongs of
             Just ( p, Just (Success []) ) ->
