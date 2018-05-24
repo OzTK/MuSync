@@ -1,4 +1,4 @@
-module Provider.List
+module List.Connection
     exposing
         ( connectedProviders
         , map
@@ -12,10 +12,10 @@ module Provider.List
         , toggle
         )
 
-import Provider
+import Connection exposing (ProviderConnection(..))
+import Connection.Provider as P
     exposing
-        ( ProviderConnection(..)
-        , ConnectedProvider(..)
+        ( ConnectedProvider(..)
         , DisconnectedProvider(..)
         , InactiveProvider(..)
         , ConnectingProvider(..)
@@ -134,17 +134,17 @@ find pType connections =
 
 findConnected : a -> List (ConnectedProvider a) -> Maybe (ConnectedProvider a)
 findConnected pType connections =
-    connections |> List.filter (\con -> Provider.providerFromConnected con == pType) |> List.head
+    connections |> List.filter (\con -> P.connectedType con == pType) |> List.head
 
 
 filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
 filterByType pType =
-    List.filter (\con -> Provider.provider con == pType)
+    List.filter (\con -> Connection.type_ con == pType)
 
 
 filterNotByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
 filterNotByType pType =
-    List.filter (\con -> Provider.provider con /= pType)
+    List.filter (\con -> Connection.type_ con /= pType)
 
 
 filter :
@@ -156,7 +156,7 @@ filter pType f =
     List.filter
         (\con ->
             pType
-                |> Maybe.map ((==) (Provider.provider con))
+                |> Maybe.map ((==) (Connection.type_ con))
                 |> Maybe.withDefault True
                 |> (&&) (f con)
         )
@@ -166,9 +166,9 @@ toggle : providerType -> List (ProviderConnection providerType) -> List (Provide
 toggle pType providers =
     mapOn pType
         (\con ->
-            if not (Provider.isConnected con) then
-                Provider.connecting pType
+            if not (Connection.isConnected con) then
+                Connection.connecting pType
             else
-                Provider.disconnected pType
+                Connection.disconnected pType
         )
         providers

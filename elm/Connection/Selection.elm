@@ -1,8 +1,19 @@
-module Provider.Selection exposing (..)
+module Connection.Selection
+    exposing
+        ( WithProviderSelection(..)
+        , noSelection
+        , select
+        , isSelected
+        , setData
+        , providerType
+        , connection
+        , map
+        , data
+        )
 
 import Http
 import RemoteData exposing (WebData, RemoteData(NotAsked, Success))
-import Provider exposing (ConnectedProvider(..))
+import Connection.Provider exposing (ConnectedProvider(..))
 
 
 type WithProviderSelection providerType data
@@ -30,6 +41,16 @@ isSelected selection =
             True
 
 
+data : WithProviderSelection providerType data -> Maybe (RemoteData Http.Error data)
+data selection =
+    case selection of
+        Selected _ data ->
+            Just data
+
+        _ ->
+            Nothing
+
+
 setData : WithProviderSelection providerType data -> RemoteData Http.Error data -> WithProviderSelection providerType data
 setData selection data =
     case selection of
@@ -40,8 +61,8 @@ setData selection data =
             selection
 
 
-selectionProvider : WithProviderSelection providerType data -> Maybe providerType
-selectionProvider selection =
+providerType : WithProviderSelection providerType data -> Maybe providerType
+providerType selection =
     case selection of
         Selected (ConnectedProvider pType) _ ->
             Just pType
@@ -53,8 +74,8 @@ selectionProvider selection =
             Nothing
 
 
-connectedProvider : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
-connectedProvider selection =
+connection : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
+connection selection =
     case selection of
         Selected provider _ ->
             Just provider
@@ -63,21 +84,11 @@ connectedProvider selection =
             Nothing
 
 
-mapSelection : (a -> a) -> WithProviderSelection providerType a -> WithProviderSelection providerType a
-mapSelection f selection =
+map : (a -> a) -> WithProviderSelection providerType a -> WithProviderSelection providerType a
+map f selection =
     case selection of
         Selected con (Success d) ->
             Selected con (Success (f d))
 
         _ ->
             selection
-
-
-getData : WithProviderSelection providerType data -> Maybe (RemoteData Http.Error data)
-getData selection =
-    case selection of
-        Selected _ data ->
-            Just data
-
-        _ ->
-            Nothing
