@@ -561,7 +561,8 @@ compareSearch { availableConnections, playlists, comparedProvider } playlist =
             [ onClick (SearchMatchingSongs playlist)
             , disabled (not <| Selection.isSelected comparedProvider)
             ]
-            [ text "search!" ]
+            [ text "search" ]
+        , button [ disabled (not <| Selection.isSelected comparedProvider) ] [ text "import" ]
         ]
 
 
