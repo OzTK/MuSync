@@ -541,29 +541,49 @@ playlists model =
 
 
 compareSearch :
-    { a
+    { b
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
+        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
     }
     -> Playlist
     -> Html Msg
-compareSearch { availableConnections, playlists, comparedProvider } playlist =
-    div [ class "provider-compare" ]
-        [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
-        , availableConnections
-            |> Connections.connectedProviders
-            |> asSelectableList playlists
-            |> SelectableList.rest
-            |> asSelectableList comparedProvider
-            |> providerSelector ComparedProviderChanged []
-        , button
-            [ onClick (SearchMatchingSongs playlist)
-            , disabled (not <| Selection.isSelected comparedProvider)
+compareSearch { availableConnections, playlists, comparedProvider, songs } playlist =
+    let
+        allSongsGood =
+            playlist
+                |> Playlist.songIds
+                |> Maybe.map2
+                    (\pType ids ->
+                        List.map
+                            (\id ->
+                                songs
+                                    |> Dict.get ( id, pType )
+                                    |> Maybe.andThen (RemoteData.map (not << List.isEmpty) >> RemoteData.toMaybe)
+                                    |> Maybe.withDefault False
+                            )
+                            ids
+                    )
+                    (Selection.providerType comparedProvider)
+                |> Maybe.map (List.all identity)
+                |> Maybe.withDefault False
+    in
+        div [ class "provider-compare" ]
+            [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
+            , availableConnections
+                |> Connections.connectedProviders
+                |> asSelectableList playlists
+                |> SelectableList.rest
+                |> asSelectableList comparedProvider
+                |> providerSelector ComparedProviderChanged []
+            , button
+                [ onClick (SearchMatchingSongs playlist)
+                , disabled (not <| Selection.isSelected comparedProvider)
+                ]
+                [ text "search" ]
+            , button [ disabled (not allSongsGood) ] [ text "import" ]
             ]
-            [ text "search" ]
-        , button [ disabled (not <| Selection.isSelected comparedProvider) ] [ text "import" ]
-        ]
 
 
 songs :
