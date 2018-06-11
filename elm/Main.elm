@@ -3,6 +3,7 @@ port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 import Maybe.Extra as Maybe
 import List.Extra as List
 import EveryDict as Dict exposing (EveryDict)
+import EveryDict.Extra as Dict
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i, input)
 import Html.Attributes as Html exposing (id, disabled, style, for, name, value, selected, class, title, type_, placeholder)
 import Html.Extra
@@ -285,17 +286,13 @@ update msg model =
                         |> Maybe.andThen
                             (\pType ->
                                 playlist.songs
-                                    |> RemoteData.map
-                                        (\songs ->
-                                            List.foldl (\{ id } d -> Dict.insert ( id, pType ) Loading d) model.songs songs
-                                        )
+                                    |> RemoteData.map (List.map (.id >> (flip (,)) pType))
+                                    |> RemoteData.map (\keys -> Dict.insertAtAll keys Loading model.songs)
                                     |> RemoteData.toMaybe
                             )
+                        |> Maybe.withDefault model.songs
             in
-                { model
-                    | songs = Maybe.withDefault model.songs loading
-                }
-                    ! cmds
+                { model | songs = loading } ! cmds
 
         ReceiveDeezerMatchingSongs ( trackId, jsonTracks ) ->
             let
