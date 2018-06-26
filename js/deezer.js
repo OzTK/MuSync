@@ -57,11 +57,7 @@ function loadDeezerPlaylistSongs(pid, cb) {
   DZ.api("/playlist/" + pid, function (response) {
     cb(
       response.tracks && response.tracks.data ?
-      response.tracks.data.map((s) => ({
-        id: s.id.toString(),
-        title: s.title,
-        artist: s.artist.name
-      })) :
+      response.tracks.data :
       null
     );
   });
@@ -69,11 +65,7 @@ function loadDeezerPlaylistSongs(pid, cb) {
 
 function searchDeezerSong(artist, title, cb) {
   DZ.api("/search/track?strict=on&q=" + 'artist:"' + artist + '" track:"' + title + '"', function (response) {
-    cb(response.data && response.data.map((t) => ({
-      id: t.id.toString(),
-      title: t.title,
-      artist: t.artist.name
-    })));
+    cb(response.data && response.data);
   });
 }
 
