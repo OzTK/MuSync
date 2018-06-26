@@ -1,10 +1,18 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink)
+module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo)
 
 import Task
 import RemoteData exposing (WebData, RemoteData(NotAsked))
-import Model exposing (MusicProviderType(Spotify))
+import Model exposing (MusicProviderType(Spotify), UserInfo)
 import Track exposing (Track)
 import Playlist exposing (Playlist)
+
+
+getUserInfo : String -> (String -> WebData UserInfo -> msg) -> Cmd msg
+getUserInfo token tagger =
+    UserInfo "1" "Test User"
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map (tagger token)
 
 
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
@@ -17,10 +25,10 @@ searchTrack token tagger ({ id, artist, title } as track) =
 
 getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
 getPlaylists _ tagger =
-    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
-    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
-    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
-    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, tracksLink = Just "http://myplaylist/link" }
+    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
+    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
+    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
+    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
     ]
         |> Task.succeed
         |> RemoteData.asCmd
