@@ -67,7 +67,7 @@ providerType selection =
         Selected (ConnectedProvider pType) _ ->
             Just pType
 
-        Selected (ConnectedProviderWithToken pType _) _ ->
+        Selected (ConnectedProviderWithToken pType _ _) _ ->
             Just pType
 
         _ ->

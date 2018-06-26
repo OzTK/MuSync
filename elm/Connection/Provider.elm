@@ -1,5 +1,7 @@
 module Connection.Provider exposing (..)
 
+import Model exposing (UserInfo)
+
 
 type alias OAuthToken =
     String
@@ -7,7 +9,7 @@ type alias OAuthToken =
 
 type ConnectedProvider providerType
     = ConnectedProvider providerType
-    | ConnectedProviderWithToken providerType OAuthToken
+    | ConnectedProviderWithToken providerType OAuthToken UserInfo
 
 
 connected : providerType -> ConnectedProvider providerType
@@ -21,13 +23,13 @@ connectedType connection =
         ConnectedProvider pType ->
             pType
 
-        ConnectedProviderWithToken pType _ ->
+        ConnectedProviderWithToken pType _ _ ->
             pType
 
 
-connectedWithToken : providerType -> OAuthToken -> ConnectedProvider providerType
-connectedWithToken pType token =
-    ConnectedProviderWithToken pType token
+connectedWithToken : providerType -> OAuthToken -> UserInfo -> ConnectedProvider providerType
+connectedWithToken pType token user =
+    ConnectedProviderWithToken pType token user
 
 
 type DisconnectedProvider providerType

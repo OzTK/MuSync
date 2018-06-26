@@ -52,7 +52,7 @@ flatMap f =
                 Connected (ConnectedProvider pType) ->
                     f pType
 
-                Connected (ConnectedProviderWithToken pType _) ->
+                Connected (ConnectedProviderWithToken pType _ _) ->
                     f pType
         )
 
@@ -81,7 +81,7 @@ map f =
                     Connected (ConnectedProvider pType) ->
                         fcon pType
 
-                    Connected (ConnectedProviderWithToken pType _) ->
+                    Connected (ConnectedProviderWithToken pType _ _) ->
                         fcon pType
         )
 
@@ -119,7 +119,7 @@ mapOn pType f =
                     else
                         con
 
-                Connected (ConnectedProviderWithToken pt _) ->
+                Connected (ConnectedProviderWithToken pt _ _) ->
                     if pt == pType then
                         f con
                     else

@@ -16,6 +16,7 @@ playlist =
         |> required "id" (map toString int)
         |> required "title" string
         |> hardcoded NotAsked
+        |> required "link" string
         |> required "nb_tracks" int
         |> hardcoded Nothing
 

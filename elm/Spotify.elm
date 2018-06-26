@@ -1,4 +1,4 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink)
+module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo)
 
 import Task
 import Process
@@ -7,14 +7,22 @@ import Time exposing (inSeconds)
 import Http exposing (header, encodeUri)
 import RemoteData.Http as Http exposing (defaultConfig, Config)
 import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
+import Json.Encode as JE
 import Json.Decode.Pipeline as Pip
 import RemoteData exposing (WebData, RemoteData(NotAsked, Failure))
-import Model exposing (MusicProviderType(Spotify))
+import Model exposing (MusicProviderType(Spotify), UserInfo)
 import Playlist exposing (Playlist)
 import Track exposing (Track)
 
 
 -- Model
+
+
+userInfo : Decoder UserInfo
+userInfo =
+    Pip.decode UserInfo
+        |> Pip.required "id" string
+        |> Pip.required "display_name" string
 
 
 type alias Artist =
@@ -65,6 +73,7 @@ playlist =
         |> Pip.required "id" string
         |> Pip.required "name" string
         |> Pip.hardcoded NotAsked
+        |> Pip.required "href" string
         |> Pip.requiredAt [ "tracks", "total" ] int
         |> Pip.requiredAt [ "tracks", "href" ] (nullable string)
 
@@ -87,6 +96,12 @@ searchResponse : Decoder (List Track)
 searchResponse =
     Pip.decode succeed
         |> Pip.requiredAt [ "tracks", "items" ] (list track)
+        |> Pip.resolve
+
+
+addToPlaylistResponse =
+    Pip.decode succeed
+        |> Pip.requiredAt [ "success" ] (string)
         |> Pip.resolve
 
 
@@ -143,6 +158,11 @@ withRateLimit tagger task =
     withRateLimitTask task |> Task.perform tagger
 
 
+getUserInfo : String -> (String -> WebData UserInfo -> msg) -> Cmd msg
+getUserInfo token tagger =
+    Http.getWithConfig (config token) (endpoint ++ "me") (tagger token) userInfo
+
+
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
 searchTrack token tagger ({ artist, title } as track) =
     Http.getTaskWithConfig (config token)
@@ -173,6 +193,33 @@ getPlaylistTracksFromLink token tagger link =
     Http.getTaskWithConfig (config token) link playlistTracks |> withRateLimit tagger
 
 
+createPlaylistTask token name =
+    Http.postTaskWithConfig
+        (config token)
+        (endpoint ++ "users/" ++ name ++ "/playlists")
+        playlist
+        (JE.object [ ( "name", JE.string name ) ])
+
+
+addSongsToPlaylist token songs playlist =
+    List.map
+        (\s ->
+            Http.putTaskWithConfig
+                (config token)
+                (playlist.link)
+                addToPlaylistResponse
+                (JE.object [ ( "id", playlist.id ) ])
+        )
+        songs
+
+
+
+-- importPlaylist token tagger { name, songs } =
+--     songs
+--         |> RemoteData.map (\s -> ( s, createPlaylistTask token name ))
+--         |> RemoteData.map (\( s, t ) -> t |> Task.andThen (addSongsToPlaylist token s))
+
+
 config : String -> Config
 config token =
-    { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token ] }
+    { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token, header "Content-Type" "application/json" ] }

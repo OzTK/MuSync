@@ -12,10 +12,10 @@ import Html.Events.Extra exposing (onChangeTo, onChange)
 import Json.Decode as JD
 import Json.Encode as JE
 import RemoteData exposing (RemoteData(..), WebData)
-import Model exposing (MusicProviderType(..))
+import Model exposing (MusicProviderType(..), UserInfo)
 import SelectableList exposing (SelectableList)
 import Connection exposing (ProviderConnection(..))
-import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..))
+import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
 import List.Connection as Connections
 import Connection.Selection as Selection exposing (WithProviderSelection)
 import Playlist exposing (Playlist, PlaylistId)
@@ -106,6 +106,7 @@ type Msg
     | PlaylistsProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | SpotifyConnectionStatusUpdate ( Maybe String, String )
+    | SpotifyUserInfoReceived OAuthToken (WebData UserInfo)
     | SearchMatchingSongs Playlist
     | RetrySearchSong Track String
     | MatchingSongResult Track MusicProviderType (WebData (List Track))
@@ -134,18 +135,24 @@ update msg model =
                         |> Maybe.map (uncurry providerToggleConnectionCmd)
                         |> Maybe.withDefault Cmd.none
 
-                wasSelected =
-                    model.playlists |> Selection.providerType |> Maybe.map ((==) pType) |> Maybe.withDefault False
+                playlists =
+                    model.playlists
+                        |> Selection.providerType
+                        |> Maybe.map ((==) pType)
+                        |> Maybe.andThen
+                            (\selected ->
+                                if selected then
+                                    Just Selection.noSelection
+                                else
+                                    Nothing
+                            )
+                        |> Maybe.withDefault model.playlists
 
                 model_ =
                     { model | availableConnections = Connections.toggle pType model.availableConnections }
             in
                 { model_
-                    | playlists =
-                        if wasSelected then
-                            Selection.noSelection
-                        else
-                            model.playlists
+                    | playlists = playlists
                 }
                     ! [ toggleCmd ]
 
@@ -236,13 +243,29 @@ update msg model =
                 connection =
                     Connection.connectedWithToken Spotify token
             in
+                model ! [ Spotify.getUserInfo token SpotifyUserInfoReceived ]
+
+        SpotifyConnectionStatusUpdate ( Just _, _ ) ->
+            { model
+                | availableConnections =
+                    Connections.mapOn Spotify
+                        (\con -> con |> Connection.type_ |> Connection.disconnected)
+                        model.availableConnections
+            }
+                ! []
+
+        SpotifyUserInfoReceived token (Success user) ->
+            let
+                connection =
+                    Connection.connectedWithToken Spotify token user
+            in
                 { model
                     | availableConnections =
                         Connections.mapOn Spotify (\_ -> connection) model.availableConnections
                 }
                     ! []
 
-        SpotifyConnectionStatusUpdate ( Just _, _ ) ->
+        SpotifyUserInfoReceived token _ ->
             { model
                 | availableConnections =
                     Connections.mapOn Spotify
@@ -329,7 +352,7 @@ loadPlaylists connection =
         ConnectedProvider Deezer ->
             loadDeezerPlaylists ()
 
-        ConnectedProviderWithToken Spotify token ->
+        ConnectedProviderWithToken Spotify token _ ->
             Spotify.getPlaylists token ReceivePlaylists
 
         _ ->
@@ -342,7 +365,7 @@ loadPlaylistSongs connection ({ id, tracksLink } as playlist) =
         ConnectedProvider Deezer ->
             loadDeezerPlaylistSongs id
 
-        ConnectedProviderWithToken Spotify token ->
+        ConnectedProviderWithToken Spotify token _ ->
             tracksLink
                 |> Maybe.map (Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist))
                 |> Maybe.withDefault Cmd.none
@@ -362,7 +385,7 @@ searchMatchingSong playlistId { comparedProvider } track =
 searchSongFromProvider : Track -> ConnectedProvider MusicProviderType -> Cmd Msg
 searchSongFromProvider track provider =
     case provider of
-        ConnectedProviderWithToken Spotify token ->
+        ConnectedProviderWithToken Spotify token _ ->
             Spotify.searchTrack token (MatchingSongResult track Spotify) track
 
         ConnectedProvider Deezer ->

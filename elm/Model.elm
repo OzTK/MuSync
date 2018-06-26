@@ -1,4 +1,4 @@
-module Model exposing (MusicProviderType(..), providerFromString)
+module Model exposing (MusicProviderType(..), UserInfo, providerFromString)
 
 
 type MusicProviderType
@@ -25,3 +25,13 @@ providerFromString pName =
 
         _ ->
             Nothing
+
+
+type alias UserId =
+    String
+
+
+type alias UserInfo =
+    { id : UserId
+    , displayName : String
+    }

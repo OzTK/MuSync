@@ -21,6 +21,7 @@ import Connection.Provider as P
         , ConnectingProvider(..)
         , InactiveProvider(..)
         )
+import Model exposing (UserInfo)
 
 
 -- Provider connection
@@ -31,9 +32,9 @@ connected =
     Connected << P.connected
 
 
-connectedWithToken : providerType -> OAuthToken -> ProviderConnection providerType
-connectedWithToken pType token =
-    Connected <| P.connectedWithToken pType token
+connectedWithToken : providerType -> OAuthToken -> UserInfo -> ProviderConnection providerType
+connectedWithToken pType token user =
+    Connected <| P.connectedWithToken pType token user
 
 
 disconnected : providerType -> ProviderConnection providerType
