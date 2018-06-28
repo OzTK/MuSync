@@ -7,7 +7,7 @@ import EveryDict.Extra as Dict
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i, input)
 import Html.Attributes as Html exposing (id, disabled, style, for, name, value, selected, class, title, type_, placeholder)
 import Html.Extra
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onChangeTo, onChange)
 import Json.Decode as JD
 import Json.Encode as JE
@@ -677,7 +677,7 @@ matchingTracks { songs, comparedProvider, alternativeTitles } ({ id, title } as 
                             ]
                             []
                         , label [ for "correct-title-input" ] [ text "Try correcting song title:" ]
-                        , input [ onChange (ChangeAltTitle id), type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
+                        , input [ onInput (ChangeAltTitle id), type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
                         , button [ onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ text "retry" ]
                         ]
                     )
