@@ -1,4 +1,4 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo)
+module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo, importPlaylist)
 
 import Task
 import Process
@@ -9,7 +9,7 @@ import RemoteData.Http as Http exposing (defaultConfig, Config)
 import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
 import Json.Encode as JE
 import Json.Decode.Pipeline as Pip
-import RemoteData exposing (WebData, RemoteData(NotAsked, Failure))
+import RemoteData exposing (WebData, RemoteData(NotAsked, Failure, Success))
 import Model exposing (MusicProviderType(Spotify), UserInfo)
 import Playlist exposing (Playlist)
 import Track exposing (Track)
@@ -99,9 +99,10 @@ searchResponse =
         |> Pip.resolve
 
 
+addToPlaylistResponse : Decoder String
 addToPlaylistResponse =
     Pip.decode succeed
-        |> Pip.requiredAt [ "success" ] (string)
+        |> Pip.requiredAt [ "snapshot_id" ] (string)
         |> Pip.resolve
 
 
@@ -193,31 +194,44 @@ getPlaylistTracksFromLink token tagger link =
     Http.getTaskWithConfig (config token) link playlistTracks |> withRateLimit tagger
 
 
-createPlaylistTask token name =
+createPlaylistTask : String -> String -> String -> Task.Task Never (WebData Playlist)
+createPlaylistTask token user name =
     Http.postTaskWithConfig
         (config token)
-        (endpoint ++ "users/" ++ name ++ "/playlists")
+        (endpoint ++ "users/" ++ user ++ "/playlists")
         playlist
         (JE.object [ ( "name", JE.string name ) ])
 
 
-addSongsToPlaylist token songs playlist =
-    List.map
-        (\s ->
-            Http.putTaskWithConfig
+addSongsToPlaylistTask : String -> List Track -> WebData Playlist -> Task.Task Never (WebData Playlist)
+addSongsToPlaylistTask token songs playlistData =
+    case playlistData of
+        Success { link } ->
+            Http.postTaskWithConfig
                 (config token)
-                (playlist.link)
+                (link)
                 addToPlaylistResponse
-                (JE.object [ ( "id", playlist.id ) ])
-        )
-        songs
+                (JE.object
+                    [ ( "uris"
+                      , songs
+                            |> List.map (.id >> Tuple.second)
+                            |> List.map ((++) "spotify:track:")
+                            |> List.map JE.string
+                            |> JE.list
+                      )
+                    ]
+                )
+                |> Task.map (\_ -> playlistData)
+
+        _ ->
+            Task.succeed playlistData
 
 
-
--- importPlaylist token tagger { name, songs } =
---     songs
---         |> RemoteData.map (\s -> ( s, createPlaylistTask token name ))
---         |> RemoteData.map (\( s, t ) -> t |> Task.andThen (addSongsToPlaylist token s))
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> Playlist -> Cmd msg
+importPlaylist token user tagger songs { name, link } =
+    createPlaylistTask token user name
+        |> Task.andThen (addSongsToPlaylistTask token songs)
+        |> Task.perform tagger
 
 
 config : String -> Config
