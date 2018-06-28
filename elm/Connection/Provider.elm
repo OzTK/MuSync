@@ -27,6 +27,26 @@ connectedType connection =
             pType
 
 
+token : ConnectedProvider providerType -> Maybe OAuthToken
+token con =
+    case con of
+        ConnectedProviderWithToken _ token _ ->
+            Just token
+
+        _ ->
+            Nothing
+
+
+user : ConnectedProvider providerType -> Maybe UserInfo
+user con =
+    case con of
+        ConnectedProviderWithToken _ _ user ->
+            Just user
+
+        _ ->
+            Nothing
+
+
 connectedWithToken : providerType -> OAuthToken -> UserInfo -> ConnectedProvider providerType
 connectedWithToken pType token user =
     ConnectedProviderWithToken pType token user

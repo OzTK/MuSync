@@ -6,7 +6,7 @@ import EveryDict as Dict exposing (EveryDict)
 import EveryDict.Extra as Dict
 import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i, input)
 import Html.Attributes as Html exposing (id, disabled, style, for, name, value, selected, class, title, type_, placeholder)
-import Html.Extra
+import Html.Extra as Html
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onChangeTo, onChange)
 import Json.Decode as JD
@@ -17,7 +17,7 @@ import SelectableList exposing (SelectableList)
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
 import List.Connection as Connections
-import Connection.Selection as Selection exposing (WithProviderSelection)
+import Connection.Selection as Selection exposing (WithProviderSelection(..))
 import Playlist exposing (Playlist, PlaylistId)
 import Track exposing (Track, TrackId)
 import Spotify
@@ -111,6 +111,8 @@ type Msg
     | RetrySearchSong Track String
     | MatchingSongResult Track MusicProviderType (WebData (List Track))
     | ChangeAltTitle TrackId String
+    | ImportPlaylist (List Track) Playlist
+    | PlaylistImported (WebData Playlist)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -345,6 +347,27 @@ update msg model =
         ChangeAltTitle id title ->
             { model | alternativeTitles = Dict.insert id title model.alternativeTitles } ! []
 
+        ImportPlaylist songs playlist ->
+            { model | playlists = Selection.importing model.playlists playlist } ! [ imporPlaylist model playlist songs ]
+
+        PlaylistImported _ ->
+            { model | playlists = Selection.importDone model.playlists } ! []
+
+
+imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
+imporPlaylist { comparedProvider } playlist songs =
+    case comparedProvider of
+        Selection.Selected con _ ->
+            case ( Provider.connectedType con, Provider.token con, Provider.user con ) of
+                ( Spotify, Just token, Just { id } ) ->
+                    Spotify.importPlaylist token id PlaylistImported songs playlist
+
+                _ ->
+                    Cmd.none
+
+        _ ->
+            Cmd.none
+
 
 loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
@@ -450,13 +473,18 @@ view model =
 -- Reusable
 
 
-progressBar : Html msg
-progressBar =
-    div
-        [ class "progress progress-indeterminate"
-        , style [ ( "margin", "16px" ), ( "width", "50%" ) ]
+progressBar : Maybe String -> Html msg
+progressBar message =
+    div []
+        [ div
+            [ class "progress progress-indeterminate"
+            , style [ ( "margin", "16px" ), ( "width", "50%" ) ]
+            ]
+            [ div [ class "progress-bar" ] [] ]
+        , message
+            |> Maybe.map (\m -> h3 [] [ text m ])
+            |> Maybe.withDefault Html.empty
         ]
-        [ div [ class "progress-bar" ] [] ]
 
 
 providerSelector :
@@ -540,6 +568,9 @@ playlists :
     -> Html Msg
 playlists model =
     case model.playlists of
+        Selection.Importing _ _ { name } ->
+            progressBar (Just <| "Importing " ++ name ++ "...")
+
         Selection.Selected _ (Success p) ->
             p
                 |> SelectableList.selected
@@ -557,10 +588,16 @@ playlists model =
             div [] [ text "Select a provider to load your playlists" ]
 
         Selection.Selected _ _ ->
-            progressBar
+            progressBar (Just "Loading your playlists...")
 
 
-compareSearch :
+playlist : (Playlist -> Msg) -> Playlist -> Html Msg
+playlist tagger p =
+    li [ onClick (tagger p) ]
+        [ text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)" ]
+
+
+comparedSearch :
     { b
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
@@ -569,25 +606,30 @@ compareSearch :
     }
     -> Playlist
     -> Html Msg
-compareSearch { availableConnections, playlists, comparedProvider, songs } playlist =
+comparedSearch { availableConnections, playlists, comparedProvider, songs } playlist =
     let
-        allSongsGood =
+        matchedSongs =
             playlist
                 |> Playlist.songIds
                 |> Maybe.map2
                     (\pType ids ->
-                        List.map
+                        List.filterMap
                             (\id ->
                                 songs
                                     |> Dict.get ( id, pType )
-                                    |> Maybe.andThen (RemoteData.map (not << List.isEmpty) >> RemoteData.toMaybe)
-                                    |> Maybe.withDefault False
+                                    |> Maybe.andThen RemoteData.toMaybe
+                                    |> Maybe.andThen List.head
                             )
                             ids
                     )
                     (Selection.providerType comparedProvider)
-                |> Maybe.map (List.all identity)
-                |> Maybe.withDefault False
+                |> Maybe.withDefault []
+
+        allSongsGood =
+            playlist.songs
+                |> RemoteData.map List.length
+                |> RemoteData.map ((==) <| List.length matchedSongs)
+                |> RemoteData.withDefault False
     in
         div [ class "provider-compare" ]
             [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
@@ -602,7 +644,7 @@ compareSearch { availableConnections, playlists, comparedProvider, songs } playl
                 , disabled (not <| Selection.isSelected comparedProvider)
                 ]
                 [ text "search" ]
-            , button [ disabled (not allSongsGood) ] [ text "import" ]
+            , button [ disabled (not allSongsGood), onClick (ImportPlaylist matchedSongs playlist) ] [ text "import" ]
             ]
 
 
@@ -623,11 +665,11 @@ songs model playlist =
             |> RemoteData.map
                 (\s ->
                     div []
-                        [ compareSearch model playlist
+                        [ comparedSearch model playlist
                         , ul [ id "playlist-songs" ] (List.map (song model) s)
                         ]
                 )
-            |> RemoteData.withDefault (progressBar)
+            |> RemoteData.withDefault (progressBar Nothing)
         ]
 
 
@@ -645,7 +687,7 @@ song ({ comparedProvider } as model) track =
         , comparedProvider
             |> Selection.providerType
             |> Maybe.andThen (matchingTracks model track)
-            |> Maybe.withDefault Html.Extra.empty
+            |> Maybe.withDefault Html.empty
         ]
 
 
@@ -697,12 +739,6 @@ matchingTracks { songs, comparedProvider, alternativeTitles } ({ id, title } as 
 
             _ ->
                 Nothing
-
-
-playlist : (Playlist -> Msg) -> Playlist -> Html Msg
-playlist tagger p =
-    li [ onClick (tagger p) ]
-        [ text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)" ]
 
 
 providerName : MusicProviderType -> String

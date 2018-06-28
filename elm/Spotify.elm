@@ -209,7 +209,7 @@ addSongsToPlaylistTask token songs playlistData =
         Success { link } ->
             Http.postTaskWithConfig
                 (config token)
-                (link)
+                (link ++ "/tracks")
                 addToPlaylistResponse
                 (JE.object
                     [ ( "uris"

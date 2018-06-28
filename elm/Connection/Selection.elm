@@ -3,6 +3,8 @@ module Connection.Selection
         ( WithProviderSelection(..)
         , noSelection
         , select
+        , importing
+        , importDone
         , isSelected
         , setData
         , providerType
@@ -14,11 +16,13 @@ module Connection.Selection
 import Http
 import RemoteData exposing (WebData, RemoteData(NotAsked, Success))
 import Connection.Provider exposing (ConnectedProvider(..))
+import Playlist exposing (Playlist)
 
 
 type WithProviderSelection providerType data
     = NoProviderSelected
     | Selected (ConnectedProvider providerType) (RemoteData Http.Error data)
+    | Importing (ConnectedProvider providerType) (RemoteData Http.Error data) Playlist
 
 
 noSelection : WithProviderSelection providerType data
@@ -29,6 +33,26 @@ noSelection =
 select : ConnectedProvider providerType -> WithProviderSelection providerType data
 select connection =
     Selected connection NotAsked
+
+
+importDone : WithProviderSelection providerType data -> WithProviderSelection providerType data
+importDone selection =
+    case selection of
+        Importing con data _ ->
+            Selected con data
+
+        _ ->
+            selection
+
+
+importing : WithProviderSelection providerType data -> Playlist -> WithProviderSelection providerType data
+importing selection playlist =
+    case selection of
+        Selected connection data ->
+            Importing connection data playlist
+
+        _ ->
+            selection
 
 
 isSelected : WithProviderSelection providerType data -> Bool
