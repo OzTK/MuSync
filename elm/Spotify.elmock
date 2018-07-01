@@ -1,4 +1,4 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo)
+module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo, importPlaylist)
 
 import Task
 import RemoteData exposing (WebData, RemoteData(NotAsked))
@@ -46,6 +46,14 @@ getPlaylistTracksFromLink _ tagger _ =
     , { id = ( Spotify, "7" ), artist = "The Clash", title = "London Calling" }
     , { id = ( Spotify, "8" ), artist = "The Tiger Lillies", title = "Terrible" }
     ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> Playlist -> Cmd msg
+importPlaylist _ _ tagger songs { name, link } =
+    Playlist "1" name NotAsked "http://myplaylist" 5 Nothing
         |> Task.succeed
         |> RemoteData.asCmd
         |> Cmd.map tagger
