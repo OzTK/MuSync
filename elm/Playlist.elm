@@ -14,7 +14,6 @@ type alias Playlist =
     , songs : WebData (List Track)
     , link : String
     , tracksCount : Int
-    , tracksLink : Maybe String
     }
 
 

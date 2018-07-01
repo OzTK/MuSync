@@ -75,7 +75,6 @@ playlist =
         |> Pip.hardcoded NotAsked
         |> Pip.required "href" string
         |> Pip.requiredAt [ "tracks", "total" ] int
-        |> Pip.requiredAt [ "tracks", "href" ] (nullable string)
 
 
 playlistsResponse : Decoder (List Playlist)
@@ -191,7 +190,7 @@ getPlaylists token tagger =
 
 getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
 getPlaylistTracksFromLink token tagger link =
-    Http.getTaskWithConfig (config token) link playlistTracks |> withRateLimit tagger
+    Http.getTaskWithConfig (config token) (link ++ "/tracks") playlistTracks |> withRateLimit tagger
 
 
 createPlaylistTask : String -> String -> String -> Task.Task Never (WebData Playlist)

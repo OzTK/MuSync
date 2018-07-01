@@ -383,15 +383,13 @@ loadPlaylists connection =
 
 
 loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
-loadPlaylistSongs connection ({ id, tracksLink } as playlist) =
+loadPlaylistSongs connection ({ id, link } as playlist) =
     case connection of
         ConnectedProvider Deezer ->
             loadDeezerPlaylistSongs id
 
         ConnectedProviderWithToken Spotify token _ ->
-            tracksLink
-                |> Maybe.map (Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist))
-                |> Maybe.withDefault Cmd.none
+            Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist) link
 
         _ ->
             Cmd.none

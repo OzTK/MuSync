@@ -25,10 +25,10 @@ searchTrack token tagger ({ id, artist, title } as track) =
 
 getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
 getPlaylists _ tagger =
-    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
-    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
-    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
-    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist", tracksLink = Just "http://myplaylist/link" }
+    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
     ]
         |> Task.succeed
         |> RemoteData.asCmd
@@ -53,7 +53,7 @@ getPlaylistTracksFromLink _ tagger _ =
 
 importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> Playlist -> Cmd msg
 importPlaylist _ _ tagger songs { name, link } =
-    Playlist "1" name NotAsked "http://myplaylist" 5 Nothing
+    Playlist "1" name NotAsked "http://myplaylist" 5
         |> Task.succeed
         |> RemoteData.asCmd
         |> Cmd.map tagger

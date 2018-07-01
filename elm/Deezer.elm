@@ -18,7 +18,6 @@ playlist =
         |> hardcoded NotAsked
         |> required "link" string
         |> required "nb_tracks" int
-        |> hardcoded Nothing
 
 
 track : Decoder Track
