@@ -73,6 +73,14 @@
       })
     });
 
+    elmApp.ports.exportPlaylistToDeezer.subscribe(function ([name, tracks]) {
+      createDeezerPlaylists(name)
+        .then((pid) => addTracksToPlaylist(pid, tracks))
+        .then((pid) => loadDeezerPlaylist(pid))
+        .then((p) => elmApp.ports.deezerPlaylistAdded.send(p))
+        .catch((err) => console.log(err))
+    })
+
     elmApp.ports.connectSpotify.subscribe(function () {
       if (config.local) {
         return onSpotifyLogin("1234567890febiubfurhgoi");

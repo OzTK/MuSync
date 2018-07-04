@@ -4,7 +4,7 @@ import Task
 import Process
 import Dict
 import Time exposing (inSeconds)
-import Http exposing (header, encodeUri)
+import Http exposing (header)
 import RemoteData.Http as Http exposing (defaultConfig, Config)
 import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
 import Json.Encode as JE
@@ -168,12 +168,13 @@ searchTrack token tagger ({ artist, title } as track) =
     Http.getTaskWithConfig (config token)
         (endpoint
             ++ "search?type=track&limit=1&q="
-            ++ (encodeUri
-                    "artist:\""
-                    ++ artist
-                    ++ "\" track:\""
-                    ++ title
-                    ++ "\""
+            ++ (Http.encodeUri
+                    ("artist:\""
+                        ++ artist
+                        ++ "\" track:\""
+                        ++ title
+                        ++ "\""
+                    )
                )
         )
         searchResponse
@@ -226,8 +227,8 @@ addSongsToPlaylistTask token songs playlistData =
             Task.succeed playlistData
 
 
-importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> Playlist -> Cmd msg
-importPlaylist token user tagger songs { name, link } =
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
+importPlaylist token user tagger songs name =
     createPlaylistTask token user name
         |> Task.andThen (addSongsToPlaylistTask token songs)
         |> Task.perform tagger

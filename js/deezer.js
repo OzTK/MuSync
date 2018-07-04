@@ -42,7 +42,7 @@ function connectDeezer(cb) {
       isDzConnected = response.authResponse !== undefined;
       cb(isDzConnected);
     }, {
-      perms: "basic_access"
+      perms: "basic_access,manage_library"
     }
   );
 }
@@ -53,18 +53,55 @@ function loadDeezerPlaylists(cb) {
   });
 }
 
+function createDeezerPlaylists(name) {
+  return new Promise((ok, err) => {
+    DZ.api("/user/me/playlists", "POST", {
+      title: name
+    }, function (response) {
+      if (response.error) {
+        err(response.error);
+      } else {
+        ok(response.id);
+      }
+    });
+  });
+}
+
+function addTracksToPlaylist(pid, trackIds) {
+  return new Promise((ok, err) => {
+    DZ.api("/playlist/" + pid + "/tracks", "POST", {
+      songs: trackIds.join(",")
+    }, function (response) {
+      if (response && response.error) {
+        err(response.error);
+      } else {
+        ok(pid);
+      }
+    });
+  });
+}
+
 function loadDeezerPlaylistSongs(pid, cb) {
-  DZ.api("/playlist/" + pid, function (response) {
-    cb(
-      response.tracks && response.tracks.data ?
-      response.tracks.data :
-      null
-    );
+  DZ.api("/playlist/" + pid + "/tracks", function (response) {
+    cb(response.data && response.data);
+  });
+}
+
+function loadDeezerPlaylist(pid) {
+  return new Promise((ok, err) => {
+    DZ.api("/playlist/" + pid, function (response) {
+      if (!response.error) {
+        ok(response);
+      } else {
+        err(response.error);
+      }
+    });
   });
 }
 
 function searchDeezerSong(artist, title, cb) {
-  DZ.api("/search/track?strict=on&q=" + 'artist:"' + artist + '" track:"' + title + '"', function (response) {
+  var query = 'artist:"' + artist + '" track:"' + title + '"';
+  DZ.api("/search/track?strict=on&q=" + encodeURIComponent(query), function (response) {
     cb(response.data && response.data);
   });
 }

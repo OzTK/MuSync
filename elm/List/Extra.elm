@@ -1,4 +1,4 @@
-module List.Extra exposing (withDefault, nonEmpty)
+module List.Extra exposing (withDefault, nonEmpty, andThenResult)
 
 
 withDefault : List a -> List a -> List a
@@ -15,3 +15,13 @@ nonEmpty f list =
         list
     else
         f list
+
+
+andThenResult : (a -> Result error b) -> List a -> Result error (List b)
+andThenResult f list =
+    List.foldl
+        (\item result ->
+            Result.map2 (::) (f item) result
+        )
+        (Result.Ok [])
+        list

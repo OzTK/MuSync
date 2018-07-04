@@ -54,6 +54,12 @@ port loadDeezerPlaylistSongs : PlaylistId -> Cmd msg
 port receiveDeezerPlaylistSongs : (Maybe JD.Value -> msg) -> Sub msg
 
 
+port exportPlaylistToDeezer : ( String, List Int ) -> Cmd msg
+
+
+port deezerPlaylistAdded : (JD.Value -> msg) -> Sub msg
+
+
 port connectSpotify : () -> Cmd msg
 
 
@@ -96,6 +102,7 @@ type Msg
     = ToggleConnect MusicProviderType
     | DeezerStatusUpdate Bool
     | ReceiveDeezerPlaylists (Maybe JD.Value)
+    | ReceiveDeezerPlaylist JD.Value
     | ReceivePlaylists (WebData (List Playlist))
     | ReceiveDeezerSongs (Maybe JD.Value)
     | ReceiveDeezerMatchingSongs ( ( String, String ), JD.Value )
@@ -169,6 +176,14 @@ update msg model =
                         |> Selection.setData model.playlists
             }
                 ! []
+
+        ReceiveDeezerPlaylist pJson ->
+            pJson
+                |> JD.decodeValue Deezer.playlist
+                |> RemoteData.fromResult
+                |> RemoteData.mapError (Deezer.httpBadPayloadError "/user/playlist" pJson)
+                |> PlaylistImported
+                |> (flip update) model
 
         ReceiveDeezerPlaylists Nothing ->
             { model
@@ -355,12 +370,20 @@ update msg model =
 
 
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
-imporPlaylist { comparedProvider } playlist songs =
+imporPlaylist { comparedProvider } { name } songs =
     case comparedProvider of
         Selection.Selected con _ ->
             case ( Provider.connectedType con, Provider.token con, Provider.user con ) of
                 ( Spotify, Just token, Just { id } ) ->
-                    Spotify.importPlaylist token id PlaylistImported songs playlist
+                    Spotify.importPlaylist token id PlaylistImported songs name
+
+                ( Deezer, _, _ ) ->
+                    songs
+                        |> List.map (.id >> Tuple.second)
+                        |> List.andThenResult String.toInt
+                        |> Result.map ((,) name)
+                        |> Result.map exportPlaylistToDeezer
+                        |> Result.withDefault Cmd.none
 
                 _ ->
                     Cmd.none
@@ -814,4 +837,5 @@ subscriptions _ =
         , receiveDeezerPlaylistSongs ReceiveDeezerSongs
         , onSpotifyConnected SpotifyConnectionStatusUpdate
         , receiveDeezerMatchingTracks ReceiveDeezerMatchingSongs
+        , deezerPlaylistAdded ReceiveDeezerPlaylist
         ]
