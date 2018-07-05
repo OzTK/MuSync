@@ -45,49 +45,47 @@ var DZ = {
       });
     } else if (url.startsWith("/playlist/")) {
       cb({
-        tracks: {
-          data: [{
-              id: 9,
-              title: "I love you",
-              artist: {
-                name: "Johnny Halliday"
-              },
-              link: "http://track/9"
+        data: [{
+            id: 9,
+            title: "I love you",
+            artist: {
+              name: "Johnny Halliday"
             },
-            {
-              id: 8,
-              title: "Don't forget me",
-              artist: {
-                name: "Serge Gainsbourg"
-              },
-              link: "http://track/8"
+            link: "http://track/9"
+          },
+          {
+            id: 8,
+            title: "Don't forget me",
+            artist: {
+              name: "Serge Gainsbourg"
             },
-            {
-              id: 7,
-              title: "Take that",
-              artist: {
-                name: "The Beatles"
-              },
-              link: "http://track/7"
+            link: "http://track/8"
+          },
+          {
+            id: 7,
+            title: "Take that",
+            artist: {
+              name: "The Beatles"
             },
-            {
-              id: 6,
-              title: "Bonjour la France",
-              artist: {
-                name: "Peter McCalloway"
-              },
-              link: "http://track/6"
+            link: "http://track/7"
+          },
+          {
+            id: 6,
+            title: "Bonjour la France",
+            artist: {
+              name: "Peter McCalloway"
             },
-            {
-              id: 5,
-              title: "Manger du pain",
-              artist: {
-                name: "Petit Bourguignon"
-              },
-              link: "http://track/5"
-            }
-          ]
-        }
+            link: "http://track/6"
+          },
+          {
+            id: 5,
+            title: "Manger du pain",
+            artist: {
+              name: "Petit Bourguignon"
+            },
+            link: "http://track/5"
+          }
+        ]
       });
     } else if (url.startsWith("/search/track")) {
       cb({

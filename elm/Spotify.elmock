@@ -51,8 +51,8 @@ getPlaylistTracksFromLink _ tagger _ =
         |> Cmd.map tagger
 
 
-importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> Playlist -> Cmd msg
-importPlaylist _ _ tagger songs { name, link } =
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
+importPlaylist _ _ tagger songs name =
     Playlist "1" name NotAsked "http://myplaylist" 5
         |> Task.succeed
         |> RemoteData.asCmd
