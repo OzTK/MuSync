@@ -1,4 +1,13 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo, importPlaylist)
+port module Spotify
+    exposing
+        ( searchTrack
+        , getPlaylists
+        , getPlaylistTracksFromLink
+        , getUserInfo
+        , importPlaylist
+        , connectS
+        , onConnected
+        )
 
 import Task
 import Process
@@ -237,3 +246,13 @@ importPlaylist token user tagger songs name =
 config : String -> Config
 config token =
     { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token, header "Content-Type" "application/json" ] }
+
+
+
+-- Ports
+
+
+port connectS : () -> Cmd msg
+
+
+port onConnected : (( Maybe String, String ) -> msg) -> Sub msg

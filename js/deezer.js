@@ -10,7 +10,7 @@ function loadDeezer() {
 
     dzInitialized = true;
     if (typeof elmApp !== "undefined") {
-      getDeezerStatus(elmApp.ports.updateDeezerStatus.send);
+      getDeezerStatus(elmApp.ports.updateStatus.send);
     }
   };
 

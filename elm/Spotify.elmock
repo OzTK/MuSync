@@ -1,4 +1,13 @@
-module Spotify exposing (searchTrack, getPlaylists, getPlaylistTracksFromLink, getUserInfo, importPlaylist)
+port module Spotify
+    exposing
+        ( searchTrack
+        , getPlaylists
+        , getPlaylistTracksFromLink
+        , getUserInfo
+        , importPlaylist
+        , connectS
+        , onConnected
+        )
 
 import Task
 import RemoteData exposing (WebData, RemoteData(NotAsked))
@@ -57,3 +66,13 @@ importPlaylist _ _ tagger songs name =
         |> Task.succeed
         |> RemoteData.asCmd
         |> Cmd.map tagger
+
+
+
+-- Ports
+
+
+port connectS : () -> Cmd msg
+
+
+port onConnected : (( Maybe String, String ) -> msg) -> Sub msg

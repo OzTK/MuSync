@@ -1,4 +1,4 @@
-port module Main exposing (Model, Msg, update, view, subscriptions, init, main)
+module Main exposing (Model, Msg, update, view, subscriptions, init, main)
 
 import Maybe.Extra as Maybe
 import List.Extra as List
@@ -22,49 +22,6 @@ import Playlist exposing (Playlist, PlaylistId)
 import Track exposing (Track, TrackId)
 import Spotify
 import Deezer
-
-
--- Ports
-
-
-port updateDeezerStatus : (Bool -> msg) -> Sub msg
-
-
-port connectDeezer : () -> Cmd msg
-
-
-port disconnectDeezer : () -> Cmd msg
-
-
-port loadDeezerPlaylists : () -> Cmd msg
-
-
-port receiveDeezerPlaylists : (Maybe JD.Value -> msg) -> Sub msg
-
-
-port searchDeezerSong : { id : ( String, String ), title : String, artist : String } -> Cmd msg
-
-
-port receiveDeezerMatchingTracks : (( ( String, String ), JD.Value ) -> msg) -> Sub msg
-
-
-port loadDeezerPlaylistSongs : PlaylistId -> Cmd msg
-
-
-port receiveDeezerPlaylistSongs : (Maybe JD.Value -> msg) -> Sub msg
-
-
-port exportPlaylistToDeezer : ( String, List Int ) -> Cmd msg
-
-
-port deezerPlaylistAdded : (JD.Value -> msg) -> Sub msg
-
-
-port connectSpotify : () -> Cmd msg
-
-
-port onSpotifyConnected : (( Maybe String, String ) -> msg) -> Sub msg
-
 
 
 -- Model
@@ -215,7 +172,7 @@ update msg model =
             model ! []
 
         RequestDeezerSongs id ->
-            model ! [ loadDeezerPlaylistSongs (toString id) ]
+            model ! [ Deezer.loadPlaylistSongs (toString id) ]
 
         ReceiveSpotifyPlaylistSongs playlist songs ->
             { model
@@ -382,7 +339,7 @@ imporPlaylist { comparedProvider } { name } songs =
                         |> List.map (.id >> Tuple.second)
                         |> List.andThenResult String.toInt
                         |> Result.map ((,) name)
-                        |> Result.map exportPlaylistToDeezer
+                        |> Result.map Deezer.createPlaylistWithTracks
                         |> Result.withDefault Cmd.none
 
                 _ ->
@@ -396,7 +353,7 @@ loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
     case connection of
         ConnectedProvider Deezer ->
-            loadDeezerPlaylists ()
+            Deezer.loadAllPlaylists ()
 
         ConnectedProviderWithToken Spotify token _ ->
             Spotify.getPlaylists token ReceivePlaylists
@@ -409,7 +366,7 @@ loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
 loadPlaylistSongs connection ({ id, link } as playlist) =
     case connection of
         ConnectedProvider Deezer ->
-            loadDeezerPlaylistSongs id
+            Deezer.loadPlaylistSongs id
 
         ConnectedProviderWithToken Spotify token _ ->
             Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist) link
@@ -433,7 +390,7 @@ searchSongFromProvider track provider =
             Spotify.searchTrack token (MatchingSongResult track Spotify) track
 
         ConnectedProvider Deezer ->
-            searchDeezerSong ({ id = Track.serializeId track.id, artist = track.artist, title = track.title })
+            Deezer.searchSong ({ id = Track.serializeId track.id, artist = track.artist, title = track.title })
 
         _ ->
             Cmd.none
@@ -444,15 +401,15 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
     case pType of
         Deezer ->
             if isCurrentlyConnected then
-                disconnectDeezer ()
+                Deezer.disconnect ()
             else
-                connectDeezer ()
+                Deezer.connectD ()
 
         Spotify ->
             if isCurrentlyConnected then
                 Cmd.none
             else
-                connectSpotify ()
+                Spotify.connectS ()
 
         _ ->
             Cmd.none
@@ -832,10 +789,10 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ updateDeezerStatus DeezerStatusUpdate
-        , receiveDeezerPlaylists ReceiveDeezerPlaylists
-        , receiveDeezerPlaylistSongs ReceiveDeezerSongs
-        , onSpotifyConnected SpotifyConnectionStatusUpdate
-        , receiveDeezerMatchingTracks ReceiveDeezerMatchingSongs
-        , deezerPlaylistAdded ReceiveDeezerPlaylist
+        [ Deezer.updateStatus DeezerStatusUpdate
+        , Deezer.receivePlaylists ReceiveDeezerPlaylists
+        , Deezer.receivePlaylistSongs ReceiveDeezerSongs
+        , Deezer.receiveMatchingTracks ReceiveDeezerMatchingSongs
+        , Deezer.playlistCreated ReceiveDeezerPlaylist
+        , Spotify.onConnected SpotifyConnectionStatusUpdate
         ]
