@@ -19,7 +19,7 @@
   <script src="js/config.dev.js"></script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
   <script>
-    if (true || config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
+    if (config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
       window.location = 'offline.html';
     }
   </script>
