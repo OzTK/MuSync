@@ -4,11 +4,18 @@ import Maybe.Extra as Maybe
 import List.Extra as List
 import EveryDict as Dict exposing (EveryDict)
 import EveryDict.Extra as Dict
-import Html exposing (Html, text, div, button, span, ul, li, p, select, option, label, h3, i, input)
-import Html.Attributes as Html exposing (id, disabled, style, for, name, value, selected, class, title, type_, placeholder)
-import Html.Extra as Html
-import Html.Events exposing (onClick, onInput)
-import Html.Events.Extra exposing (onChangeTo, onChange)
+import Html exposing (Html)
+import Html.Attributes as Html
+import Html.Events as Html
+import Html.Events.Extra as Html
+import Color
+import Element exposing (Element, el, row, column, text, decorativeImage, image, paragraph, height, width, padding, paddingXY, fill, shrink, px, minimum, maximum, centerX, centerY, spacing, mouseOver, html, htmlAttribute)
+import Element.Input exposing (button)
+import Element.Events exposing (onClick)
+import Element.Region as Region
+import Element.Background as Bg
+import Element.Font as Font
+import Element.Border as Border
 import Json.Decode as JD
 import Json.Encode as JE
 import RemoteData exposing (RemoteData(..), WebData)
@@ -326,6 +333,10 @@ update msg model =
             { model | playlists = Selection.importDone model.playlists } ! []
 
 
+
+-- Helpers
+
+
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
 imporPlaylist { comparedProvider } { name } songs =
     case comparedProvider of
@@ -431,60 +442,120 @@ asSelectableList selection providers =
 
 
 
+-- Styles
+
+
+scaled : Int -> Float
+scaled =
+    Element.modular 16 1.25
+
+
+palette =
+    { primary = Color.rgb 220 94 93
+    , primaryFaded = Color.rgba 250 160 112 0.1
+    , secondary = Color.rgb 69 162 134
+    , ternary = Color.rgb 248 160 116
+    , quadratic = Color.rgb 189 199 79
+    , transparentWhite = Color.rgba 255 255 255 0.7
+    , text = Color.rgb 42 67 80
+    }
+
+
+primaryButtonStyle disabled =
+    [ Bg.color palette.primary
+    , paddingXY 16 8
+    , Font.color Color.white
+    , Border.rounded 5
+    ]
+        ++ if (disabled) then
+            [ Bg.color palette.primaryFaded ]
+           else
+            [ mouseOver [ Bg.color palette.ternary ] ]
+
+
+linkButtonStyle : List (Element.Attribute msg)
+linkButtonStyle =
+    [ Font.color palette.secondary
+    , Font.underline
+    , mouseOver [ Font.color palette.quadratic ]
+    ]
+
+
+
 -- View
 
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ div [ class "connect-buttons", style [ ( "position", "fixed" ), ( "right", "0" ) ] ] (buttons model)
-        , label [ for "provider-selector", style [ ( "margin-right", "6px" ) ] ] [ text "Select a main provider:" ]
-        , model.availableConnections
-            |> Connections.connectedProviders
-            |> asSelectableList model.playlists
-            |> providerSelector PlaylistsProviderChanged [ id "playlist-provider-picker" ]
-        , Html.main_ [] [ playlists model ]
+    Element.layoutWith
+        { options =
+            [ Element.focusStyle
+                { borderColor = Nothing
+                , backgroundColor = Nothing
+                , shadow = Nothing
+                }
+            ]
+        }
+        [ Bg.color palette.primaryFaded
+        , Font.family
+            [ Font.typeface "ClinicaPro-Regular" ]
+        , Font.color palette.text
         ]
+    <|
+        el
+            [ Element.inFront
+                (column [ padding 16 ]
+                    [ header
+                    , content model
+                    ]
+                )
+            , width fill
+            , height fill
+            ]
+            (note [ height (px 300), centerY, padding 21 ])
 
 
 
 -- Reusable
 
 
-progressBar : Maybe String -> Html msg
+progressBar : Maybe String -> Element msg
 progressBar message =
-    div []
-        [ div
-            [ class "progress progress-indeterminate"
-            , style [ ( "margin", "16px" ), ( "width", "50%" ) ]
-            ]
-            [ div [ class "progress-bar" ] [] ]
+    row []
+        [ el
+            [ htmlAttribute (Html.class "progress progress-indeterminate") ]
+            (el [ htmlAttribute (Html.class "progress-bar") ] Element.none)
         , message
-            |> Maybe.map (\m -> h3 [] [ text m ])
-            |> Maybe.withDefault Html.empty
+            |> Maybe.map (el [] << text)
+            |> Maybe.withDefault Element.none
         ]
 
 
 providerSelector :
     (Maybe (ConnectedProvider MusicProviderType) -> msg)
-    -> List (Html.Attribute msg)
+    -> Maybe String
     -> SelectableList (ConnectedProvider MusicProviderType)
-    -> Html msg
-providerSelector tagger attrs providers =
-    select
-        ([ name "provider-selector"
-         , style [ ( "display", "inline" ), ( "width", "auto" ) ]
-         , onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
-         ]
-            ++ attrs
-        )
-        (providers
-            |> SelectableList.map Provider.connectedType
-            |> SelectableList.mapBoth (providerOption True) (providerOption False)
-            |> SelectableList.toList
-            |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
-            |> List.withDefault [ placeholderOption True "-- Connect at least one more provider --" ]
-        )
+    -> Element msg
+providerSelector tagger label providers =
+    row
+        [ spacing 5 ]
+        [ label |> Maybe.map (flip (++) ":") |> Maybe.map (el [] << text) |> Maybe.withDefault Element.none
+        , el [] <|
+            Element.html
+                (Html.select
+                    [ Html.name "provider-selector"
+                    , Html.style [ ( "display", "inline" ), ( "width", "auto" ) ]
+                    , Html.onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
+                    ]
+                    (providers
+                        |> SelectableList.map Provider.connectedType
+                        |> SelectableList.mapBoth (providerOption True) (providerOption False)
+                        |> SelectableList.toList
+                        |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
+                        |> List.withDefault [ placeholderOption True "-- Connect at least one more provider --" ]
+                    )
+                )
+        ]
 
 
 providerOption : Bool -> MusicProviderType -> Html msg
@@ -493,20 +564,20 @@ providerOption isSelected provider =
         labelAndValue =
             (providerName provider)
     in
-        option [ value labelAndValue, selected isSelected ] [ text labelAndValue ]
+        Html.option [ Html.value labelAndValue, Html.selected isSelected ] [ Html.text labelAndValue ]
 
 
 placeholderOption : Bool -> String -> Html msg
 placeholderOption isSelected label =
-    option [ selected isSelected, value "__placeholder__" ] [ text label ]
+    Html.option [ Html.selected isSelected, Html.value "__placeholder__" ] [ Html.text label ]
 
 
-buttons : { m | availableConnections : List (ProviderConnection MusicProviderType) } -> List (Html Msg)
+buttons : { m | availableConnections : List (ProviderConnection MusicProviderType) } -> List (Element Msg)
 buttons { availableConnections } =
     List.map (connectButton ToggleConnect) availableConnections
 
 
-connectButton : (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Html Msg
+connectButton : (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Element Msg
 connectButton tagger connection =
     let
         connected =
@@ -515,10 +586,15 @@ connectButton tagger connection =
         connecting =
             Connection.isConnecting connection
     in
-        div [ style [ ( "margin", "8px" ) ] ]
-            [ button
-                [ style [ ( "width", "100%" ) ], onClick <| tagger (Connection.type_ connection), disabled connecting ]
-                [ text <|
+        button
+            ([ width fill ] ++ primaryButtonStyle connecting)
+            { onPress =
+                if connecting then
+                    Nothing
+                else
+                    Just <| tagger (Connection.type_ connection)
+            , label =
+                text <|
                     (if connected then
                         "Disconnect "
                      else if connecting then
@@ -527,12 +603,42 @@ connectButton tagger connection =
                         "Connect "
                     )
                         ++ (connection |> Connection.type_ |> providerName)
-                ]
-            ]
+            }
+
+
+logo : List (Element.Attribute msg) -> Element msg
+logo attrs =
+    image attrs { src = "assets/img/Logo.svg", description = "MuSync logo" }
+
+
+note : List (Element.Attribute msg) -> Element msg
+note attrs =
+    decorativeImage attrs { src = "assets/img/Note.svg" }
 
 
 
 -- View parts
+
+
+header : Element msg
+header =
+    row [ Region.navigation ] <|
+        [ logo [ Element.alignLeft, width (px 250) ]
+        ]
+
+
+content : Model -> Element Msg
+content model =
+    column [ padding 16, Bg.color palette.transparentWhite ] <|
+        [ row []
+            [ model.availableConnections
+                |> Connections.connectedProviders
+                |> asSelectableList model.playlists
+                |> providerSelector PlaylistsProviderChanged (Just "Select a main provider")
+            , column [ width shrink, spacing 8 ] <| buttons model
+            ]
+        , el [] (playlists model)
+        ]
 
 
 playlists :
@@ -543,7 +649,7 @@ playlists :
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
         , alternativeTitles : EveryDict TrackId String
     }
-    -> Html Msg
+    -> Element Msg
 playlists model =
     case model.playlists of
         Selection.Importing _ _ { name } ->
@@ -554,25 +660,25 @@ playlists model =
                 |> SelectableList.selected
                 |> Maybe.map (songs model)
                 |> Maybe.withDefault
-                    (ul [] <|
+                    (column [] <|
                         SelectableList.toList <|
                             SelectableList.map (playlist PlaylistSelected) p
                     )
 
         Selection.Selected _ (Failure err) ->
-            div [] [ text ("An error occured loading your playlists: " ++ toString err) ]
+            el [] (text ("An error occured loading your playlists: " ++ toString err))
 
         Selection.NoProviderSelected ->
-            div [] [ text "Select a provider to load your playlists" ]
+            el [] (text "Select a provider to load your playlists")
 
         Selection.Selected _ _ ->
             progressBar (Just "Loading your playlists...")
 
 
-playlist : (Playlist -> Msg) -> Playlist -> Html Msg
+playlist : (Playlist -> Msg) -> Playlist -> Element Msg
 playlist tagger p =
-    li [ onClick (tagger p) ]
-        [ text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)" ]
+    el [ onClick (tagger p) ]
+        (text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)")
 
 
 comparedSearch :
@@ -583,7 +689,7 @@ comparedSearch :
         , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
     }
     -> Playlist
-    -> Html Msg
+    -> Element Msg
 comparedSearch { availableConnections, playlists, comparedProvider, songs } playlist =
     let
         matchedSongs =
@@ -609,20 +715,29 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
                 |> RemoteData.map ((==) <| List.length matchedSongs)
                 |> RemoteData.withDefault False
     in
-        div [ class "provider-compare" ]
-            [ label [ style [ ( "margin-right", "6px" ) ] ] [ text "pick a provider to copy the playlist to: " ]
-            , availableConnections
+        row [ spacing 8 ]
+            [ availableConnections
                 |> Connections.connectedProviders
                 |> asSelectableList playlists
                 |> SelectableList.rest
                 |> asSelectableList comparedProvider
-                |> providerSelector ComparedProviderChanged []
-            , button
-                [ onClick (SearchMatchingSongs playlist)
-                , disabled (not <| Selection.isSelected comparedProvider)
-                ]
-                [ text "search" ]
-            , button [ disabled (not allSongsGood), onClick (ImportPlaylist matchedSongs playlist) ] [ text "import" ]
+                |> providerSelector ComparedProviderChanged (Just "Provider to copy the playlist to")
+            , button (primaryButtonStyle <| not (Selection.isSelected comparedProvider))
+                { onPress =
+                    if Selection.isSelected comparedProvider then
+                        Just <| SearchMatchingSongs playlist
+                    else
+                        Nothing
+                , label = text "search"
+                }
+            , button (primaryButtonStyle <| not allSongsGood)
+                { onPress =
+                    if allSongsGood then
+                        Just <| ImportPlaylist matchedSongs playlist
+                    else
+                        Nothing
+                , label = text "import"
+                }
             ]
 
 
@@ -635,16 +750,16 @@ songs :
         , alternativeTitles : EveryDict TrackId String
     }
     -> Playlist
-    -> Html Msg
+    -> Element Msg
 songs model playlist =
-    div [ id "playlist-details" ]
-        [ button [ class "back-to-playlists", onClick BackToPlaylists ] [ text "<< back" ]
+    column []
+        [ button linkButtonStyle { onPress = Just BackToPlaylists, label = text "<< back" }
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    div []
+                    column []
                         [ comparedSearch model playlist
-                        , ul [ id "playlist-songs" ] (List.map (song model) s)
+                        , column [] <| List.map (song model) s
                         ]
                 )
             |> RemoteData.withDefault (progressBar Nothing)
@@ -658,14 +773,15 @@ song :
         , alternativeTitles : EveryDict TrackId String
     }
     -> Track
-    -> Html Msg
+    -> Element Msg
 song ({ comparedProvider } as model) track =
-    li []
+    row []
         [ text <| track.title ++ " - " ++ track.artist
         , comparedProvider
             |> Selection.providerType
             |> Maybe.andThen (matchingTracks model track)
-            |> Maybe.withDefault Html.empty
+            |> Maybe.map Element.html
+            |> Maybe.withDefault Element.none
         ]
 
 
@@ -689,31 +805,31 @@ matchingTracks { songs, comparedProvider, alternativeTitles } ({ id, title } as 
         case mathingSongs of
             Just ( p, Just (Success []) ) ->
                 Just
-                    (span []
-                        [ i
-                            [ class "fa fa-times"
-                            , style [ ( "margin-left", "6px" ), ( "color", "red" ) ]
+                    (Html.span []
+                        [ Html.i
+                            [ Html.class "fa fa-times"
+                            , Html.style [ ( "margin-left", "6px" ), ( "color", "red" ) ]
                             , Html.title ("This track doesn't exist on " ++ providerName p ++ " :(")
                             ]
                             []
-                        , label [ for "correct-title-input" ] [ text "Try correcting song title:" ]
-                        , input [ onInput (ChangeAltTitle id), type_ "text", placeholder title, style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
-                        , button [ onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ text "retry" ]
+                        , Html.label [ Html.for "correct-title-input" ] [ Html.text "Try correcting song title:" ]
+                        , Html.input [ Html.onInput (ChangeAltTitle id), Html.type_ "text", Html.placeholder title, Html.style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
+                        , Html.button [ Html.onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ Html.text "retry" ]
                         ]
                     )
 
             Just ( p, Just (Success _) ) ->
                 Just
-                    (i
-                        [ class "fa fa-check"
-                        , style [ ( "margin-left", "6px" ), ( "color", "green" ) ]
+                    (Html.i
+                        [ Html.class "fa fa-check"
+                        , Html.style [ ( "margin-left", "6px" ), ( "color", "green" ) ]
                         , Html.title ("Hurray! Found your track on " ++ providerName p)
                         ]
                         []
                     )
 
             Just ( _, Just Loading ) ->
-                Just (span [ class "loader loader-xs" ] [])
+                Just (Html.span [ Html.class "loader loader-xs" ] [])
 
             _ ->
                 Nothing
