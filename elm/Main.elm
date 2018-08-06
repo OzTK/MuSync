@@ -9,8 +9,8 @@ import Html.Attributes as Html
 import Html.Events as Html
 import Html.Events.Extra as Html
 import Color
-import Element exposing (Element, el, row, column, text, decorativeImage, image, paragraph, height, width, padding, paddingXY, fill, shrink, px, minimum, maximum, centerX, centerY, spacing, mouseOver, html, htmlAttribute)
-import Element.Input exposing (button)
+import Element exposing (Element, el, row, column, clipY, scrollbarY, text, alpha, paragraph, decorativeImage, image, paragraph, height, width, padding, paddingXY, fill, fillPortion, shrink, px, minimum, maximum, alignRight, centerX, centerY, spacing, mouseOver, html, htmlAttribute)
+import Element.Input as Input exposing (button)
 import Element.Events exposing (onClick)
 import Element.Region as Region
 import Element.Background as Bg
@@ -450,34 +450,49 @@ scaled =
     Element.modular 16 1.25
 
 
+small =
+    scaled 1 |> round
+
+
+medium =
+    scaled 2 |> round
+
+
+large =
+    scaled 3 |> round
+
+
 palette =
     { primary = Color.rgb 220 94 93
     , primaryFaded = Color.rgba 250 160 112 0.1
     , secondary = Color.rgb 69 162 134
     , ternary = Color.rgb 248 160 116
-    , quadratic = Color.rgb 189 199 79
+    , quaternary = Color.rgb 189 199 79
     , transparentWhite = Color.rgba 255 255 255 0.7
     , text = Color.rgb 42 67 80
     }
 
 
+primaryButtonStyle : Bool -> List (Element.Attribute msg)
 primaryButtonStyle disabled =
-    [ Bg.color palette.primary
-    , paddingXY 16 8
-    , Font.color Color.white
+    [ paddingXY 16 8
+    , Font.color palette.text
     , Border.rounded 5
+    , Border.color palette.secondary
+    , Border.solid
+    , Border.width 1
     ]
         ++ if (disabled) then
-            [ Bg.color palette.primaryFaded ]
+            [ alpha 0.5 ]
            else
-            [ mouseOver [ Bg.color palette.ternary ] ]
+            [ mouseOver [ Bg.color palette.secondary, Font.color Color.white ] ]
 
 
 linkButtonStyle : List (Element.Attribute msg)
 linkButtonStyle =
     [ Font.color palette.secondary
     , Font.underline
-    , mouseOver [ Font.color palette.quadratic ]
+    , mouseOver [ Font.color palette.quaternary ]
     ]
 
 
@@ -500,19 +515,13 @@ view model =
         , Font.family
             [ Font.typeface "ClinicaPro-Regular" ]
         , Font.color palette.text
+        , Font.size small
         ]
     <|
-        el
-            [ Element.inFront
-                (column [ padding 16 ]
-                    [ header
-                    , content model
-                    ]
-                )
-            , width fill
-            , height fill
+        column [ padding 16 ]
+            [ row [ Region.navigation, height (px 130) ] [ header ]
+            , row [ Region.mainContent, height fill ] [ content model ]
             ]
-            (note [ height (px 300), centerY, padding 21 ])
 
 
 
@@ -587,22 +596,24 @@ connectButton tagger connection =
             Connection.isConnecting connection
     in
         button
-            ([ width fill ] ++ primaryButtonStyle connecting)
+            ([ width fill, height (px 46) ] ++ primaryButtonStyle connecting)
             { onPress =
                 if connecting then
                     Nothing
                 else
                     Just <| tagger (Connection.type_ connection)
             , label =
-                text <|
-                    (if connected then
-                        "Disconnect "
-                     else if connecting then
-                        "Connecting "
-                     else
-                        "Connect "
-                    )
-                        ++ (connection |> Connection.type_ |> providerName)
+                row [ centerX, width (fillPortion 3 |> minimum 125), spacing 5 ] <|
+                    [ (connection |> Connection.type_ |> providerLogoOrName [ height (px 30), width (px 30) ])
+                    , text
+                        (if connected then
+                            "Disconnect "
+                         else if connecting then
+                            "Connecting "
+                         else
+                            "Connect "
+                        )
+                    ]
             }
 
 
@@ -622,23 +633,28 @@ note attrs =
 
 header : Element msg
 header =
-    row [ Region.navigation ] <|
-        [ logo [ Element.alignLeft, width (px 250) ]
-        ]
+    logo [ Element.alignLeft, width (px 250) ]
 
 
 content : Model -> Element Msg
 content model =
-    column [ padding 16, Bg.color palette.transparentWhite ] <|
-        [ row []
-            [ model.availableConnections
-                |> Connections.connectedProviders
-                |> asSelectableList model.playlists
-                |> providerSelector PlaylistsProviderChanged (Just "Select a main provider")
-            , column [ width shrink, spacing 8 ] <| buttons model
+    el [ Bg.uncropped "assets/img/Note.svg", width fill, height fill ] <|
+        column
+            [ padding 16
+            , Bg.color palette.transparentWhite
+            , Border.rounded 3
+            , Border.glow palette.ternary 1
             ]
-        , el [] (playlists model)
-        ]
+        <|
+            [ row []
+                [ model.availableConnections
+                    |> Connections.connectedProviders
+                    |> asSelectableList model.playlists
+                    |> providerSelector PlaylistsProviderChanged (Just "Select a main provider")
+                , column [ spacing 8 ] <| buttons model
+                ]
+            , row [] [ playlists model ]
+            ]
 
 
 playlists :
@@ -660,16 +676,16 @@ playlists model =
                 |> SelectableList.selected
                 |> Maybe.map (songs model)
                 |> Maybe.withDefault
-                    (column [] <|
+                    (column [ width fill, spacing 5 ] <|
                         SelectableList.toList <|
                             SelectableList.map (playlist PlaylistSelected) p
                     )
 
         Selection.Selected _ (Failure err) ->
-            el [] (text ("An error occured loading your playlists: " ++ toString err))
+            paragraph [ width fill ] [ text ("An error occured loading your playlists: " ++ toString err) ]
 
         Selection.NoProviderSelected ->
-            el [] (text "Select a provider to load your playlists")
+            paragraph [ width fill ] [ text "Select a provider to load your playlists" ]
 
         Selection.Selected _ _ ->
             progressBar (Just "Loading your playlists...")
@@ -678,7 +694,7 @@ playlists model =
 playlist : (Playlist -> Msg) -> Playlist -> Element Msg
 playlist tagger p =
     el [ onClick (tagger p) ]
-        (text <| p.name ++ " (" ++ toString p.tracksCount ++ " tracks)")
+        (paragraph [ width fill ] [ text (p.name ++ " (" ++ toString p.tracksCount ++ " tracks)") ])
 
 
 comparedSearch :
@@ -715,14 +731,14 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
                 |> RemoteData.map ((==) <| List.length matchedSongs)
                 |> RemoteData.withDefault False
     in
-        row [ spacing 8 ]
+        row [ spacing 8, height shrink ]
             [ availableConnections
                 |> Connections.connectedProviders
                 |> asSelectableList playlists
                 |> SelectableList.rest
                 |> asSelectableList comparedProvider
-                |> providerSelector ComparedProviderChanged (Just "Provider to copy the playlist to")
-            , button (primaryButtonStyle <| not (Selection.isSelected comparedProvider))
+                |> providerSelector ComparedProviderChanged (Just "Copy the playlist to")
+            , button ([] ++ (primaryButtonStyle <| not (Selection.isSelected comparedProvider)))
                 { onPress =
                     if Selection.isSelected comparedProvider then
                         Just <| SearchMatchingSongs playlist
@@ -757,9 +773,9 @@ songs model playlist =
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    column []
+                    column [ spacing 5 ]
                         [ comparedSearch model playlist
-                        , column [] <| List.map (song model) s
+                        , column [ spacing 8 ] <| List.map (song model) s
                         ]
                 )
             |> RemoteData.withDefault (progressBar Nothing)
@@ -776,7 +792,7 @@ song :
     -> Element Msg
 song ({ comparedProvider } as model) track =
     row []
-        [ text <| track.title ++ " - " ++ track.artist
+        [ paragraph [] [ text <| track.title ++ " - " ++ track.artist ]
         , comparedProvider
             |> Selection.providerType
             |> Maybe.andThen (matchingTracks model track)
@@ -849,6 +865,26 @@ providerName pType =
 
         Google ->
             "Play"
+
+
+providerLogoOrName : List (Element.Attribute msg) -> MusicProviderType -> Element msg
+providerLogoOrName attrs pType =
+    let
+        pName =
+            providerName pType
+    in
+        (case pType of
+            Deezer ->
+                Just "/assets/img/deezer_logo.png"
+
+            Spotify ->
+                Just "/assets/img/spotify_logo.png"
+
+            _ ->
+                Nothing
+        )
+            |> Maybe.map (\path -> image attrs { src = path, description = pName })
+            |> Maybe.withDefault (text pName)
 
 
 connectedProviderDecoder : List (ConnectedProvider MusicProviderType) -> JD.Decoder (Maybe (ConnectedProvider MusicProviderType))
