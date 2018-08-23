@@ -3,10 +3,12 @@ describe('Visiting the website and connecting a music provider', () => {
         cy.visit("/");
         let providerPickerLength = 1;
 
-        cy.get('#playlist-provider-picker').as('providers').children().should('have.length', providerPickerLength);
+        cy.contains('-- Connect at least one more provider --')
+            .parent().as('providers')
+            .children().should('have.length', providerPickerLength);
 
-        cy.get('.connect-buttons button').each((b) => {
-            const button = cy.wrap(b);
+        cy.get('.se-button').contains('Connect').each((b) => {
+            const button = cy.wrap(b).parent();
 
             button.should('contain', 'Connect');
             button.click();
@@ -19,10 +21,15 @@ describe('Visiting the website and connecting a music provider', () => {
     });
 
     it('displays playlists from a connected provider', () => {
-        cy.visit('/').connectProvider('Spotify').get('#playlist-provider-picker').select('Spotify');
+        cy.visit('/')
+            .connectProvider('Spotify')
+            .get('select')
+            .contains('-- Select a provider --')
+            .parent()
+            .select('Spotify');
         cy.get('main').should('not.contain', 'Select a provider to load your playlists');
-        cy.get('main > ul').as('playlists').should('exist');
-        cy.get('@playlists').children().should('have.length', 4);
+        cy.get('main p').as('playlists').should('exist');
+        cy.get('@playlists').should('have.length', 4);
     });
 
     describe('with a selected playlist', () => {
@@ -31,36 +38,47 @@ describe('Visiting the website and connecting a music provider', () => {
         });
 
         it('displays songs from a clicked playlist', () => {
-            cy.get('#playlist-songs > li').should('have.length', 8);
+            cy.withItems((items) => items.should('have.length', 8));
         });
 
         it('shows a placeholder if no other provider is connected', () => {
-            cy.get('#playlist-details .provider-compare > select').children().should('have.length', 1);
+            cy.contains('-- Connect at least one more provider --')
+                .parent()
+                .children()
+                .should('have.length', 1);
         });
 
         it('disables the search button when no other provider is connected', () => {
-            cy.get('#playlist-details .provider-compare > button').should('be.disabled');
+            cy.get('.se-button').contains('search').parent().should('have.class', 'transparency-50');
         });
 
         it('takes back to the playlists when clicking the back button', () => {
-            cy.get('#playlist-details  > .back-to-playlists').as('back').click();
+            cy.contains('<< back').as('back').click();
             cy.get('@back').should('not.exist');
-            cy.get('main > ul').as('playlists').should('exist');
-            cy.get('@playlists').children().should('have.length', 4);
+            cy.withItems((items) => items.should('have.length', 4))
         });
 
         describe('when connecting another provider', () => {
             before(() => {
-                cy.visit('/').connectProvider('Spotify').selectPlaylist(1).connectProvider('Deezer');
+                cy.visit('/')
+                    .connectProvider('Spotify')
+                    .selectPlaylist(1)
+                    .connectProvider('Deezer');
             });
 
             it('adds it to the compare provider lists', () => {
-                cy.get('#playlist-details .provider-compare > select').children().should('have.length', 2);
+                cy.contains('Copy the playlist to:')
+                    .parent().next().children('select').as('compareSelect')
+                    .children()
+                    .should('have.length', 2);
+                cy.get('@compareSelect').children().last().should('have.text', 'Deezer')
             });
 
             it('enables the search button when selecting a provider', () => {
-                cy.get('#playlist-details .provider-compare > select').select('Deezer');
-                cy.get('#playlist-details .provider-compare > button').should('be.enabled');
+                cy.contains('Copy the playlist to:')
+                    .parent().next().children('select').as('compareSelect')
+                    .select('Deezer');
+                cy.get('.se-button').contains('search').parent().should('not.have.class', 'transparency-50');
             });
         });
     });
