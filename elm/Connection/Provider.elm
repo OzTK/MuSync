@@ -1,4 +1,18 @@
-module Connection.Provider exposing (..)
+module Connection.Provider exposing
+    ( ConnectedProvider(..)
+    , ConnectingProvider(..)
+    , DisconnectedProvider(..)
+    , InactiveProvider(..)
+    , OAuthToken
+    , connected
+    , connectedType
+    , connectedWithToken
+    , connecting
+    , disconnected
+    , inactive
+    , token
+    , user
+    )
 
 import Model exposing (UserInfo)
 

@@ -1,28 +1,27 @@
-port module Deezer
-    exposing
-        ( playlist
-        , track
-        , httpBadPayloadError
-        , updateStatus
-        , connectD
-        , disconnect
-        , loadAllPlaylists
-        , receivePlaylists
-        , searchSong
-        , receiveMatchingTracks
-        , loadPlaylistSongs
-        , receivePlaylistSongs
-        , createPlaylistWithTracks
-        , playlistCreated
-        )
+port module Deezer exposing
+    ( connectD
+    , createPlaylistWithTracks
+    , disconnect
+    , httpBadPayloadError
+    , loadAllPlaylists
+    , loadPlaylistSongs
+    , playlist
+    , playlistCreated
+    , receiveMatchingTracks
+    , receivePlaylistSongs
+    , receivePlaylists
+    , searchSong
+    , track
+    , updateStatus
+    )
 
 import Dict
-import Json.Decode as JD exposing (Decoder, string, int, map)
-import Json.Decode.Pipeline exposing (required, requiredAt, decode, hardcoded, custom)
 import Http exposing (Error(BadPayload), Response)
-import RemoteData exposing (RemoteData(NotAsked))
+import Json.Decode as JD exposing (Decoder, int, map, string)
+import Json.Decode.Pipeline exposing (custom, decode, hardcoded, required, requiredAt)
 import Model exposing (MusicProviderType(Deezer))
 import Playlist exposing (Playlist, PlaylistId)
+import RemoteData exposing (RemoteData(NotAsked))
 import Track exposing (Track)
 
 
@@ -51,7 +50,7 @@ httpBadPayloadError url json =
     , headers = Dict.empty
     , body = toString json
     }
-        |> (flip BadPayload)
+        |> flip BadPayload
 
 
 

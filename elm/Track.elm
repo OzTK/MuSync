@@ -1,10 +1,9 @@
-module Track
-    exposing
-        ( TrackId
-        , Track
-        , serializeId
-        , deserializeId
-        )
+module Track exposing
+    ( Track
+    , TrackId
+    , deserializeId
+    , serializeId
+    )
 
 import Model exposing (MusicProviderType)
 

@@ -1,6 +1,6 @@
 module Playlist exposing (Playlist, PlaylistId, loadSongs, setSongs, songIds)
 
-import RemoteData exposing (WebData, RemoteData(Loading, Success))
+import RemoteData exposing (RemoteData(Loading, Success), WebData)
 import Track exposing (Track, TrackId)
 
 

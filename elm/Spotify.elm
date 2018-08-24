@@ -1,27 +1,27 @@
-port module Spotify
-    exposing
-        ( searchTrack
-        , getPlaylists
-        , getPlaylistTracksFromLink
-        , getUserInfo
-        , importPlaylist
-        , connectS
-        , onConnected
-        )
+port module Spotify exposing
+    ( connectS
+    , getPlaylistTracksFromLink
+    , getPlaylists
+    , getUserInfo
+    , importPlaylist
+    , onConnected
+    , searchTrack
+    )
 
-import Task
-import Process
 import Dict
-import Time exposing (inSeconds)
 import Http exposing (header)
-import RemoteData.Http as Http exposing (defaultConfig, Config)
-import Json.Decode exposing (Decoder, nullable, string, int, list, succeed, fail)
-import Json.Encode as JE
+import Json.Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
 import Json.Decode.Pipeline as Pip
-import RemoteData exposing (WebData, RemoteData(NotAsked, Failure, Success))
+import Json.Encode as JE
 import Model exposing (MusicProviderType(Spotify), UserInfo)
 import Playlist exposing (Playlist)
+import Process
+import RemoteData exposing (RemoteData(Failure, NotAsked, Success), WebData)
+import RemoteData.Http as Http exposing (Config, defaultConfig)
+import Task
+import Time exposing (inSeconds)
 import Track exposing (Track)
+
 
 
 -- Model
@@ -110,7 +110,7 @@ searchResponse =
 addToPlaylistResponse : Decoder String
 addToPlaylistResponse =
     Pip.decode succeed
-        |> Pip.requiredAt [ "snapshot_id" ] (string)
+        |> Pip.requiredAt [ "snapshot_id" ] string
         |> Pip.resolve
 
 
@@ -154,6 +154,7 @@ withRateLimitTask task =
                                 |> Maybe.andThen Result.toMaybe
                                 |> Maybe.map (delayAndRetry task)
                                 |> Maybe.withDefault (Task.succeed result)
+
                         else
                             Task.succeed result
 
@@ -177,14 +178,13 @@ searchTrack token tagger ({ artist, title } as track) =
     Http.getTaskWithConfig (config token)
         (endpoint
             ++ "search?type=track&limit=1&q="
-            ++ (Http.encodeUri
-                    ("artist:\""
-                        ++ artist
-                        ++ "\" track:\""
-                        ++ title
-                        ++ "\""
-                    )
-               )
+            ++ Http.encodeUri
+                ("artist:\""
+                    ++ artist
+                    ++ "\" track:\""
+                    ++ title
+                    ++ "\""
+                )
         )
         searchResponse
         |> withRateLimit tagger

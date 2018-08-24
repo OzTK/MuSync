@@ -1,4 +1,4 @@
-module EveryDict.Extra exposing (..)
+module EveryDict.Extra exposing (insertAtAll)
 
 import EveryDict as Dict
 

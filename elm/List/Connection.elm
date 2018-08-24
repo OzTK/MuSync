@@ -1,24 +1,23 @@
-module List.Connection
-    exposing
-        ( connectedProviders
-        , map
-        , flatMap
-        , mapOn
-        , find
-        , findConnected
-        , filter
-        , filterByType
-        , filterNotByType
-        , toggle
-        )
+module List.Connection exposing
+    ( connectedProviders
+    , filter
+    , filterByType
+    , filterNotByType
+    , find
+    , findConnected
+    , flatMap
+    , map
+    , mapOn
+    , toggle
+    )
 
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as P
     exposing
         ( ConnectedProvider(..)
+        , ConnectingProvider(..)
         , DisconnectedProvider(..)
         , InactiveProvider(..)
-        , ConnectingProvider(..)
         )
 
 
@@ -68,21 +67,21 @@ map f =
                 fcon =
                     f con
             in
-                case con of
-                    Inactive (InactiveProvider pType) ->
-                        fcon pType
+            case con of
+                Inactive (InactiveProvider pType) ->
+                    fcon pType
 
-                    Disconnected (DisconnectedProvider pType) ->
-                        fcon pType
+                Disconnected (DisconnectedProvider pType) ->
+                    fcon pType
 
-                    Connecting (ConnectingProvider pType) ->
-                        fcon pType
+                Connecting (ConnectingProvider pType) ->
+                    fcon pType
 
-                    Connected (ConnectedProvider pType) ->
-                        fcon pType
+                Connected (ConnectedProvider pType) ->
+                    fcon pType
 
-                    Connected (ConnectedProviderWithToken pType _ _) ->
-                        fcon pType
+                Connected (ConnectedProviderWithToken pType _ _) ->
+                    fcon pType
         )
 
 
@@ -98,30 +97,35 @@ mapOn pType f =
                 Inactive (InactiveProvider pt) ->
                     if pt == pType then
                         f con
+
                     else
                         con
 
                 Disconnected (DisconnectedProvider pt) ->
                     if pt == pType then
                         f con
+
                     else
                         con
 
                 Connecting (ConnectingProvider pt) ->
                     if pt == pType then
                         f con
+
                     else
                         con
 
                 Connected (ConnectedProvider pt) ->
                     if pt == pType then
                         f con
+
                     else
                         con
 
                 Connected (ConnectedProviderWithToken pt _ _) ->
                     if pt == pType then
                         f con
+
                     else
                         con
         )
@@ -168,6 +172,7 @@ toggle pType providers =
         (\con ->
             if not (Connection.isConnected con) then
                 Connection.connecting pType
+
             else
                 Connection.disconnected pType
         )

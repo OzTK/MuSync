@@ -1,27 +1,27 @@
-module Connection
-    exposing
-        ( ProviderConnection(..)
-        , connected
-        , connectedWithToken
-        , disconnected
-        , connecting
-        , inactive
-        , type_
-        , isConnected
-        , isDisconnected
-        , isConnecting
-        , isInactive
-        )
+module Connection exposing
+    ( ProviderConnection(..)
+    , connected
+    , connectedWithToken
+    , connecting
+    , disconnected
+    , inactive
+    , isConnected
+    , isConnecting
+    , isDisconnected
+    , isInactive
+    , type_
+    )
 
 import Connection.Provider as P
     exposing
-        ( OAuthToken
-        , ConnectedProvider(..)
-        , DisconnectedProvider(..)
+        ( ConnectedProvider(..)
         , ConnectingProvider(..)
+        , DisconnectedProvider(..)
         , InactiveProvider(..)
+        , OAuthToken
         )
 import Model exposing (UserInfo)
+
 
 
 -- Provider connection

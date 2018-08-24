@@ -1,20 +1,19 @@
-module SelectableList
-    exposing
-        ( SelectableList
-        , fromList
-        , toList
-        , select
-        , upSelect
-        , clear
-        , selected
-        , rest
-        , hasSelection
-        , map
-        , mapSelected
-        , mapBoth
-        , apply
-        , find
-        )
+module SelectableList exposing
+    ( SelectableList
+    , apply
+    , clear
+    , find
+    , fromList
+    , hasSelection
+    , map
+    , mapBoth
+    , mapSelected
+    , rest
+    , select
+    , selected
+    , toList
+    , upSelect
+    )
 
 
 type SelectableList a
@@ -32,6 +31,7 @@ findAndUpdate updater element =
         (\el ->
             if el /= element then
                 el
+
             else
                 updater el
         )
@@ -44,6 +44,7 @@ update updater el sList =
             Selected
                 (if el == selected then
                     updater el
+
                  else
                     el
                 )
@@ -78,10 +79,11 @@ select sList el =
         list =
             toList sList
     in
-        if List.member el list then
-            Selected el list
-        else
-            NotSelected list
+    if List.member el list then
+        Selected el list
+
+    else
+        NotSelected list
 
 
 upSelect : (a -> a) -> a -> SelectableList a -> SelectableList a
@@ -93,15 +95,16 @@ upSelect updater element sList =
         updated =
             updater element
     in
-        list
-            |> List.map
-                (\el ->
-                    if el /= element then
-                        el
-                    else
-                        updated
-                )
-            |> Selected updated
+    list
+        |> List.map
+            (\el ->
+                if el /= element then
+                    el
+
+                else
+                    updated
+            )
+        |> Selected updated
 
 
 clear : SelectableList a -> SelectableList a
@@ -163,6 +166,7 @@ mapBoth fSelected fUnselected sList =
                     (\el ->
                         if el == sel then
                             fSelected el
+
                         else
                             fUnselected el
                     )
@@ -178,15 +182,16 @@ apply f sList =
         list =
             sList |> toList |> f
     in
-        case sList of
-            Selected sel _ ->
-                if List.member sel list then
-                    Selected sel list
-                else
-                    NotSelected list
+    case sList of
+        Selected sel _ ->
+            if List.member sel list then
+                Selected sel list
 
-            NotSelected _ ->
+            else
                 NotSelected list
+
+        NotSelected _ ->
+            NotSelected list
 
 
 find : (a -> Bool) -> SelectableList a -> Maybe a

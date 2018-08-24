@@ -1,22 +1,21 @@
-module Connection.Selection
-    exposing
-        ( WithProviderSelection(..)
-        , noSelection
-        , select
-        , importing
-        , importDone
-        , isSelected
-        , setData
-        , providerType
-        , connection
-        , map
-        , data
-        )
+module Connection.Selection exposing
+    ( WithProviderSelection(..)
+    , connection
+    , data
+    , importDone
+    , importing
+    , isSelected
+    , map
+    , noSelection
+    , providerType
+    , select
+    , setData
+    )
 
-import Http
-import RemoteData exposing (WebData, RemoteData(NotAsked, Success))
 import Connection.Provider exposing (ConnectedProvider(..))
+import Http
 import Playlist exposing (Playlist)
+import RemoteData exposing (RemoteData(NotAsked, Success), WebData)
 
 
 type WithProviderSelection providerType data

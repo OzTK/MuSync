@@ -1,10 +1,11 @@
-module List.Extra exposing (withDefault, nonEmpty, andThenResult)
+module List.Extra exposing (andThenResult, nonEmpty, withDefault)
 
 
 withDefault : List a -> List a -> List a
 withDefault placeholderList list =
     if List.isEmpty list then
         placeholderList
+
     else
         list
 
@@ -13,6 +14,7 @@ nonEmpty : (List a -> List a) -> List a -> List a
 nonEmpty f list =
     if List.isEmpty list then
         list
+
     else
         f list
 
