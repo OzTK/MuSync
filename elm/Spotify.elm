@@ -8,6 +8,7 @@ port module Spotify exposing
     , searchTrack
     )
 
+import Basics.Extra exposing (pair)
 import Dict
 import Http exposing (header)
 import Json.Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -57,7 +58,7 @@ track : Decoder Track
 track =
     Pip.decode Track
         |> Pip.custom
-            (Pip.decode (,)
+            (Pip.decode pair
                 |> Pip.hardcoded Spotify
                 |> Pip.required "id" string
             )

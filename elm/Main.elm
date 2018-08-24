@@ -1,5 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
+import Basics.Extra exposing (swap, pair)
 import Color
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
@@ -150,7 +151,7 @@ update msg model =
                 |> RemoteData.fromResult
                 |> RemoteData.mapError (Deezer.httpBadPayloadError "/user/playlist" pJson)
                 |> PlaylistImported
-                |> flip update model
+                |> swap update model
 
         ReceiveDeezerPlaylists Nothing ->
             { model
@@ -295,7 +296,7 @@ update msg model =
                         |> Maybe.andThen
                             (\pType ->
                                 playlist.songs
-                                    |> RemoteData.map (List.map (.id >> flip (,) pType))
+                                    |> RemoteData.map (List.map (.id >> swap pair pType))
                                     |> RemoteData.map (\keys -> Dict.insertAtAll keys Loading model.songs)
                                     |> RemoteData.toMaybe
                             )
@@ -354,7 +355,7 @@ imporPlaylist { comparedProvider } { name } songs =
                     songs
                         |> List.map (.id >> Tuple.second)
                         |> List.andThenResult String.toInt
-                        |> Result.map ((,) name)
+                        |> Result.map (pair name)
                         |> Result.map Deezer.createPlaylistWithTracks
                         |> Result.withDefault Cmd.none
 
@@ -557,7 +558,7 @@ providerSelector :
 providerSelector tagger label providers =
     row
         [ spacing 5 ]
-        [ label |> Maybe.map (flip (++) ":") |> Maybe.map (el [] << text) |> Maybe.withDefault Element.none
+        [ label |> Maybe.map (swap (++) ":") |> Maybe.map (el [] << text) |> Maybe.withDefault Element.none
         , el [] <|
             Element.html
                 (Html.select

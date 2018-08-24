@@ -15,6 +15,7 @@ port module Deezer exposing
     , updateStatus
     )
 
+import Basics.Extra exposing (pair, swap)
 import Dict
 import Http exposing (Error(BadPayload), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
@@ -38,7 +39,7 @@ playlist =
 track : Decoder Track
 track =
     decode Track
-        |> custom (decode (,) |> hardcoded Deezer |> required "id" (map toString int))
+        |> custom (decode pair |> hardcoded Deezer |> required "id" (map toString int))
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
 
@@ -50,7 +51,7 @@ httpBadPayloadError url json =
     , headers = Dict.empty
     , body = toString json
     }
-        |> flip BadPayload
+        |> swap BadPayload
 
 
 
