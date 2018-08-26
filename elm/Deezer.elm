@@ -39,7 +39,7 @@ playlist =
 track : Decoder Track
 track =
     decode Track
-        |> custom (decode pair |> hardcoded Deezer |> required "id" (map toString int))
+        |> custom (decode pair |> required "id" (map toString int) |> hardcoded Deezer)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
 
@@ -73,10 +73,10 @@ port loadAllPlaylists : () -> Cmd msg
 port receivePlaylists : (Maybe JD.Value -> msg) -> Sub msg
 
 
-port searchSong : { id : ( String, String ), title : String, artist : String } -> Cmd msg
+port searchSong : { id : String, title : String, artist : String } -> Cmd msg
 
 
-port receiveMatchingTracks : (( ( String, String ), JD.Value ) -> msg) -> Sub msg
+port receiveMatchingTracks : (( String, JD.Value ) -> msg) -> Sub msg
 
 
 port loadPlaylistSongs : PlaylistId -> Cmd msg

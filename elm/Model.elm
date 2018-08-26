@@ -1,4 +1,4 @@
-module Model exposing (MusicProviderType(..), UserInfo, providerFromString)
+module Model exposing (MusicProviderType(..), UserInfo, keyPartsSeparator, keysSeparator, providerFromString)
 
 
 type MusicProviderType
@@ -35,3 +35,13 @@ type alias UserInfo =
     { id : UserId
     , displayName : String
     }
+
+
+keyPartsSeparator : String
+keyPartsSeparator =
+    "_"
+
+
+keysSeparator : String
+keysSeparator =
+    "__"

@@ -59,8 +59,8 @@ track =
     Pip.decode Track
         |> Pip.custom
             (Pip.decode pair
-                |> Pip.hardcoded Spotify
                 |> Pip.required "id" string
+                |> Pip.hardcoded Spotify
             )
         |> Pip.required "name" string
         |> Pip.custom
@@ -224,7 +224,7 @@ addSongsToPlaylistTask token songs playlistData =
                 (JE.object
                     [ ( "uris"
                       , songs
-                            |> List.map (.id >> Tuple.second)
+                            |> List.map (.id >> Tuple.first)
                             |> List.map ((++) "spotify:track:")
                             |> List.map JE.string
                             |> JE.list

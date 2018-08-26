@@ -1,28 +1,44 @@
 module Track exposing
     ( Track
     , TrackId
+    , TrackIdSerializationError
     , deserializeId
     , serializeId
     )
 
-import Model exposing (MusicProviderType)
+import Basics.Extra exposing (pair)
+import Model exposing (MusicProviderType, keyPartsSeparator)
 
 
 type alias TrackId =
-    ( MusicProviderType, String )
+    ( String, MusicProviderType )
 
 
-serializeId : ( MusicProviderType, String ) -> ( String, String )
-serializeId ( pType, id ) =
-    ( toString pType, id )
+serializeId : TrackId -> String
+serializeId ( id, pType ) =
+    toString pType ++ keyPartsSeparator ++ id
 
 
-deserializeId : ( String, String ) -> Result String ( MusicProviderType, String )
-deserializeId ( pName, id ) =
-    pName
-        |> Model.providerFromString
-        |> Maybe.map (\p -> ( p, id ))
-        |> Result.fromMaybe "The provided provider type is not valid"
+type TrackIdSerializationError
+    = InvalidKeyPartsCount
+    | InvalidProviderType String
+
+
+deserializeId : String -> Result TrackIdSerializationError TrackId
+deserializeId id =
+    let
+        parts =
+            String.split keyPartsSeparator id
+    in
+    case parts of
+        [ pType, id ] ->
+            pType
+                |> Model.providerFromString
+                |> Maybe.map (pair id)
+                |> Result.fromMaybe (InvalidProviderType pType)
+
+        _ ->
+            Err InvalidKeyPartsCount
 
 
 type alias Track =

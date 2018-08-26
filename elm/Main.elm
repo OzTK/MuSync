@@ -1,11 +1,13 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (swap, pair)
+import Basics.Extra exposing (pair, swap)
 import Color
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
 import Connection.Selection as Selection exposing (WithProviderSelection(..))
 import Deezer
+import Dict.Any as Dict exposing (AnyDict)
+import Dict.Any.Extra as Dict
 import Element exposing (Element, alignRight, alpha, centerX, centerY, clipY, column, decorativeImage, el, fill, fillPortion, height, html, htmlAttribute, image, maximum, minimum, mouseOver, padding, paddingXY, paragraph, px, row, scrollbarY, shrink, spacing, text, width)
 import Element.Background as Bg
 import Element.Border as Border
@@ -13,8 +15,6 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button)
 import Element.Region as Region
-import EveryDict as Dict exposing (EveryDict)
-import EveryDict.Extra as Dict
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -40,9 +40,33 @@ type alias Model =
     { playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableConnections : List (ProviderConnection MusicProviderType)
-    , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
-    , alternativeTitles : EveryDict TrackId String
+    , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
+    , alternativeTitles : AnyDict String TrackId String
     }
+
+
+type MatchingTracksKeySerializationError
+    = TrackIdError Track.TrackIdSerializationError
+    | OtherProviderTypeError String
+    | WrongKeysFormatError String
+
+
+serializeMatchingTracksKey : ( TrackId, MusicProviderType ) -> String
+serializeMatchingTracksKey ( id, pType ) =
+    Track.serializeId id ++ Model.keysSeparator ++ toString pType
+
+
+deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError ( TrackId, MusicProviderType )
+deserializeMatchingTracksKey key =
+    case String.split Model.keysSeparator key of
+        [ rawTrackId, rawProvider ] ->
+            rawProvider
+                |> Model.providerFromString
+                |> Result.fromMaybe (OtherProviderTypeError rawProvider)
+                |> Result.map2 pair (rawTrackId |> Track.deserializeId |> Result.mapError TrackIdError)
+
+        _ ->
+            Err (WrongKeysFormatError key)
 
 
 init : ( Model, Cmd Msg )
@@ -53,8 +77,8 @@ init =
             [ Connection.disconnected Spotify
             , Connection.disconnected Deezer
             ]
-      , songs = Dict.empty
-      , alternativeTitles = Dict.empty
+      , songs = Dict.empty serializeMatchingTracksKey
+      , alternativeTitles = Dict.empty Track.serializeId
       }
     , Cmd.none
     )
@@ -71,7 +95,7 @@ type Msg
     | ReceiveDeezerPlaylist JD.Value
     | ReceivePlaylists (WebData (List Playlist))
     | ReceiveDeezerSongs (Maybe JD.Value)
-    | ReceiveDeezerMatchingSongs ( ( String, String ), JD.Value )
+    | ReceiveDeezerMatchingSongs ( String, JD.Value )
     | RequestDeezerSongs Int
     | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
     | PlaylistSelected Playlist
@@ -315,8 +339,8 @@ update msg model =
             { model
                 | songs =
                     trackId
-                        |> Track.deserializeId
-                        |> Result.map (\id -> Dict.insert ( id, Deezer ) tracks model.songs)
+                        |> deserializeMatchingTracksKey
+                        |> Result.map (\( id, _ ) -> Dict.insert ( id, Deezer ) tracks model.songs)
                         |> Result.withDefault model.songs
             }
                 ! []
@@ -353,7 +377,7 @@ imporPlaylist { comparedProvider } { name } songs =
 
                 ( Deezer, _, _ ) ->
                     songs
-                        |> List.map (.id >> Tuple.second)
+                        |> List.map (.id >> Tuple.first)
                         |> List.andThenResult String.toInt
                         |> Result.map (pair name)
                         |> Result.map Deezer.createPlaylistWithTracks
@@ -407,7 +431,7 @@ searchSongFromProvider track provider =
             Spotify.searchTrack token (MatchingSongResult track Spotify) track
 
         ConnectedProvider Deezer ->
-            Deezer.searchSong { id = Track.serializeId track.id, artist = track.artist, title = track.title }
+            Deezer.searchSong { id = serializeMatchingTracksKey ( track.id, Deezer ), artist = track.artist, title = track.title }
 
         _ ->
             Cmd.none
@@ -674,9 +698,9 @@ playlists :
     { b
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
-        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , alternativeTitles : EveryDict TrackId String
+        , alternativeTitles : AnyDict String TrackId String
     }
     -> Element Msg
 playlists model =
@@ -715,7 +739,7 @@ comparedSearch :
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
+        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
     }
     -> Playlist
     -> Element Msg
@@ -777,8 +801,8 @@ songs :
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
         , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List Track))
-        , alternativeTitles : EveryDict TrackId String
+        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
+        , alternativeTitles : AnyDict String TrackId String
     }
     -> Playlist
     -> Element Msg
@@ -799,9 +823,9 @@ songs model playlist =
 
 song :
     { c
-        | songs : EveryDict ( TrackId, MusicProviderType ) (WebData (List b))
+        | songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List b))
         , comparedProvider : WithProviderSelection MusicProviderType data
-        , alternativeTitles : EveryDict TrackId String
+        , alternativeTitles : AnyDict String TrackId String
     }
     -> Track
     -> Element Msg
@@ -819,8 +843,8 @@ song ({ comparedProvider } as model) track =
 matchingTracks :
     { c
         | comparedProvider : WithProviderSelection MusicProviderType data
-        , songs : EveryDict ( TrackId, MusicProviderType ) (RemoteData e (List b))
-        , alternativeTitles : EveryDict TrackId String
+        , songs : AnyDict String ( TrackId, MusicProviderType ) (RemoteData e (List b))
+        , alternativeTitles : AnyDict String TrackId String
     }
     -> Track
     -> MusicProviderType
