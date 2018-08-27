@@ -7,7 +7,7 @@ describe('Visiting the website and connecting a music provider', () => {
             .parent().as('providers')
             .children().should('have.length', providerPickerLength);
 
-        cy.get('.se-button').contains('Connect').each((b) => {
+        cy.get('[role="button"]').contains('Connect').each((b) => {
             const button = cy.wrap(b).parent();
 
             button.should('contain', 'Connect');
@@ -49,12 +49,12 @@ describe('Visiting the website and connecting a music provider', () => {
         });
 
         it('disables the search button when no other provider is connected', () => {
-            cy.get('.se-button').contains('search').parent().should('have.class', 'transparency-50');
+            cy.get('[role="button"]').contains('search').should('have.class', 'transparency-128');
         });
 
         it('takes back to the playlists when clicking the back button', () => {
-            cy.contains('<< back').as('back').click();
-            cy.get('@back').should('not.exist');
+            cy.contains('<< back').click();
+            cy.contains('<< back').should('not.exist');
             cy.withItems((items) => items.should('have.length', 4))
         });
 
@@ -67,18 +67,18 @@ describe('Visiting the website and connecting a music provider', () => {
             });
 
             it('adds it to the compare provider lists', () => {
-                cy.contains('Copy the playlist to:')
-                    .parent().next().children('select').as('compareSelect')
+                cy.contains('Import to:')
+                    .next().children('select').as('compareSelect')
                     .children()
                     .should('have.length', 2);
                 cy.get('@compareSelect').children().last().should('have.text', 'Deezer')
             });
 
             it('enables the search button when selecting a provider', () => {
-                cy.contains('Copy the playlist to:')
-                    .parent().next().children('select').as('compareSelect')
+                cy.contains('Import to:')
+                    .next().children('select').as('compareSelect')
                     .select('Deezer');
-                cy.get('.se-button').contains('search').parent().should('not.have.class', 'transparency-50');
+                cy.get('[role="button"]').contains('search').should('not.have.class', 'transparency-128');
             });
         });
     });
