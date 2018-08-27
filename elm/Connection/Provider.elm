@@ -44,8 +44,8 @@ connectedType connection =
 token : ConnectedProvider providerType -> Maybe OAuthToken
 token con =
     case con of
-        ConnectedProviderWithToken _ token _ ->
-            Just token
+        ConnectedProviderWithToken _ t _ ->
+            Just t
 
         _ ->
             Nothing
@@ -54,16 +54,16 @@ token con =
 user : ConnectedProvider providerType -> Maybe UserInfo
 user con =
     case con of
-        ConnectedProviderWithToken _ _ user ->
-            Just user
+        ConnectedProviderWithToken _ _ u ->
+            Just u
 
         _ ->
             Nothing
 
 
 connectedWithToken : providerType -> OAuthToken -> UserInfo -> ConnectedProvider providerType
-connectedWithToken pType token user =
-    ConnectedProviderWithToken pType token user
+connectedWithToken pType t u =
+    ConnectedProviderWithToken pType t u
 
 
 type DisconnectedProvider providerType

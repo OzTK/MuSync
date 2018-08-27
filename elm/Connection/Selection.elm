@@ -15,7 +15,7 @@ module Connection.Selection exposing
 import Connection.Provider exposing (ConnectedProvider(..))
 import Http
 import Playlist exposing (Playlist)
-import RemoteData exposing (RemoteData(NotAsked, Success), WebData)
+import RemoteData exposing (RemoteData(..), WebData)
 
 
 type WithProviderSelection providerType data
@@ -30,15 +30,15 @@ noSelection =
 
 
 select : ConnectedProvider providerType -> WithProviderSelection providerType data
-select connection =
-    Selected connection NotAsked
+select con =
+    Selected con NotAsked
 
 
 importDone : WithProviderSelection providerType data -> WithProviderSelection providerType data
 importDone selection =
     case selection of
-        Importing con data _ ->
-            Selected con data
+        Importing con d _ ->
+            Selected con d
 
         _ ->
             selection
@@ -47,8 +47,8 @@ importDone selection =
 importing : WithProviderSelection providerType data -> Playlist -> WithProviderSelection providerType data
 importing selection playlist =
     case selection of
-        Selected connection data ->
-            Importing connection data playlist
+        Selected con d ->
+            Importing con d playlist
 
         _ ->
             selection
@@ -67,18 +67,18 @@ isSelected selection =
 data : WithProviderSelection providerType data -> Maybe (RemoteData Http.Error data)
 data selection =
     case selection of
-        Selected _ data ->
-            Just data
+        Selected _ d ->
+            Just d
 
         _ ->
             Nothing
 
 
 setData : WithProviderSelection providerType data -> RemoteData Http.Error data -> WithProviderSelection providerType data
-setData selection data =
+setData selection d =
     case selection of
         Selected con _ ->
-            Selected con data
+            Selected con d
 
         _ ->
             selection

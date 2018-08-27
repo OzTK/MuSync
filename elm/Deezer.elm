@@ -3,6 +3,7 @@ port module Deezer exposing
     , createPlaylistWithTracks
     , disconnect
     , httpBadPayloadError
+    , httpBadPayloadStringError
     , loadAllPlaylists
     , loadPlaylistSongs
     , playlist
@@ -17,19 +18,19 @@ port module Deezer exposing
 
 import Basics.Extra exposing (pair, swap)
 import Dict
-import Http exposing (Error(BadPayload), Response)
+import Http exposing (Error(..), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
-import Json.Decode.Pipeline exposing (custom, decode, hardcoded, required, requiredAt)
-import Model exposing (MusicProviderType(Deezer))
+import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
+import Model exposing (MusicProviderType(..))
 import Playlist exposing (Playlist, PlaylistId)
-import RemoteData exposing (RemoteData(NotAsked))
+import RemoteData exposing (RemoteData(..))
 import Track exposing (Track)
 
 
 playlist : Decoder Playlist
 playlist =
-    decode Playlist
-        |> required "id" (map toString int)
+    JD.succeed Playlist
+        |> required "id" (map String.fromInt int)
         |> required "title" string
         |> hardcoded NotAsked
         |> required "link" string
@@ -38,20 +39,30 @@ playlist =
 
 track : Decoder Track
 track =
-    decode Track
-        |> custom (decode pair |> required "id" (map toString int) |> hardcoded Deezer)
+    JD.succeed Track
+        |> custom (JD.succeed pair |> required "id" (map String.fromInt int) |> hardcoded Deezer)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
 
 
-httpBadPayloadError : String -> JD.Value -> String -> Error
-httpBadPayloadError url json =
+httpBadPayloadError : String -> JD.Value -> JD.Error -> Error
+httpBadPayloadError url json err =
     { url = url
     , status = { code = 200, message = "OK" }
     , headers = Dict.empty
-    , body = toString json
+    , body = Debug.toString json
     }
-        |> swap BadPayload
+        |> BadPayload (Debug.toString err)
+
+
+httpBadPayloadStringError : String -> JD.Value -> String -> Error
+httpBadPayloadStringError url json err =
+    { url = url
+    , status = { code = 200, message = "OK" }
+    , headers = Dict.empty
+    , body = Debug.toString json
+    }
+        |> BadPayload err
 
 
 

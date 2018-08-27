@@ -35,7 +35,10 @@
   <!-- Elm (ports, init, ...) -->
   <script src="js/elm.js"></script>
   <script>
-    var elmApp = Elm.Main.embed(document.getElementById('app'));
+    var elmApp = Elm.Main.init({
+      node: document.getElementById('app'),
+      flags: []
+    });
 
     elmApp.ports.loadAllPlaylists.subscribe(function () {
       if (!isDzConnected) {

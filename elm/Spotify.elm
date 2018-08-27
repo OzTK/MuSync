@@ -11,16 +11,15 @@ port module Spotify exposing
 import Basics.Extra exposing (pair)
 import Dict
 import Http exposing (header)
-import Json.Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
+import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
 import Json.Decode.Pipeline as Pip
 import Json.Encode as JE
-import Model exposing (MusicProviderType(Spotify), UserInfo)
+import Model exposing (MusicProviderType(..), UserInfo)
 import Playlist exposing (Playlist)
 import Process
-import RemoteData exposing (RemoteData(Failure, NotAsked, Success), WebData)
+import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task
-import Time exposing (inSeconds)
 import Track exposing (Track)
 
 
@@ -30,7 +29,7 @@ import Track exposing (Track)
 
 userInfo : Decoder UserInfo
 userInfo =
-    Pip.decode UserInfo
+    Decode.succeed UserInfo
         |> Pip.required "id" string
         |> Pip.required "display_name" string
 
@@ -41,7 +40,7 @@ type alias Artist =
 
 artist : Decoder Artist
 artist =
-    Pip.decode Artist |> Pip.required "name" string
+    Decode.succeed Artist |> Pip.required "name" string
 
 
 toArtistName : List { a | name : String } -> Decoder String
@@ -56,15 +55,15 @@ toArtistName artists =
 
 track : Decoder Track
 track =
-    Pip.decode Track
+    Decode.succeed Track
         |> Pip.custom
-            (Pip.decode pair
+            (Decode.succeed pair
                 |> Pip.required "id" string
                 |> Pip.hardcoded Spotify
             )
         |> Pip.required "name" string
         |> Pip.custom
-            (Pip.decode toArtistName
+            (Decode.succeed toArtistName
                 |> Pip.requiredAt [ "artists" ] (list artist)
                 |> Pip.resolve
             )
@@ -72,14 +71,14 @@ track =
 
 trackEntry : Decoder Track
 trackEntry =
-    Pip.decode succeed
+    Decode.succeed succeed
         |> Pip.requiredAt [ "track" ] track
         |> Pip.resolve
 
 
 playlist : Decoder Playlist
 playlist =
-    Pip.decode Playlist
+    Decode.succeed Playlist
         |> Pip.required "id" string
         |> Pip.required "name" string
         |> Pip.hardcoded NotAsked
@@ -89,28 +88,28 @@ playlist =
 
 playlistsResponse : Decoder (List Playlist)
 playlistsResponse =
-    Pip.decode succeed
+    Decode.succeed succeed
         |> Pip.required "items" (list playlist)
         |> Pip.resolve
 
 
 playlistTracks : Decoder (List Track)
 playlistTracks =
-    Pip.decode succeed
+    Decode.succeed succeed
         |> Pip.required "items" (list trackEntry)
         |> Pip.resolve
 
 
 searchResponse : Decoder (List Track)
 searchResponse =
-    Pip.decode succeed
+    Decode.succeed succeed
         |> Pip.requiredAt [ "tracks", "items" ] (list track)
         |> Pip.resolve
 
 
 addToPlaylistResponse : Decoder String
 addToPlaylistResponse =
-    Pip.decode succeed
+    Decode.succeed succeed
         |> Pip.requiredAt [ "snapshot_id" ] string
         |> Pip.resolve
 
@@ -135,8 +134,7 @@ version =
 
 delayAndRetry : Task.Task Never (WebData a) -> Float -> Task.Task Never (WebData a)
 delayAndRetry task =
-    (+) 1
-        >> inSeconds
+    (+) 1000
         >> Process.sleep
         >> Task.andThen (\_ -> withRateLimitTask task)
 
@@ -151,8 +149,7 @@ withRateLimitTask task =
                         if response.status.code == 429 then
                             response.headers
                                 |> Dict.get "retry-after"
-                                |> Maybe.map String.toFloat
-                                |> Maybe.andThen Result.toMaybe
+                                |> Maybe.andThen String.toFloat
                                 |> Maybe.map (delayAndRetry task)
                                 |> Maybe.withDefault (Task.succeed result)
 
@@ -175,17 +172,16 @@ getUserInfo token tagger =
 
 
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
-searchTrack token tagger ({ artist, title } as track) =
+searchTrack token tagger t =
     Http.getTaskWithConfig (config token)
         (endpoint
             ++ "search?type=track&limit=1&q="
-            ++ Http.encodeUri
-                ("artist:\""
-                    ++ artist
+            ++ ("artist:\""
+                    ++ t.artist
                     ++ "\" track:\""
-                    ++ title
+                    ++ t.title
                     ++ "\""
-                )
+               )
         )
         searchResponse
         |> withRateLimit tagger
@@ -226,8 +222,7 @@ addSongsToPlaylistTask token songs playlistData =
                       , songs
                             |> List.map (.id >> Tuple.first)
                             |> List.map ((++) "spotify:track:")
-                            |> List.map JE.string
-                            |> JE.list
+                            |> JE.list JE.string
                       )
                     ]
                 )

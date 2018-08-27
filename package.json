@@ -42,7 +42,7 @@
   "homepage": "https://github.com/OzTK/playlist-importer#readme",
   "dependencies": {},
   "devDependencies": {
-    "cypress": "^3.0.1",
-    "elm-live": "^2.7.5"
+    "cypress": "^3.1.0",
+    "elm-live": "^3.0.0"
   }
 }

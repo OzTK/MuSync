@@ -40,9 +40,9 @@ findAndUpdate updater element =
 update : (a -> a) -> a -> SelectableList a -> SelectableList a
 update updater el sList =
     case sList of
-        Selected selected list ->
+        Selected sel list ->
             Selected
-                (if el == selected then
+                (if el == sel then
                     updater el
 
                  else

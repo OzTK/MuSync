@@ -16,7 +16,7 @@ type alias TrackId =
 
 serializeId : TrackId -> String
 serializeId ( id, pType ) =
-    toString pType ++ keyPartsSeparator ++ id
+    Debug.toString pType ++ keyPartsSeparator ++ id
 
 
 type TrackIdSerializationError
@@ -25,10 +25,10 @@ type TrackIdSerializationError
 
 
 deserializeId : String -> Result TrackIdSerializationError TrackId
-deserializeId id =
+deserializeId rawId =
     let
         parts =
-            String.split keyPartsSeparator id
+            String.split keyPartsSeparator rawId
     in
     case parts of
         [ pType, id ] ->

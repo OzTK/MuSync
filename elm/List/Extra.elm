@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenResult, nonEmpty, withDefault)
+module List.Extra exposing (andThenMaybe, andThenResult, nonEmpty, withDefault)
 
 
 withDefault : List a -> List a -> List a
@@ -26,4 +26,14 @@ andThenResult f list =
             Result.map2 (::) (f item) result
         )
         (Result.Ok [])
+        list
+
+
+andThenMaybe : (a -> Maybe b) -> List a -> Maybe (List b)
+andThenMaybe f list =
+    List.foldl
+        (\item result ->
+            Maybe.map2 (::) (f item) result
+        )
+        (Just [])
         list

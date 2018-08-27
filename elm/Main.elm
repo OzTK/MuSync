@@ -1,14 +1,45 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
 import Basics.Extra exposing (pair, swap)
-import Color
+import Browser
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
 import Connection.Selection as Selection exposing (WithProviderSelection(..))
 import Deezer
 import Dict.Any as Dict exposing (AnyDict)
 import Dict.Any.Extra as Dict
-import Element exposing (Element, alignRight, alpha, centerX, centerY, clipY, column, decorativeImage, el, fill, fillPortion, height, html, htmlAttribute, image, maximum, minimum, mouseOver, padding, paddingXY, paragraph, px, row, scrollbarY, shrink, spacing, text, width)
+import Element
+    exposing
+        ( Element
+        , alignRight
+        , alignTop
+        , alpha
+        , centerX
+        , centerY
+        , clipY
+        , column
+        , el
+        , fill
+        , fillPortion
+        , height
+        , html
+        , htmlAttribute
+        , image
+        , maximum
+        , minimum
+        , mouseOver
+        , padding
+        , paddingXY
+        , paragraph
+        , px
+        , row
+        , scrollbarY
+        , shrink
+        , spacing
+        , text
+        , width
+        , wrappedRow
+        )
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
@@ -53,7 +84,7 @@ type MatchingTracksKeySerializationError
 
 serializeMatchingTracksKey : ( TrackId, MusicProviderType ) -> String
 serializeMatchingTracksKey ( id, pType ) =
-    Track.serializeId id ++ Model.keysSeparator ++ toString pType
+    Track.serializeId id ++ Model.keysSeparator ++ Debug.toString pType
 
 
 deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError ( TrackId, MusicProviderType )
@@ -69,19 +100,20 @@ deserializeMatchingTracksKey key =
             Err (WrongKeysFormatError key)
 
 
-init : ( Model, Cmd Msg )
+init : List String -> ( Model, Cmd Msg )
 init =
-    ( { playlists = Selection.noSelection
-      , comparedProvider = Selection.noSelection
-      , availableConnections =
-            [ Connection.disconnected Spotify
-            , Connection.disconnected Deezer
-            ]
-      , songs = Dict.empty serializeMatchingTracksKey
-      , alternativeTitles = Dict.empty Track.serializeId
-      }
-    , Cmd.none
-    )
+    \_ ->
+        ( { playlists = Selection.noSelection
+          , comparedProvider = Selection.noSelection
+          , availableConnections =
+                [ Connection.disconnected Spotify
+                , Connection.disconnected Deezer
+                ]
+          , songs = Dict.empty serializeMatchingTracksKey
+          , alternativeTitles = Dict.empty Track.serializeId
+          }
+        , Cmd.none
+        )
 
 
 
@@ -124,7 +156,9 @@ update msg model =
                     else
                         Connection.disconnected Deezer
             in
-            { model | availableConnections = Connections.mapOn Deezer (\_ -> connection) model.availableConnections } ! []
+            ( { model | availableConnections = Connections.mapOn Deezer (\_ -> connection) model.availableConnections }
+            , Cmd.none
+            )
 
         ToggleConnect pType ->
             let
@@ -132,10 +166,10 @@ update msg model =
                     model.availableConnections
                         |> Connections.find pType
                         |> Maybe.mapTogether Connection.isConnected Connection.type_
-                        |> Maybe.map (uncurry providerToggleConnectionCmd)
+                        |> Maybe.map (\( a, b ) -> providerToggleConnectionCmd a b)
                         |> Maybe.withDefault Cmd.none
 
-                playlists =
+                connectedPlaylists =
                     model.playlists
                         |> Selection.providerType
                         |> Maybe.map ((==) pType)
@@ -152,13 +186,14 @@ update msg model =
                 model_ =
                     { model | availableConnections = Connections.toggle pType model.availableConnections }
             in
-            { model_
-                | playlists = playlists
-            }
-                ! [ toggleCmd ]
+            ( { model_
+                | playlists = connectedPlaylists
+              }
+            , toggleCmd
+            )
 
         ReceiveDeezerPlaylists (Just pJson) ->
-            { model
+            ( { model
                 | playlists =
                     pJson
                         |> JD.decodeValue (JD.list Deezer.playlist)
@@ -166,8 +201,9 @@ update msg model =
                         |> Result.mapError (Deezer.httpBadPayloadError "/playlists" pJson)
                         |> RemoteData.fromResult
                         |> Selection.setData model.playlists
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         ReceiveDeezerPlaylist pJson ->
             pJson
@@ -178,14 +214,15 @@ update msg model =
                 |> swap update model
 
         ReceiveDeezerPlaylists Nothing ->
-            { model
+            ( { model
                 | playlists =
                     "No Playlists received"
-                        |> Deezer.httpBadPayloadError "/playlist/songs" JE.null
+                        |> Deezer.httpBadPayloadStringError "/playlist/songs" JE.null
                         |> RemoteData.Failure
                         |> Selection.setData model.playlists
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         ReceiveDeezerSongs (Just songsValue) ->
             let
@@ -195,36 +232,42 @@ update msg model =
                         |> RemoteData.fromResult
                         |> RemoteData.mapError (Deezer.httpBadPayloadError "/playlist/songs" songsValue)
             in
-            { model
+            ( { model
                 | playlists =
                     Selection.map
                         (SelectableList.mapSelected (Playlist.setSongs songsData))
                         model.playlists
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         ReceiveDeezerSongs Nothing ->
-            model ! []
+            ( model
+            , Cmd.none
+            )
 
         RequestDeezerSongs id ->
-            model ! [ Deezer.loadPlaylistSongs (toString id) ]
+            ( model
+            , Deezer.loadPlaylistSongs (Debug.toString id)
+            )
 
-        ReceiveSpotifyPlaylistSongs playlist songs ->
-            { model
+        ReceiveSpotifyPlaylistSongs _ s ->
+            ( { model
                 | playlists =
                     Selection.map
-                        (SelectableList.mapSelected <| Playlist.setSongs songs)
+                        (SelectableList.mapSelected <| Playlist.setSongs s)
                         model.playlists
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         PlaylistSelected p ->
             let
-                playlists =
+                loadingPlaylists =
                     Selection.map (SelectableList.upSelect Playlist.loadSongs p) model.playlists
 
                 loadSongs =
-                    playlists
+                    loadingPlaylists
                         |> Selection.data
                         |> Maybe.andThen RemoteData.toMaybe
                         |> Maybe.andThen SelectableList.selected
@@ -232,86 +275,107 @@ update msg model =
                         |> Maybe.map RemoteData.isLoading
                         |> Maybe.withDefault False
             in
-            { model
-                | playlists = playlists
-            }
-                ! (if loadSongs then
-                    [ playlists
+            ( { model
+                | playlists = loadingPlaylists
+              }
+            , Cmd.batch
+                (if loadSongs then
+                    [ loadingPlaylists
                         |> Selection.connection
                         |> Maybe.map (\pType -> loadPlaylistSongs pType p)
                         |> Maybe.withDefault Cmd.none
                     ]
 
-                   else
+                 else
                     []
-                  )
+                )
+            )
 
         BackToPlaylists ->
-            { model | playlists = model.playlists |> Selection.map SelectableList.clear } ! []
+            ( { model | playlists = model.playlists |> Selection.map SelectableList.clear }
+            , Cmd.none
+            )
 
         SpotifyConnectionStatusUpdate ( Nothing, token ) ->
             let
                 connection =
                     Connection.connectedWithToken Spotify token
             in
-            model ! [ Spotify.getUserInfo token SpotifyUserInfoReceived ]
+            ( model
+            , Spotify.getUserInfo token SpotifyUserInfoReceived
+            )
 
         SpotifyConnectionStatusUpdate ( Just _, _ ) ->
-            { model
+            ( { model
                 | availableConnections =
                     Connections.mapOn Spotify
                         (\con -> con |> Connection.type_ |> Connection.disconnected)
                         model.availableConnections
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         SpotifyUserInfoReceived token (Success user) ->
             let
                 connection =
                     Connection.connectedWithToken Spotify token user
             in
-            { model
+            ( { model
                 | availableConnections =
                     Connections.mapOn Spotify (\_ -> connection) model.availableConnections
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         SpotifyUserInfoReceived token _ ->
-            { model
+            ( { model
                 | availableConnections =
                     Connections.mapOn Spotify
                         (\con -> con |> Connection.type_ |> Connection.disconnected)
                         model.availableConnections
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         MatchingSongResult ({ id } as track) pType results ->
-            { model | songs = Dict.insert ( id, pType ) results model.songs } ! []
+            ( { model | songs = Dict.insert ( id, pType ) results model.songs }
+            , Cmd.none
+            )
 
         ReceivePlaylists playlistsData ->
             let
                 data =
                     playlistsData |> RemoteData.map SelectableList.fromList
             in
-            { model | playlists = Selection.setData model.playlists data } ! []
+            ( { model | playlists = Selection.setData model.playlists data }
+            , Cmd.none
+            )
 
         PlaylistsProviderChanged (Just p) ->
-            { model | playlists = Selection.select p } ! [ loadPlaylists p ]
+            ( { model | playlists = Selection.select p }
+            , loadPlaylists p
+            )
 
         PlaylistsProviderChanged Nothing ->
-            { model | playlists = Selection.noSelection } ! []
+            ( { model | playlists = Selection.noSelection }
+            , Cmd.none
+            )
 
         ComparedProviderChanged (Just p) ->
-            { model | comparedProvider = Selection.select p } ! []
+            ( { model | comparedProvider = Selection.select p }
+            , Cmd.none
+            )
 
         ComparedProviderChanged Nothing ->
-            { model | comparedProvider = Selection.noSelection } ! []
+            ( { model | comparedProvider = Selection.noSelection }
+            , Cmd.none
+            )
 
-        SearchMatchingSongs playlist ->
+        SearchMatchingSongs p ->
             let
                 cmds =
-                    playlist.songs
-                        |> RemoteData.map (List.map (searchMatchingSong playlist.id model))
+                    p.songs
+                        |> RemoteData.map (List.map (searchMatchingSong p.id model))
                         |> RemoteData.withDefault []
 
                 loading =
@@ -319,14 +383,16 @@ update msg model =
                         |> Selection.providerType
                         |> Maybe.andThen
                             (\pType ->
-                                playlist.songs
+                                p.songs
                                     |> RemoteData.map (List.map (.id >> swap pair pType))
                                     |> RemoteData.map (\keys -> Dict.insertAtAll keys Loading model.songs)
                                     |> RemoteData.toMaybe
                             )
                         |> Maybe.withDefault model.songs
             in
-            { model | songs = loading } ! cmds
+            ( { model | songs = loading }
+            , Cmd.batch cmds
+            )
 
         ReceiveDeezerMatchingSongs ( trackId, jsonTracks ) ->
             let
@@ -336,31 +402,38 @@ update msg model =
                         |> Result.mapError (Deezer.httpBadPayloadError "/search/tracks" jsonTracks)
                         |> RemoteData.fromResult
             in
-            { model
+            ( { model
                 | songs =
                     trackId
                         |> deserializeMatchingTracksKey
                         |> Result.map (\( id, _ ) -> Dict.insert ( id, Deezer ) tracks model.songs)
                         |> Result.withDefault model.songs
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         RetrySearchSong track title ->
-            model
-                ! [ model.comparedProvider
-                        |> Selection.connection
-                        |> Maybe.map (searchSongFromProvider { track | title = title })
-                        |> Maybe.withDefault Cmd.none
-                  ]
+            ( model
+            , model.comparedProvider
+                |> Selection.connection
+                |> Maybe.map (searchSongFromProvider { track | title = title })
+                |> Maybe.withDefault Cmd.none
+            )
 
         ChangeAltTitle id title ->
-            { model | alternativeTitles = Dict.insert id title model.alternativeTitles } ! []
+            ( { model | alternativeTitles = Dict.insert id title model.alternativeTitles }
+            , Cmd.none
+            )
 
-        ImportPlaylist songs playlist ->
-            { model | playlists = Selection.importing model.playlists playlist } ! [ imporPlaylist model playlist songs ]
+        ImportPlaylist s p ->
+            ( { model | playlists = Selection.importing model.playlists p }
+            , imporPlaylist model p s
+            )
 
         PlaylistImported _ ->
-            { model | playlists = Selection.importDone model.playlists } ! []
+            ( { model | playlists = Selection.importDone model.playlists }
+            , Cmd.none
+            )
 
 
 
@@ -368,20 +441,20 @@ update msg model =
 
 
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
-imporPlaylist { comparedProvider } { name } songs =
+imporPlaylist { comparedProvider } { name } tracks =
     case comparedProvider of
         Selection.Selected con _ ->
             case ( Provider.connectedType con, Provider.token con, Provider.user con ) of
                 ( Spotify, Just token, Just { id } ) ->
-                    Spotify.importPlaylist token id PlaylistImported songs name
+                    Spotify.importPlaylist token id PlaylistImported tracks name
 
                 ( Deezer, _, _ ) ->
-                    songs
+                    tracks
                         |> List.map (.id >> Tuple.first)
-                        |> List.andThenResult String.toInt
-                        |> Result.map (pair name)
-                        |> Result.map Deezer.createPlaylistWithTracks
-                        |> Result.withDefault Cmd.none
+                        |> List.andThenMaybe String.toInt
+                        |> Maybe.map (pair name)
+                        |> Maybe.map Deezer.createPlaylistWithTracks
+                        |> Maybe.withDefault Cmd.none
 
                 _ ->
                     Cmd.none
@@ -404,13 +477,13 @@ loadPlaylists connection =
 
 
 loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
-loadPlaylistSongs connection ({ id, link } as playlist) =
+loadPlaylistSongs connection ({ id, link } as p) =
     case connection of
         ConnectedProvider Deezer ->
             Deezer.loadPlaylistSongs id
 
         ConnectedProviderWithToken Spotify token _ ->
-            Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs playlist) link
+            Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs p) link
 
         _ ->
             Cmd.none
@@ -494,14 +567,19 @@ large =
     scaled 3 |> round
 
 
+toRatio f r g b =
+    f (r / 255.0) (g / 255.0) (b / 255.0)
+
+
 palette =
-    { primary = Color.rgb 220 94 93
-    , primaryFaded = Color.rgba 250 160 112 0.1
-    , secondary = Color.rgb 69 162 134
-    , ternary = Color.rgb 248 160 116
-    , quaternary = Color.rgb 189 199 79
-    , transparentWhite = Color.rgba 255 255 255 0.7
-    , text = Color.rgb 42 67 80
+    { primary = toRatio Element.rgb 220 94 93
+    , primaryFaded = toRatio Element.rgba 250 160 112 0.1
+    , secondary = toRatio Element.rgb 69 162 134
+    , ternary = toRatio Element.rgb 248 160 116
+    , quaternary = toRatio Element.rgb 189 199 79
+    , transparentWhite = toRatio Element.rgba 255 255 255 0.7
+    , white = toRatio Element.rgb 255 255 255
+    , text = toRatio Element.rgb 42 67 80
     }
 
 
@@ -518,7 +596,7 @@ primaryButtonStyle disabled =
                 [ alpha 0.5 ]
 
             else
-                [ mouseOver [ Bg.color palette.secondary, Font.color Color.white ] ]
+                [ mouseOver [ Bg.color palette.secondary, Font.color palette.white ] ]
            )
 
 
@@ -550,11 +628,13 @@ view model =
             [ Font.typeface "ClinicaPro-Regular" ]
         , Font.color palette.text
         , Font.size small
+        , height fill
+        , width fill
         ]
     <|
-        column [ padding 16 ]
-            [ row [ Region.navigation, height (px 130) ] [ header ]
-            , row [ Region.mainContent, height fill ] [ content model ]
+        column [ padding 16, height fill, width fill ]
+            [ row [ Region.navigation ] [ header ]
+            , row [ Region.mainContent, width fill, height fill ] [ content model ]
             ]
 
 
@@ -587,7 +667,8 @@ providerSelector tagger label providers =
             Element.html
                 (Html.select
                     [ Html.name "provider-selector"
-                    , Html.style [ ( "display", "inline" ), ( "width", "auto" ) ]
+                    , Html.style "display" "inline"
+                    , Html.style "width" "auto"
                     , Html.onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
                     ]
                     (providers
@@ -661,7 +742,7 @@ logo attrs =
 
 note : List (Element.Attribute msg) -> Element msg
 note attrs =
-    decorativeImage attrs { src = "assets/img/Note.svg" }
+    image attrs { src = "assets/img/Note.svg", description = "" }
 
 
 
@@ -677,24 +758,26 @@ content : Model -> Element Msg
 content model =
     el [ Bg.uncropped "assets/img/Note.svg", width fill, height fill ] <|
         column
-            [ padding 16
+            [ padding 8
             , Bg.color palette.transparentWhite
             , Border.rounded 3
             , Border.glow palette.ternary 1
+            , width fill
+            , height fill
             ]
         <|
-            [ row []
+            [ wrappedRow [ width fill ]
                 [ model.availableConnections
                     |> Connections.connectedProviders
                     |> asSelectableList model.playlists
-                    |> providerSelector PlaylistsProviderChanged (Just "Select a main provider")
-                , column [ spacing 8 ] <| buttons model
+                    |> providerSelector PlaylistsProviderChanged (Just "Main provider")
+                , wrappedRow [ spacing 8, alignRight ] <| buttons model
                 ]
-            , row [] [ playlists model ]
+            , row [ width fill, height fill ] [ playlistsView model ]
             ]
 
 
-playlists :
+playlistsView :
     { b
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
@@ -703,7 +786,7 @@ playlists :
         , alternativeTitles : AnyDict String TrackId String
     }
     -> Element Msg
-playlists model =
+playlistsView model =
     case model.playlists of
         Selection.Importing _ _ { name } ->
             progressBar (Just <| "Importing " ++ name ++ "...")
@@ -711,27 +794,27 @@ playlists model =
         Selection.Selected _ (Success p) ->
             p
                 |> SelectableList.selected
-                |> Maybe.map (songs model)
+                |> Maybe.map (songsView model)
                 |> Maybe.withDefault
-                    (column [ width fill, spacing 5 ] <|
+                    (column [ spacing 5, height fill, width fill ] <|
                         SelectableList.toList <|
-                            SelectableList.map (playlist PlaylistSelected) p
+                            SelectableList.map (playlistView PlaylistSelected) p
                     )
 
         Selection.Selected _ (Failure err) ->
-            paragraph [ width fill ] [ text ("An error occured loading your playlists: " ++ toString err) ]
+            paragraph [ width fill ] [ text ("An error occured loading your playlists: " ++ Debug.toString err) ]
 
         Selection.NoProviderSelected ->
-            paragraph [ width fill ] [ text "Select a provider to load your playlists" ]
+            paragraph [ width fill, alignTop ] [ text "Select a provider to load your playlists" ]
 
         Selection.Selected _ _ ->
             progressBar (Just "Loading your playlists...")
 
 
-playlist : (Playlist -> Msg) -> Playlist -> Element Msg
-playlist tagger p =
+playlistView : (Playlist -> Msg) -> Playlist -> Element Msg
+playlistView tagger p =
     el [ onClick (tagger p) ]
-        (paragraph [ width fill ] [ text (p.name ++ " (" ++ toString p.tracksCount ++ " tracks)") ])
+        (paragraph [ width fill ] [ text (p.name ++ " (" ++ String.fromInt p.tracksCount ++ " tracks)") ])
 
 
 comparedSearch :
@@ -796,7 +879,7 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
         ]
 
 
-songs :
+songsView :
     { b
         | availableConnections : List (ProviderConnection MusicProviderType)
         , comparedProvider : WithProviderSelection MusicProviderType ()
@@ -806,15 +889,15 @@ songs :
     }
     -> Playlist
     -> Element Msg
-songs model playlist =
-    column []
+songsView model playlist =
+    column [ height fill, width fill ]
         [ button linkButtonStyle { onPress = Just BackToPlaylists, label = text "<< back" }
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    column [ spacing 5 ]
+                    column [ spacing 5, height fill, width fill ]
                         [ comparedSearch model playlist
-                        , column [ spacing 8 ] <| List.map (song model) s
+                        , column [ spacing 8, scrollbarY ] <| List.map (song model) s
                         ]
                 )
             |> RemoteData.withDefault (progressBar Nothing)
@@ -834,13 +917,13 @@ song ({ comparedProvider } as model) track =
         [ paragraph [] [ text <| track.title ++ " - " ++ track.artist ]
         , comparedProvider
             |> Selection.providerType
-            |> Maybe.andThen (matchingTracks model track)
+            |> Maybe.andThen (matchingTracksView model track)
             |> Maybe.map Element.html
             |> Maybe.withDefault Element.none
         ]
 
 
-matchingTracks :
+matchingTracksView :
     { c
         | comparedProvider : WithProviderSelection MusicProviderType data
         , songs : AnyDict String ( TrackId, MusicProviderType ) (RemoteData e (List b))
@@ -849,41 +932,40 @@ matchingTracks :
     -> Track
     -> MusicProviderType
     -> Maybe (Html Msg)
-matchingTracks { songs, comparedProvider, alternativeTitles } ({ id, title } as track) pType =
+matchingTracksView { songs, comparedProvider, alternativeTitles } ({ id, title } as track) pType =
     let
-        pType =
-            Selection.providerType comparedProvider
-
-        mathingSongs =
-            Maybe.map (\p -> ( p, Dict.get ( id, p ) songs )) pType
+        matchingTracks =
+            ( pType, Dict.get ( id, pType ) songs )
     in
-    case mathingSongs of
-        Just ( p, Just (Success []) ) ->
+    case matchingTracks of
+        ( p, Just (Success []) ) ->
             Just
                 (Html.span []
                     [ Html.i
                         [ Html.class "fa fa-times"
-                        , Html.style [ ( "margin-left", "6px" ), ( "color", "red" ) ]
+                        , Html.style "margin-left" "6px"
+                        , Html.style "color" "red"
                         , Html.title ("This track doesn't exist on " ++ providerName p ++ " :(")
                         ]
                         []
                     , Html.label [ Html.for "correct-title-input" ] [ Html.text "Try correcting song title:" ]
-                    , Html.input [ Html.onInput (ChangeAltTitle id), Html.type_ "text", Html.placeholder title, Html.style [ ( "display", "inline" ), ( "width", "auto" ) ] ] []
+                    , Html.input [ Html.onInput (ChangeAltTitle id), Html.type_ "text", Html.placeholder title, Html.style "display" "inline", Html.style "width" "auto" ] []
                     , Html.button [ Html.onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ Html.text "retry" ]
                     ]
                 )
 
-        Just ( p, Just (Success _) ) ->
+        ( p, Just (Success _) ) ->
             Just
                 (Html.i
                     [ Html.class "fa fa-check"
-                    , Html.style [ ( "margin-left", "6px" ), ( "color", "green" ) ]
+                    , Html.style "margin-left" "6px"
+                    , Html.style "color" "green"
                     , Html.title ("Hurray! Found your track on " ++ providerName p)
                     ]
                     []
                 )
 
-        Just ( _, Just Loading ) ->
+        ( _, Just Loading ) ->
             Just (Html.span [ Html.class "loader loader-xs" ] [])
 
         _ ->
@@ -963,9 +1045,9 @@ connectedProviderDecoder providers =
 -- Program
 
 
-main : Program Never Model Msg
+main : Program (List String) Model Msg
 main =
-    Html.program
+    Browser.element
         { init = init
         , view = view
         , update = update

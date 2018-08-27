@@ -111,5 +111,5 @@ type_ con =
         Connecting (ConnectingProvider pType) ->
             pType
 
-        Connected connected ->
-            P.connectedType connected
+        Connected connection ->
+            P.connectedType connection
