@@ -33,6 +33,7 @@ import Element
         , paragraph
         , px
         , row
+        , scrollbarX
         , scrollbarY
         , shrink
         , spacing
@@ -711,7 +712,7 @@ connectButton tagger connection =
             Connection.isConnecting connection
     in
     button
-        ([ width fill, height (px 46) ] ++ primaryButtonStyle connecting)
+        ([ width fill, height (px 42) ] ++ primaryButtonStyle connecting)
         { onPress =
             if connecting then
                 Nothing
@@ -719,8 +720,8 @@ connectButton tagger connection =
             else
                 Just <| tagger (Connection.type_ connection)
         , label =
-            row [ centerX, width (fillPortion 3 |> minimum 125), spacing 5 ] <|
-                [ connection |> Connection.type_ |> providerLogoOrName [ height (px 30), width (px 30) ]
+            row [ centerX, width (fillPortion 2 |> minimum 94), spacing 3 ] <|
+                [ connection |> Connection.type_ |> providerLogoOrName [ height (px 20), width (px 20) ]
                 , text
                     (if connected then
                         "Disconnect "
@@ -758,22 +759,22 @@ content : Model -> Element Msg
 content model =
     el [ Bg.uncropped "assets/img/Note.svg", width fill, height fill ] <|
         column
-            [ padding 8
-            , Bg.color palette.transparentWhite
+            [ Bg.color palette.transparentWhite
             , Border.rounded 3
             , Border.glow palette.ternary 1
             , width fill
             , height fill
+            , padding 8
             ]
         <|
-            [ wrappedRow [ width fill ]
+            [ wrappedRow [ spacing 5, width fill ]
                 [ model.availableConnections
                     |> Connections.connectedProviders
                     |> asSelectableList model.playlists
-                    |> providerSelector PlaylistsProviderChanged (Just "Main provider")
-                , wrappedRow [ spacing 8, alignRight ] <| buttons model
+                    |> providerSelector PlaylistsProviderChanged (Just "Provider")
+                , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
                 ]
-            , row [ width fill, height fill ] [ playlistsView model ]
+            , row [ width fill, htmlAttribute <| Html.style "height" "58vh", scrollbarY ] [ playlistsView model ]
             ]
 
 
@@ -808,7 +809,7 @@ playlistsView model =
             paragraph [ width fill, alignTop ] [ text "Select a provider to load your playlists" ]
 
         Selection.Selected _ _ ->
-            progressBar (Just "Loading your playlists...")
+            paragraph [ alignTop ] [ progressBar (Just "Loading your playlists...") ]
 
 
 playlistView : (Playlist -> Msg) -> Playlist -> Element Msg
@@ -851,13 +852,13 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
                 |> RemoteData.map ((==) <| List.length matchedSongs)
                 |> RemoteData.withDefault False
     in
-    row [ spacing 8, height shrink ]
+    wrappedRow [ spacing 8, height shrink ]
         [ availableConnections
             |> Connections.connectedProviders
             |> asSelectableList playlists
             |> SelectableList.rest
             |> asSelectableList comparedProvider
-            |> providerSelector ComparedProviderChanged (Just "Copy the playlist to")
+            |> providerSelector ComparedProviderChanged (Just "Import to")
         , button ([] ++ (primaryButtonStyle <| not (Selection.isSelected comparedProvider)))
             { onPress =
                 if Selection.isSelected comparedProvider then
@@ -897,7 +898,7 @@ songsView model playlist =
                 (\s ->
                     column [ spacing 5, height fill, width fill ]
                         [ comparedSearch model playlist
-                        , column [ spacing 8, scrollbarY ] <| List.map (song model) s
+                        , column [ spacing 8, htmlAttribute <| Html.style "height" "48vh", width fill, scrollbarX, scrollbarY ] <| List.map (song model) s
                         ]
                 )
             |> RemoteData.withDefault (progressBar Nothing)
