@@ -10,14 +10,10 @@ install:
   - npm i -g npm@latest
   - npm i -g elm@0.19
   - npm install
-  - travis_retry elm-package install --yes
-  - cd tests && elm-package install --yes && cd ..
 
 script:
   - npm run build
-  - cd tests && elm-make --output=/dev/null --yes && cd ..
-  - npm run test
-  - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm i && elm-make --output=/dev/null --yes
+  - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm i && elm make elm/Main.elm --output=/dev/null
   - npm run test:it
   - cd .. && rm -rf it
 
