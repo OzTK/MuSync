@@ -13,7 +13,7 @@ install:
 
 script:
   - npm run build
-  - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm i && elm make elm/Main.elm --output=/dev/null
+  - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm i
   - npm run test:it
   - cd .. && rm -rf it
 
