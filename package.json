@@ -9,7 +9,6 @@
     "build:dev": "elm-make elm/Main.elm --yes --output=js/elm.js --debug",
     "debug": "elm-live elm/Main.elm --output=js/elm.js --open --debug",
     "start": "elm-live --output=js/elm.js elm/Main.elm --no-recover",
-    "test": "elm-test",
     "cypress": "cypress open",
     "cypress:all": "cypress run",
     "pretest:it": "./test_run.sh",

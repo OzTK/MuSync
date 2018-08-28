@@ -9,7 +9,6 @@ cache:
 install:
   - npm i -g npm@latest
   - npm i -g elm@0.19
-  - npm i -g elm-test@0.19
   - npm install
   - travis_retry elm-package install --yes
   - cd tests && elm-package install --yes && cd ..
