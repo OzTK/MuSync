@@ -568,19 +568,17 @@ large =
     scaled 3 |> round
 
 
-toRatio f r g b =
-    f (r / 255.0) (g / 255.0) (b / 255.0)
 
 
 palette =
-    { primary = toRatio Element.rgb 220 94 93
-    , primaryFaded = toRatio Element.rgba 250 160 112 0.1
-    , secondary = toRatio Element.rgb 69 162 134
-    , ternary = toRatio Element.rgb 248 160 116
-    , quaternary = toRatio Element.rgb 189 199 79
-    , transparentWhite = toRatio Element.rgba 255 255 255 0.7
-    , white = toRatio Element.rgb 255 255 255
-    , text = toRatio Element.rgb 42 67 80
+    { primary = Element.rgb255 220 94 93
+    , primaryFaded = Element.rgba255 250 160 112 0.1
+    , secondary = Element.rgb255 69 162 134
+    , ternary = Element.rgb255 248 160 116
+    , quaternary = Element.rgb255 189 199 79
+    , transparentWhite = Element.rgba255 255 255 255 0.7
+    , white = Element.rgb255 255 255 255
+    , text = Element.rgb255 42 67 80
     }
 
 

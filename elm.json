@@ -14,7 +14,7 @@
             "elm/json": "1.0.0",
             "elm/time": "1.0.0",
             "krisajenkins/remotedata": "5.0.0",
-            "mdgriffith/stylish-elephants": "8.0.2",
+            "mdgriffith/stylish-elephants": "8.1.0",
             "ohanhi/remotedata-http": "3.0.0",
             "turboMaCk/any-dict": "1.0.1"
         },
