@@ -1,6 +1,6 @@
 language: node_js
 node_js:
-  - '8'
+  - '10'
 
 cache:
   - elm-stuff/build-artifacts
@@ -8,7 +8,6 @@ cache:
 
 install:
   - npm i -g npm@latest
-  - npm i -g elm@0.19
   - npm install
 
 script:
