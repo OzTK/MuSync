@@ -37,7 +37,10 @@
   <script>
     var elmApp = Elm.Main.init({
       node: document.getElementById('app'),
-      flags: []
+      flags: {
+        height: window.innerHeight,
+        width: window.innerWidth
+      }
     });
 
     elmApp.ports.loadAllPlaylists.subscribe(function () {

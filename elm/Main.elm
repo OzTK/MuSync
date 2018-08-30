@@ -2,6 +2,7 @@ module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
 import Basics.Extra exposing (pair, swap)
 import Browser
+import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
 import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
 import Connection.Selection as Selection exposing (WithProviderSelection(..))
@@ -74,7 +75,18 @@ type alias Model =
     , availableConnections : List (ProviderConnection MusicProviderType)
     , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
     , alternativeTitles : AnyDict String TrackId String
+    , device : Element.Device
     }
+
+
+type alias Dimensions =
+    { height : Int
+    , width : Int
+    }
+
+
+type alias Flags =
+    Dimensions
 
 
 type MatchingTracksKeySerializationError
@@ -101,9 +113,9 @@ deserializeMatchingTracksKey key =
             Err (WrongKeysFormatError key)
 
 
-init : List String -> ( Model, Cmd Msg )
+init : Flags -> ( Model, Cmd Msg )
 init =
-    \_ ->
+    \flags ->
         ( { playlists = Selection.noSelection
           , comparedProvider = Selection.noSelection
           , availableConnections =
@@ -112,6 +124,7 @@ init =
                 ]
           , songs = Dict.empty serializeMatchingTracksKey
           , alternativeTitles = Dict.empty Track.serializeId
+          , device = Element.classifyDevice flags
           }
         , Cmd.none
         )
@@ -143,11 +156,15 @@ type Msg
     | ChangeAltTitle TrackId String
     | ImportPlaylist (List Track) Playlist
     | PlaylistImported (WebData Playlist)
+    | BrowserResized Dimensions
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        BrowserResized dimensions ->
+            ( { model | device = Element.classifyDevice dimensions }, Cmd.none )
+
         DeezerStatusUpdate isConnected ->
             let
                 connection =
@@ -566,8 +583,6 @@ medium =
 
 large =
     scaled 3 |> round
-
-
 
 
 palette =
@@ -1044,7 +1059,7 @@ connectedProviderDecoder providers =
 -- Program
 
 
-main : Program (List String) Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -1067,4 +1082,5 @@ subscriptions _ =
         , Deezer.receiveMatchingTracks ReceiveDeezerMatchingSongs
         , Deezer.playlistCreated ReceiveDeezerPlaylist
         , Spotify.onConnected SpotifyConnectionStatusUpdate
+        , Browser.onResize (\w h -> BrowserResized <| Dimensions h w)
         ]
