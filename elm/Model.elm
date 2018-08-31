@@ -1,4 +1,4 @@
-module Model exposing (MusicProviderType(..), UserInfo, keyPartsSeparator, keysSeparator, providerFromString)
+module Model exposing (MusicProviderType(..), UserInfo, keyPartsSeparator, keysSeparator, providerFromString, providerToString)
 
 
 type MusicProviderType
@@ -25,6 +25,22 @@ providerFromString pName =
 
         _ ->
             Nothing
+
+
+providerToString : MusicProviderType -> String
+providerToString pType =
+    case pType of
+        Spotify ->
+            "Spotify"
+
+        Deezer ->
+            "Deezer"
+
+        Google ->
+            "Google"
+
+        Amazon ->
+            "Amazon"
 
 
 type alias UserId =

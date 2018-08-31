@@ -3,7 +3,6 @@ port module Deezer exposing
     , createPlaylistWithTracks
     , disconnect
     , httpBadPayloadError
-    , httpBadPayloadStringError
     , loadAllPlaylists
     , loadPlaylistSongs
     , playlist
@@ -16,11 +15,13 @@ port module Deezer exposing
     , updateStatus
     )
 
+import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (pair, swap)
 import Dict
 import Http exposing (Error(..), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
+import Json.Encode as JE
 import Model exposing (MusicProviderType(..))
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..))
@@ -45,24 +46,14 @@ track =
         |> requiredAt [ "artist", "name" ] string
 
 
-httpBadPayloadError : String -> JD.Value -> JD.Error -> Error
+httpBadPayloadError : String -> JD.Value -> Either JD.Error String -> Error
 httpBadPayloadError url json err =
     { url = url
     , status = { code = 200, message = "OK" }
     , headers = Dict.empty
-    , body = Debug.toString json
+    , body = JE.encode 0 json
     }
-        |> BadPayload (Debug.toString err)
-
-
-httpBadPayloadStringError : String -> JD.Value -> String -> Error
-httpBadPayloadStringError url json err =
-    { url = url
-    , status = { code = 200, message = "OK" }
-    , headers = Dict.empty
-    , body = Debug.toString json
-    }
-        |> BadPayload err
+        |> BadPayload (Either.unwrap JD.errorToString identity err)
 
 
 

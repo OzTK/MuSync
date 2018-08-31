@@ -16,7 +16,7 @@ type alias TrackId =
 
 serializeId : TrackId -> String
 serializeId ( id, pType ) =
-    Debug.toString pType ++ keyPartsSeparator ++ id
+    Model.providerToString pType ++ keyPartsSeparator ++ id
 
 
 type TrackIdSerializationError

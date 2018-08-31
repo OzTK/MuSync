@@ -1,5 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
+import Basics.Either exposing (Either(..))
 import Basics.Extra exposing (pair, swap)
 import Browser
 import Browser.Events as Browser
@@ -97,7 +98,7 @@ type MatchingTracksKeySerializationError
 
 serializeMatchingTracksKey : ( TrackId, MusicProviderType ) -> String
 serializeMatchingTracksKey ( id, pType ) =
-    Track.serializeId id ++ Model.keysSeparator ++ Debug.toString pType
+    Track.serializeId id ++ Model.keysSeparator ++ Model.providerToString pType
 
 
 deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError ( TrackId, MusicProviderType )
@@ -216,6 +217,7 @@ update msg model =
                     pJson
                         |> JD.decodeValue (JD.list Deezer.playlist)
                         |> Result.map SelectableList.fromList
+                        |> Result.mapError Left
                         |> Result.mapError (Deezer.httpBadPayloadError "/playlists" pJson)
                         |> RemoteData.fromResult
                         |> Selection.setData model.playlists
@@ -227,6 +229,7 @@ update msg model =
             pJson
                 |> JD.decodeValue Deezer.playlist
                 |> RemoteData.fromResult
+                |> RemoteData.mapError Left
                 |> RemoteData.mapError (Deezer.httpBadPayloadError "/user/playlist" pJson)
                 |> PlaylistImported
                 |> swap update model
@@ -234,8 +237,8 @@ update msg model =
         ReceiveDeezerPlaylists Nothing ->
             ( { model
                 | playlists =
-                    "No Playlists received"
-                        |> Deezer.httpBadPayloadStringError "/playlist/songs" JE.null
+                    Right "No Playlists received"
+                        |> Deezer.httpBadPayloadError "/playlist/songs" JE.null
                         |> RemoteData.Failure
                         |> Selection.setData model.playlists
               }
@@ -248,6 +251,7 @@ update msg model =
                     songsValue
                         |> JD.decodeValue (JD.list Deezer.track)
                         |> RemoteData.fromResult
+                        |> RemoteData.mapError Left
                         |> RemoteData.mapError (Deezer.httpBadPayloadError "/playlist/songs" songsValue)
             in
             ( { model
@@ -266,7 +270,7 @@ update msg model =
 
         RequestDeezerSongs id ->
             ( model
-            , Deezer.loadPlaylistSongs (Debug.toString id)
+            , Deezer.loadPlaylistSongs (String.fromInt id)
             )
 
         ReceiveSpotifyPlaylistSongs _ s ->
@@ -417,6 +421,7 @@ update msg model =
                 tracks =
                     jsonTracks
                         |> JD.decodeValue (JD.list Deezer.track)
+                        |> Result.mapError Left
                         |> Result.mapError (Deezer.httpBadPayloadError "/search/tracks" jsonTracks)
                         |> RemoteData.fromResult
             in
@@ -815,8 +820,8 @@ playlistsView model =
                             SelectableList.map (playlistView PlaylistSelected) p
                     )
 
-        Selection.Selected _ (Failure err) ->
-            paragraph [ width fill ] [ text ("An error occured loading your playlists: " ++ Debug.toString err) ]
+        Selection.Selected _ (Failure _) ->
+            paragraph [ width fill ] [ text "An error occured loading your playlists" ]
 
         Selection.NoProviderSelected ->
             paragraph [ width fill, alignTop ] [ text "Select a provider to load your playlists" ]
