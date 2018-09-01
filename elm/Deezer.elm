@@ -1,6 +1,9 @@
 port module Deezer exposing
     ( connectD
     , createPlaylistWithTracks
+    , decodePlaylist
+    , decodePlaylists
+    , decodeTracks
     , disconnect
     , httpBadPayloadError
     , loadAllPlaylists
@@ -16,7 +19,7 @@ port module Deezer exposing
     )
 
 import Basics.Either as Either exposing (Either(..))
-import Basics.Extra exposing (pair, swap)
+import Basics.Extra exposing (flip, pair)
 import Dict
 import Http exposing (Error(..), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
@@ -24,7 +27,7 @@ import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import Json.Encode as JE
 import Model exposing (MusicProviderType(..))
 import Playlist exposing (Playlist, PlaylistId)
-import RemoteData exposing (RemoteData(..))
+import RemoteData exposing (RemoteData(..), WebData)
 import Track exposing (Track)
 
 
@@ -56,6 +59,29 @@ httpBadPayloadError url json err =
         |> BadPayload (Either.unwrap JD.errorToString identity err)
 
 
+decodeData decoder url json =
+    json
+        |> JD.decodeValue decoder
+        |> Result.mapError Left
+        |> Result.mapError (httpBadPayloadError url json)
+        |> RemoteData.fromResult
+
+
+decodePlaylists : JD.Value -> WebData (List Playlist)
+decodePlaylists =
+    decodeData (JD.list playlist) "/deezer/playlists"
+
+
+decodePlaylist : JD.Value -> WebData Playlist
+decodePlaylist =
+    decodeData playlist "/deezer/playlist"
+
+
+decodeTracks : JD.Value -> WebData (List Track)
+decodeTracks =
+    decodeData (JD.list track) "/deezer/tracks"
+
+
 
 -- Ports
 
@@ -72,7 +98,7 @@ port disconnect : () -> Cmd msg
 port loadAllPlaylists : () -> Cmd msg
 
 
-port receivePlaylists : (Maybe JD.Value -> msg) -> Sub msg
+port receivePlaylists : (JD.Value -> msg) -> Sub msg
 
 
 port searchSong : { id : String, title : String, artist : String } -> Cmd msg
@@ -84,7 +110,7 @@ port receiveMatchingTracks : (( String, JD.Value ) -> msg) -> Sub msg
 port loadPlaylistSongs : PlaylistId -> Cmd msg
 
 
-port receivePlaylistSongs : (Maybe JD.Value -> msg) -> Sub msg
+port receivePlaylistSongs : (( PlaylistId, JD.Value ) -> msg) -> Sub msg
 
 
 port createPlaylistWithTracks : ( String, List Int ) -> Cmd msg

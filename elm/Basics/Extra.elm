@@ -1,8 +1,8 @@
-module Basics.Extra exposing (pair, swap)
+module Basics.Extra exposing (pair, flip)
 
 
-swap : (a -> b -> c) -> b -> a -> c
-swap f a =
+flip : (a -> b -> c) -> b -> a -> c
+flip f a =
     \b -> f b a
 
 

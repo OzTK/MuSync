@@ -87,7 +87,7 @@ setData selection d =
 providerType : WithProviderSelection providerType data -> Maybe providerType
 providerType selection =
     case selection of
-        Selected (ConnectedProvider pType) _ ->
+        Selected (ConnectedProvider pType _) _ ->
             Just pType
 
         Selected (ConnectedProviderWithToken pType _ _) _ ->

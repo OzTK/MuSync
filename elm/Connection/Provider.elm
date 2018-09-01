@@ -10,11 +10,13 @@ module Connection.Provider exposing
     , connecting
     , disconnected
     , inactive
+    , setUserInfo
     , token
     , user
     )
 
 import Model exposing (UserInfo)
+import RemoteData exposing (RemoteData(..), WebData)
 
 
 type alias OAuthToken =
@@ -22,19 +24,19 @@ type alias OAuthToken =
 
 
 type ConnectedProvider providerType
-    = ConnectedProvider providerType
-    | ConnectedProviderWithToken providerType OAuthToken UserInfo
+    = ConnectedProvider providerType (WebData UserInfo)
+    | ConnectedProviderWithToken providerType OAuthToken (WebData UserInfo)
 
 
-connected : providerType -> ConnectedProvider providerType
-connected =
-    ConnectedProvider
+connected : providerType -> WebData UserInfo -> ConnectedProvider providerType
+connected pType userInfo =
+    ConnectedProvider pType userInfo
 
 
 connectedType : ConnectedProvider providerType -> providerType
 connectedType connection =
     case connection of
-        ConnectedProvider pType ->
+        ConnectedProvider pType _ ->
             pType
 
         ConnectedProviderWithToken pType _ _ ->
@@ -54,14 +56,27 @@ token con =
 user : ConnectedProvider providerType -> Maybe UserInfo
 user con =
     case con of
-        ConnectedProviderWithToken _ _ u ->
+        ConnectedProviderWithToken _ _ (Success u) ->
+            Just u
+
+        ConnectedProvider _ (Success u) ->
             Just u
 
         _ ->
             Nothing
 
 
-connectedWithToken : providerType -> OAuthToken -> UserInfo -> ConnectedProvider providerType
+setUserInfo : WebData UserInfo -> ConnectedProvider pType -> ConnectedProvider pType
+setUserInfo userInfo provider =
+    case provider of
+        ConnectedProvider pType _ ->
+            ConnectedProvider pType userInfo
+
+        ConnectedProviderWithToken pType t u ->
+            ConnectedProviderWithToken pType t userInfo
+
+
+connectedWithToken : providerType -> OAuthToken -> WebData UserInfo -> ConnectedProvider providerType
 connectedWithToken pType t u =
     ConnectedProviderWithToken pType t u
 

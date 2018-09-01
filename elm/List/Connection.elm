@@ -34,7 +34,7 @@ connectedProviders =
         )
 
 
-flatMap : (a -> b) -> List (ProviderConnection a) -> List b
+flatMap : (pType -> b) -> List (ProviderConnection pType) -> List b
 flatMap f =
     List.map
         (\con ->
@@ -48,7 +48,7 @@ flatMap f =
                 Connecting (ConnectingProvider pType) ->
                     f pType
 
-                Connected (ConnectedProvider pType) ->
+                Connected (ConnectedProvider pType _) ->
                     f pType
 
                 Connected (ConnectedProviderWithToken pType _ _) ->
@@ -77,7 +77,7 @@ map f =
                 Connecting (ConnectingProvider pType) ->
                     fcon pType
 
-                Connected (ConnectedProvider pType) ->
+                Connected (ConnectedProvider pType _) ->
                     fcon pType
 
                 Connected (ConnectedProviderWithToken pType _ _) ->
@@ -115,7 +115,7 @@ mapOn pType f =
                     else
                         con
 
-                Connected (ConnectedProvider pt) ->
+                Connected (ConnectedProvider pt _) ->
                     if pt == pType then
                         f con
 

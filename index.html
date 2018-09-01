@@ -69,7 +69,9 @@
         return;
       }
 
-      loadDeezerPlaylistSongs(pid, elmApp.ports.receivePlaylistSongs.send)
+      loadDeezerPlaylistSongs(pid, (songs) => {
+        elmApp.ports.receivePlaylistSongs.send([pid, songs]);
+      });
     });
 
     elmApp.ports.searchSong.subscribe(function (track) {

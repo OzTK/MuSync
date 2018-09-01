@@ -1,7 +1,7 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
 import Basics.Either exposing (Either(..))
-import Basics.Extra exposing (pair, swap)
+import Basics.Extra exposing (flip, pair)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
@@ -53,6 +53,7 @@ import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
 import Html.Events.Extra as Html
+import Http
 import Json.Decode as JD
 import Json.Encode as JE
 import List.Connection as Connections
@@ -61,6 +62,7 @@ import Maybe.Extra as Maybe
 import Model exposing (MusicProviderType(..), UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
+import Result.Extra as Result
 import SelectableList exposing (SelectableList)
 import Spotify
 import Track exposing (Track, TrackId)
@@ -74,7 +76,7 @@ type alias Model =
     { playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableConnections : List (ProviderConnection MusicProviderType)
-    , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
+    , songs : AnyDict String MatchingTrackKey (WebData (List Track))
     , alternativeTitles : AnyDict String TrackId String
     , device : Element.Device
     }
@@ -84,6 +86,10 @@ type alias Dimensions =
     { height : Int
     , width : Int
     }
+
+
+type alias MatchingTrackKey =
+    ( TrackId, MusicProviderType )
 
 
 type alias Flags =
@@ -96,12 +102,12 @@ type MatchingTracksKeySerializationError
     | WrongKeysFormatError String
 
 
-serializeMatchingTracksKey : ( TrackId, MusicProviderType ) -> String
+serializeMatchingTracksKey : MatchingTrackKey -> String
 serializeMatchingTracksKey ( id, pType ) =
     Track.serializeId id ++ Model.keysSeparator ++ Model.providerToString pType
 
 
-deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError ( TrackId, MusicProviderType )
+deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError MatchingTrackKey
 deserializeMatchingTracksKey key =
     case String.split Model.keysSeparator key of
         [ rawTrackId, rawProvider ] ->
@@ -137,23 +143,17 @@ init =
 
 type Msg
     = ToggleConnect MusicProviderType
-    | DeezerStatusUpdate Bool
-    | ReceiveDeezerPlaylists (Maybe JD.Value)
-    | ReceiveDeezerPlaylist JD.Value
-    | ReceivePlaylists (WebData (List Playlist))
-    | ReceiveDeezerSongs (Maybe JD.Value)
-    | ReceiveDeezerMatchingSongs ( String, JD.Value )
-    | RequestDeezerSongs Int
-    | ReceiveSpotifyPlaylistSongs Playlist (WebData (List Track))
+    | PlaylistsFetched MusicProviderType (WebData (List Playlist))
+    | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
     | PlaylistsProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
-    | SpotifyConnectionStatusUpdate ( Maybe String, String )
-    | SpotifyUserInfoReceived OAuthToken (WebData UserInfo)
+    | UserInfoReceived MusicProviderType (WebData UserInfo)
+    | ProviderStatusUpdated MusicProviderType (Maybe OAuthToken) Bool
     | SearchMatchingSongs Playlist
     | RetrySearchSong Track String
-    | MatchingSongResult Track MusicProviderType (WebData (List Track))
+    | MatchingSongResult (Result MatchingTracksKeySerializationError MatchingTrackKey) (WebData (List Track))
     | ChangeAltTitle TrackId String
     | ImportPlaylist (List Track) Playlist
     | PlaylistImported (WebData Playlist)
@@ -166,17 +166,24 @@ update msg model =
         BrowserResized dimensions ->
             ( { model | device = Element.classifyDevice dimensions }, Cmd.none )
 
-        DeezerStatusUpdate isConnected ->
-            let
-                connection =
-                    if isConnected then
-                        Connection.connected Deezer
+        ProviderStatusUpdated pType maybeToken isConnected ->
+            ( { model
+                | availableConnections =
+                    Connections.mapOn pType
+                        (\_ ->
+                            case ( isConnected, maybeToken ) of
+                                ( True, Nothing ) ->
+                                    Connection.connected pType NotAsked
 
-                    else
-                        Connection.disconnected Deezer
-            in
-            ( { model | availableConnections = Connections.mapOn Deezer (\_ -> connection) model.availableConnections }
-            , Cmd.none
+                                ( True, Just token ) ->
+                                    Connection.connectedWithToken pType token NotAsked
+
+                                ( False, _ ) ->
+                                    Connection.disconnected pType
+                        )
+                        model.availableConnections
+              }
+            , afterProviderStatusUpdate pType maybeToken
             )
 
         ToggleConnect pType ->
@@ -211,69 +218,7 @@ update msg model =
             , toggleCmd
             )
 
-        ReceiveDeezerPlaylists (Just pJson) ->
-            ( { model
-                | playlists =
-                    pJson
-                        |> JD.decodeValue (JD.list Deezer.playlist)
-                        |> Result.map SelectableList.fromList
-                        |> Result.mapError Left
-                        |> Result.mapError (Deezer.httpBadPayloadError "/playlists" pJson)
-                        |> RemoteData.fromResult
-                        |> Selection.setData model.playlists
-              }
-            , Cmd.none
-            )
-
-        ReceiveDeezerPlaylist pJson ->
-            pJson
-                |> JD.decodeValue Deezer.playlist
-                |> RemoteData.fromResult
-                |> RemoteData.mapError Left
-                |> RemoteData.mapError (Deezer.httpBadPayloadError "/user/playlist" pJson)
-                |> PlaylistImported
-                |> swap update model
-
-        ReceiveDeezerPlaylists Nothing ->
-            ( { model
-                | playlists =
-                    Right "No Playlists received"
-                        |> Deezer.httpBadPayloadError "/playlist/songs" JE.null
-                        |> RemoteData.Failure
-                        |> Selection.setData model.playlists
-              }
-            , Cmd.none
-            )
-
-        ReceiveDeezerSongs (Just songsValue) ->
-            let
-                songsData =
-                    songsValue
-                        |> JD.decodeValue (JD.list Deezer.track)
-                        |> RemoteData.fromResult
-                        |> RemoteData.mapError Left
-                        |> RemoteData.mapError (Deezer.httpBadPayloadError "/playlist/songs" songsValue)
-            in
-            ( { model
-                | playlists =
-                    Selection.map
-                        (SelectableList.mapSelected (Playlist.setSongs songsData))
-                        model.playlists
-              }
-            , Cmd.none
-            )
-
-        ReceiveDeezerSongs Nothing ->
-            ( model
-            , Cmd.none
-            )
-
-        RequestDeezerSongs id ->
-            ( model
-            , Deezer.loadPlaylistSongs (String.fromInt id)
-            )
-
-        ReceiveSpotifyPlaylistSongs _ s ->
+        PlaylistTracksFetched _ s ->
             ( { model
                 | playlists =
                     Selection.map
@@ -318,53 +263,22 @@ update msg model =
             , Cmd.none
             )
 
-        SpotifyConnectionStatusUpdate ( Nothing, token ) ->
-            let
-                connection =
-                    Connection.connectedWithToken Spotify token
-            in
-            ( model
-            , Spotify.getUserInfo token SpotifyUserInfoReceived
-            )
-
-        SpotifyConnectionStatusUpdate ( Just _, _ ) ->
+        UserInfoReceived pType user ->
             ( { model
                 | availableConnections =
-                    Connections.mapOn Spotify
-                        (\con -> con |> Connection.type_ |> Connection.disconnected)
-                        model.availableConnections
+                    Connections.mapOn pType (Connection.map (Provider.setUserInfo user)) model.availableConnections
               }
             , Cmd.none
             )
 
-        SpotifyUserInfoReceived token (Success user) ->
-            let
-                connection =
-                    Connection.connectedWithToken Spotify token user
-            in
-            ( { model
-                | availableConnections =
-                    Connections.mapOn Spotify (\_ -> connection) model.availableConnections
-              }
+        MatchingSongResult keyResult tracksResult ->
+            ( keyResult
+                |> Result.map (\key -> { model | songs = Dict.insert key tracksResult model.songs })
+                |> Result.withDefault model
             , Cmd.none
             )
 
-        SpotifyUserInfoReceived token _ ->
-            ( { model
-                | availableConnections =
-                    Connections.mapOn Spotify
-                        (\con -> con |> Connection.type_ |> Connection.disconnected)
-                        model.availableConnections
-              }
-            , Cmd.none
-            )
-
-        MatchingSongResult ({ id } as track) pType results ->
-            ( { model | songs = Dict.insert ( id, pType ) results model.songs }
-            , Cmd.none
-            )
-
-        ReceivePlaylists playlistsData ->
+        PlaylistsFetched _ playlistsData ->
             let
                 data =
                     playlistsData |> RemoteData.map SelectableList.fromList
@@ -406,7 +320,7 @@ update msg model =
                         |> Maybe.andThen
                             (\pType ->
                                 p.songs
-                                    |> RemoteData.map (List.map (.id >> swap pair pType))
+                                    |> RemoteData.map (List.map (.id >> flip pair pType))
                                     |> RemoteData.map (\keys -> Dict.insertAtAll keys Loading model.songs)
                                     |> RemoteData.toMaybe
                             )
@@ -414,25 +328,6 @@ update msg model =
             in
             ( { model | songs = loading }
             , Cmd.batch cmds
-            )
-
-        ReceiveDeezerMatchingSongs ( trackId, jsonTracks ) ->
-            let
-                tracks =
-                    jsonTracks
-                        |> JD.decodeValue (JD.list Deezer.track)
-                        |> Result.mapError Left
-                        |> Result.mapError (Deezer.httpBadPayloadError "/search/tracks" jsonTracks)
-                        |> RemoteData.fromResult
-            in
-            ( { model
-                | songs =
-                    trackId
-                        |> deserializeMatchingTracksKey
-                        |> Result.map (\( id, _ ) -> Dict.insert ( id, Deezer ) tracks model.songs)
-                        |> Result.withDefault model.songs
-              }
-            , Cmd.none
             )
 
         RetrySearchSong track title ->
@@ -463,6 +358,15 @@ update msg model =
 -- Helpers
 
 
+afterProviderStatusUpdate pType maybeToken =
+    case ( pType, maybeToken ) of
+        ( Spotify, Just token ) ->
+            Spotify.getUserInfo token (UserInfoReceived Spotify)
+
+        _ ->
+            Cmd.none
+
+
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
 imporPlaylist { comparedProvider } { name } tracks =
     case comparedProvider of
@@ -489,24 +393,24 @@ imporPlaylist { comparedProvider } { name } tracks =
 loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
 loadPlaylists connection =
     case connection of
-        ConnectedProvider Deezer ->
+        ConnectedProvider Deezer _ ->
             Deezer.loadAllPlaylists ()
 
         ConnectedProviderWithToken Spotify token _ ->
-            Spotify.getPlaylists token ReceivePlaylists
+            Spotify.getPlaylists token (PlaylistsFetched Spotify)
 
         _ ->
-            Cmd.none
+            Debug.todo <| "Wrong provider state: " ++ Debug.toString connection
 
 
 loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
-loadPlaylistSongs connection ({ id, link } as p) =
+loadPlaylistSongs connection { id, link } =
     case connection of
-        ConnectedProvider Deezer ->
+        ConnectedProvider Deezer _ ->
             Deezer.loadPlaylistSongs id
 
         ConnectedProviderWithToken Spotify token _ ->
-            Spotify.getPlaylistTracksFromLink token (ReceiveSpotifyPlaylistSongs p) link
+            Spotify.getPlaylistTracksFromLink token (PlaylistTracksFetched id) link
 
         _ ->
             Cmd.none
@@ -524,9 +428,9 @@ searchSongFromProvider : Track -> ConnectedProvider MusicProviderType -> Cmd Msg
 searchSongFromProvider track provider =
     case provider of
         ConnectedProviderWithToken Spotify token _ ->
-            Spotify.searchTrack token (MatchingSongResult track Spotify) track
+            Spotify.searchTrack token (MatchingSongResult (Ok ( track.id, Spotify ))) track
 
-        ConnectedProvider Deezer ->
+        ConnectedProvider Deezer _ ->
             Deezer.searchSong { id = serializeMatchingTracksKey ( track.id, Deezer ), artist = track.artist, title = track.title }
 
         _ ->
@@ -681,7 +585,7 @@ providerSelector :
 providerSelector tagger label providers =
     row
         [ spacing 5 ]
-        [ label |> Maybe.map (swap (++) ":") |> Maybe.map (el [] << text) |> Maybe.withDefault Element.none
+        [ label |> Maybe.map (flip (++) ":") |> Maybe.map (el [] << text) |> Maybe.withDefault Element.none
         , el [] <|
             Element.html
                 (Html.select
@@ -1078,14 +982,27 @@ main =
 -- Subscriptions
 
 
+handleDeezerMatchingTracksFetched : ( String, JD.Value ) -> Msg
+handleDeezerMatchingTracksFetched ( rawKey, json ) =
+    MatchingSongResult (deserializeMatchingTracksKey rawKey) (Deezer.decodeTracks json)
+
+
+handleSpotifyStatusUpdate ( maybeErr, token ) =
+    maybeErr |> Maybe.toBool |> not |> ProviderStatusUpdated Spotify (Just token)
+
+
+handleDeezerPlaylistTracksFetched ( pid, json ) =
+    PlaylistTracksFetched pid (Deezer.decodeTracks json)
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Deezer.updateStatus DeezerStatusUpdate
-        , Deezer.receivePlaylists ReceiveDeezerPlaylists
-        , Deezer.receivePlaylistSongs ReceiveDeezerSongs
-        , Deezer.receiveMatchingTracks ReceiveDeezerMatchingSongs
-        , Deezer.playlistCreated ReceiveDeezerPlaylist
-        , Spotify.onConnected SpotifyConnectionStatusUpdate
+        [ Deezer.updateStatus <| ProviderStatusUpdated Deezer Nothing
+        , Deezer.receivePlaylists (PlaylistsFetched Deezer << Deezer.decodePlaylists)
+        , Deezer.receivePlaylistSongs handleDeezerPlaylistTracksFetched
+        , Deezer.receiveMatchingTracks handleDeezerMatchingTracksFetched
+        , Deezer.playlistCreated (PlaylistImported << Deezer.decodePlaylist)
+        , Spotify.onConnected handleSpotifyStatusUpdate
         , Browser.onResize (\w h -> BrowserResized <| Dimensions h w)
         ]

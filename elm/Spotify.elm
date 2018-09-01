@@ -166,9 +166,9 @@ withRateLimit tagger task =
     withRateLimitTask task |> Task.perform tagger
 
 
-getUserInfo : String -> (String -> WebData UserInfo -> msg) -> Cmd msg
+getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
 getUserInfo token tagger =
-    Http.getWithConfig (config token) (endpoint ++ "me") (tagger token) userInfo
+    Http.getWithConfig (config token) (endpoint ++ "me") tagger userInfo
 
 
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg

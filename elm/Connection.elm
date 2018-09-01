@@ -9,6 +9,7 @@ module Connection exposing
     , isConnecting
     , isDisconnected
     , isInactive
+    , map
     , type_
     )
 
@@ -21,18 +22,26 @@ import Connection.Provider as P
         , OAuthToken
         )
 import Model exposing (UserInfo)
+import RemoteData exposing (WebData)
 
 
 
 -- Provider connection
 
 
-connected : providerType -> ProviderConnection providerType
-connected =
-    Connected << P.connected
+type ProviderConnection providerType
+    = Inactive (InactiveProvider providerType)
+    | Disconnected (DisconnectedProvider providerType)
+    | Connecting (ConnectingProvider providerType)
+    | Connected (ConnectedProvider providerType)
 
 
-connectedWithToken : providerType -> OAuthToken -> UserInfo -> ProviderConnection providerType
+connected : providerType -> WebData UserInfo -> ProviderConnection providerType
+connected pType userInfo =
+    Connected <| P.connected pType userInfo
+
+
+connectedWithToken : providerType -> OAuthToken -> WebData UserInfo -> ProviderConnection providerType
 connectedWithToken pType token user =
     Connected <| P.connectedWithToken pType token user
 
@@ -50,13 +59,6 @@ connecting =
 inactive : providerType -> ProviderConnection providerType
 inactive =
     Inactive << P.inactive
-
-
-type ProviderConnection providerType
-    = Inactive (InactiveProvider providerType)
-    | Disconnected (DisconnectedProvider providerType)
-    | Connecting (ConnectingProvider providerType)
-    | Connected (ConnectedProvider providerType)
 
 
 isConnected : ProviderConnection providerType -> Bool
@@ -113,3 +115,13 @@ type_ con =
 
         Connected connection ->
             P.connectedType connection
+
+
+map : (ConnectedProvider pType -> ConnectedProvider pType) -> ProviderConnection pType -> ProviderConnection pType
+map f connection =
+    case connection of
+        Connected provider ->
+            Connected (f provider)
+
+        _ ->
+            connection
