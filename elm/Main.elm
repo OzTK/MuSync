@@ -404,7 +404,7 @@ loadPlaylists connection =
             Spotify.getPlaylists token (PlaylistsFetched Spotify)
 
         _ ->
-            Debug.todo <| "Wrong provider state: " ++ Debug.toString connection
+            Cmd.none
 
 
 loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
