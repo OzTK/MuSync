@@ -490,36 +490,52 @@ palette =
     , ternary = Element.rgb255 248 160 116
     , quaternary = Element.rgb255 189 199 79
     , transparentWhite = Element.rgba255 255 255 255 0.7
+    , transparent = Element.rgba255 255 255 255 0
     , white = Element.rgb255 255 255 255
     , text = Element.rgb255 42 67 80
     }
 
 
-primaryButtonStyle : Bool -> { m | device : Element.Device } -> List (Element.Attribute msg)
-primaryButtonStyle disabled { device } =
+baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     let
         w =
-            case device.class of
-                Phone ->
+            case ( device.class, device.orientation ) of
+                ( Phone, Portrait ) ->
+                    fill
+
+                ( Tablet, Portrait ) ->
                     fill
 
                 _ ->
                     shrink
     in
     [ paddingXY 10 9
-    , Font.color palette.text
+    , Font.color textColor
     , Border.rounded 5
-    , Border.color palette.secondary
+    , Border.color bgHoverColor
     , Border.solid
     , Border.width 1
     , width w
+    , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
     ]
-        ++ (if disabled then
-                [ alpha 0.5 ]
 
-            else
-                [ mouseOver [ Bg.color palette.secondary, Font.color palette.white ] ]
-           )
+
+disabledButtonStyle whatever =
+    case whatever of
+        Just _ ->
+            [ alpha 0.5, mouseOver [] ]
+
+        Nothing ->
+            []
+
+
+iconButtonStyle =
+    [ paddingXY 10 8 ]
+
+
+primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
+primaryButtonStyle { device } =
+    baseButtonStyle device ( palette.transparent, palette.text ) ( palette.secondary, palette.white )
 
 
 linkButtonStyle : List (Element.Attribute msg)
@@ -641,16 +657,12 @@ buttons model =
         (\c ->
             let
                 disabled =
-                    Connection.isConnecting c
-            in
-            connectButton (primaryButtonStyle disabled model)
-                (if disabled then
-                    Nothing
+                    c |> Connection.isConnecting |> Maybe.fromBool
 
-                 else
-                    Just ToggleConnect
-                )
-                c
+                style =
+                    primaryButtonStyle model ++ disabledButtonStyle disabled
+            in
+            connectButton style (disabled |> Maybe.not |> Maybe.map (\_ -> ToggleConnect)) c
         )
         model.availableConnections
 
@@ -662,20 +674,20 @@ connectButton style tagger connection =
             Connection.isConnected connection
     in
     button
-        ([ width fill, height (px 42) ] ++ style)
+        (style ++ iconButtonStyle)
         { onPress = Maybe.map (\t -> t <| Connection.type_ connection) tagger
         , label =
             row [ centerX, width (fillPortion 2 |> minimum 94), spacing 3 ] <|
                 [ connection |> Connection.type_ |> providerLogoOrName [ height (px 20), width (px 20) ]
                 , text
                     (if connected then
-                        "Disconnect "
+                        "Disconnect"
 
                      else if not (Maybe.toBool tagger) then
-                        "Connecting "
+                        "Connecting"
 
                      else
-                        "Connect "
+                        "Connect"
                     )
                 ]
         }
@@ -787,11 +799,26 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
                     (Selection.providerType comparedProvider)
                 |> Maybe.withDefault []
 
-        allSongsGood =
+        importTagger =
             playlist.songs
                 |> RemoteData.map List.length
                 |> RemoteData.map ((==) <| List.length matchedSongs)
-                |> RemoteData.withDefault False
+                |> RemoteData.toMaybe
+                |> Maybe.andThen Maybe.fromBool
+                |> Maybe.map (\_ -> SearchMatchingSongs playlist)
+
+        searchTagger =
+            if Selection.isSelected comparedProvider then
+                Just <| SearchMatchingSongs playlist
+
+            else
+                Nothing
+
+        searchStyle =
+            primaryButtonStyle model ++ disabledButtonStyle (Maybe.not searchTagger)
+
+        importStyle =
+            primaryButtonStyle model ++ disabledButtonStyle (Maybe.not importTagger)
     in
     wrappedRow [ spacing 8, height shrink ]
         [ availableConnections
@@ -800,22 +827,12 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
             |> SelectableList.rest
             |> Selection.asSelectableList comparedProvider
             |> providerSelector ComparedProviderChanged (Just "Import to")
-        , button ([] ++ primaryButtonStyle (not <| Selection.isSelected comparedProvider) model)
-            { onPress =
-                if Selection.isSelected comparedProvider then
-                    Just <| SearchMatchingSongs playlist
-
-                else
-                    Nothing
+        , button searchStyle
+            { onPress = searchTagger
             , label = text "search"
             }
-        , button (primaryButtonStyle (not allSongsGood) model)
-            { onPress =
-                if allSongsGood then
-                    Just <| ImportPlaylist matchedSongs playlist
-
-                else
-                    Nothing
+        , button importStyle
+            { onPress = importTagger
             , label = text "import"
             }
         ]
@@ -907,7 +924,7 @@ matchingTracksView ({ songs, comparedProvider, alternativeTitles } as model) ({ 
                     , placeholder = Nothing
                     , label = Input.labelAbove [] <| text "Fix song title:"
                     }
-                , button ([ alignBottom ] ++ primaryButtonStyle (not (Maybe.toBool altTitle)) model)
+                , button ([ alignBottom ] ++ primaryButtonStyle model ++ (Maybe.not altTitle |> disabledButtonStyle))
                     { onPress = Maybe.map (RetrySearchSong track) altTitle
                     , label = text "retry"
                     }
