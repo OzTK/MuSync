@@ -81,7 +81,7 @@ type alias Model =
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableConnections : List (ProviderConnection MusicProviderType)
     , songs : AnyDict String MatchingTrackKey (WebData (List Track))
-    , alternativeTitles : AnyDict String TrackId String
+    , alternativeTitles : AnyDict String MatchingTrackKey String
     , device : Element.Device
     }
 
@@ -134,7 +134,7 @@ init =
                 , Connection.disconnected Deezer
                 ]
           , songs = Dict.empty serializeMatchingTracksKey
-          , alternativeTitles = Dict.empty Track.serializeId
+          , alternativeTitles = Dict.empty serializeMatchingTracksKey
           , device = Element.classifyDevice flags
           }
         , Cmd.none
@@ -158,7 +158,7 @@ type Msg
     | SearchMatchingSongs Playlist
     | RetrySearchSong Track String
     | MatchingSongResult (Result MatchingTracksKeySerializationError MatchingTrackKey) (WebData (List Track))
-    | ChangeAltTitle TrackId String
+    | ChangeAltTitle MatchingTrackKey String
     | ImportPlaylist (List Track) Playlist
     | PlaylistImported (WebData Playlist)
     | BrowserResized Dimensions
@@ -342,8 +342,8 @@ update msg model =
                 |> Maybe.withDefault Cmd.none
             )
 
-        ChangeAltTitle id title ->
-            ( { model | alternativeTitles = Dict.insert id title model.alternativeTitles }
+        ChangeAltTitle key title ->
+            ( { model | alternativeTitles = Dict.insert key title model.alternativeTitles }
             , Cmd.none
             )
 
@@ -889,17 +889,20 @@ searchStatusIcon { songs } trackId pType =
 matchingTracksView : Model -> Track -> MusicProviderType -> Element Msg
 matchingTracksView ({ songs, comparedProvider, alternativeTitles } as model) ({ id, title } as track) pType =
     let
+        comparedKey =
+            ( id, pType )
+
         matchingTracks =
-            Dict.get ( id, pType ) songs
+            Dict.get comparedKey songs
 
         altTitle =
-            Dict.get id alternativeTitles
+            Dict.get comparedKey alternativeTitles
     in
     case matchingTracks of
         Just (Success []) ->
             row [ spacing 3 ]
                 [ Input.text [ width <| fillPortion 2 ]
-                    { onChange = ChangeAltTitle id
+                    { onChange = ChangeAltTitle comparedKey
                     , text = Maybe.withDefault "" altTitle
                     , placeholder = Nothing
                     , label = Input.labelAbove [] <| text "Fix song title:"
