@@ -81,7 +81,7 @@ type alias Model =
     , comparedProvider : WithProviderSelection MusicProviderType ()
     , availableConnections : List (ProviderConnection MusicProviderType)
     , songs : AnyDict String MatchingTrackKey (WebData (List Track))
-    , alternativeTitles : AnyDict String MatchingTrackKey String
+    , alternativeTitles : AnyDict String MatchingTrackKey ( String, Bool )
     , device : Element.Device
     }
 
@@ -159,6 +159,7 @@ type Msg
     | RetrySearchSong Track String
     | MatchingSongResult (Result MatchingTracksKeySerializationError MatchingTrackKey) (WebData (List Track))
     | ChangeAltTitle MatchingTrackKey String
+    | ToggleTitleEditable MatchingTrackKey
     | ImportPlaylist (List Track) Playlist
     | PlaylistImported (WebData Playlist)
     | BrowserResized Dimensions
@@ -343,7 +344,22 @@ update msg model =
             )
 
         ChangeAltTitle key title ->
-            ( { model | alternativeTitles = Dict.insert key title model.alternativeTitles }
+            ( { model | alternativeTitles = Dict.insert key ( title, True ) model.alternativeTitles }
+            , Cmd.none
+            )
+
+        ToggleTitleEditable key ->
+            ( { model
+                | alternativeTitles =
+                    model.alternativeTitles
+                        |> Dict.update key
+                            (\value ->
+                                value
+                                    |> Maybe.map (\( t, editable ) -> ( t, not editable ))
+                                    |> Maybe.withDefault ( "", True )
+                                    |> Just
+                            )
+              }
             , Cmd.none
             )
 
@@ -463,107 +479,6 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
 
 
 
--- Styles
-
-
-scaled : Int -> Float
-scaled =
-    Element.modular 16 1.25
-
-
-small =
-    scaled 1 |> round
-
-
-medium =
-    scaled 2 |> round
-
-
-large =
-    scaled 3 |> round
-
-
-palette =
-    { primary = Element.rgb255 220 94 93
-    , primaryFaded = Element.rgba255 250 160 112 0.1
-    , secondary = Element.rgb255 69 162 134
-    , ternary = Element.rgb255 248 160 116
-    , quaternary = Element.rgb255 189 199 79
-    , transparentWhite = Element.rgba255 255 255 255 0.7
-    , transparent = Element.rgba255 255 255 255 0
-    , white = Element.rgb255 255 255 255
-    , text = Element.rgb255 42 67 80
-    }
-
-
-baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
-    let
-        w =
-            case ( device.class, device.orientation ) of
-                ( Phone, Portrait ) ->
-                    fill
-
-                ( Tablet, Portrait ) ->
-                    fill
-
-                _ ->
-                    shrink
-    in
-    [ paddingXY 10 9
-    , Font.color textColor
-    , Border.rounded 5
-    , Border.color bgHoverColor
-    , Border.solid
-    , Border.width 1
-    , width w
-    , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
-    ]
-
-
-disabledButtonStyle whatever =
-    case whatever of
-        Just _ ->
-            [ alpha 0.5, mouseOver [] ]
-
-        Nothing ->
-            []
-
-
-iconButtonStyle =
-    [ paddingXY 10 8 ]
-
-
-primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
-primaryButtonStyle { device } =
-    baseButtonStyle device ( palette.transparent, palette.text ) ( palette.secondary, palette.white )
-
-
-linkButtonStyle : List (Element.Attribute msg)
-linkButtonStyle =
-    [ Font.color palette.secondary
-    , Font.underline
-    , mouseOver [ Font.color palette.quaternary ]
-    ]
-
-
-songsListStyle { device } =
-    let
-        height =
-            case device.class of
-                Phone ->
-                    "42vh"
-
-                _ ->
-                    "72vh"
-    in
-    [ spacing 8, width fill, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
-
-
-playlistsListStyle { device } =
-    [ spacing 5, Element.htmlAttribute <| Html.style "max-height" "59vh", width fill, scrollbarY ]
-
-
-
 -- View
 
 
@@ -597,14 +512,15 @@ view model =
 -- Reusable
 
 
-progressBar : Maybe String -> Element msg
-progressBar message =
-    row []
-        [ el
-            [ htmlAttribute (Html.class "progress progress-indeterminate") ]
-            (el [ htmlAttribute (Html.class "progress-bar") ] Element.none)
+progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
+progressBar attrs message =
+    column ([ htmlAttribute <| Html.style "width" "calc(15vh + 15vw)" ] ++ attrs)
+        [ Element.html <|
+            Html.div
+                [ Html.class "progress progress-sm progress-indeterminate" ]
+                [ Html.div [ Html.class "progress-bar" ] [] ]
         , message
-            |> Maybe.map (el [] << text)
+            |> Maybe.map (paragraph [ width shrink, centerX, centerY ] << List.singleton << text)
             |> Maybe.withDefault Element.none
         ]
 
@@ -733,7 +649,7 @@ content model =
         , width fill
         , height fill
         , padding 8
-        , Element.behindContent <| note [ height (px 200), alpha 0.5, centerX, centerY ]
+        , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
         ]
     <|
         [ wrappedRow [ spacing 5, width fill ]
@@ -743,7 +659,7 @@ content model =
                 |> providerSelector PlaylistsProviderChanged (Just "Provider")
             , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
             ]
-        , row [ width fill ] [ playlistsView model ]
+        , row [ width fill, height fill ] [ playlistsView model ]
         ]
 
 
@@ -751,17 +667,19 @@ playlistsView : Model -> Element Msg
 playlistsView model =
     case model.playlists of
         Selection.Importing _ _ { name } ->
-            progressBar (Just <| "Importing " ++ name ++ "...")
+            progressBar [ centerX ] (Just <| "Importing " ++ name ++ "...")
 
         Selection.Selected _ (Success p) ->
-            p
-                |> SelectableList.selected
-                |> Maybe.map (songsView model)
-                |> Maybe.withDefault
-                    (column (playlistsListStyle model) <|
-                        SelectableList.toList <|
-                            SelectableList.map (playlistView PlaylistSelected) p
-                    )
+            el [ height fill, width fill, alignTop ]
+                (p
+                    |> SelectableList.selected
+                    |> Maybe.map (songsView model)
+                    |> Maybe.withDefault
+                        (column (playlistsListStyle model) <|
+                            SelectableList.toList <|
+                                SelectableList.map (playlistView PlaylistSelected) p
+                        )
+                )
 
         Selection.Selected _ (Failure _) ->
             paragraph [ width fill ] [ text "An error occured loading your playlists" ]
@@ -770,7 +688,7 @@ playlistsView model =
             paragraph [ width fill, alignTop ] [ text "Select a provider to load your playlists" ]
 
         Selection.Selected _ _ ->
-            paragraph [ alignTop ] [ progressBar (Just "Loading your playlists...") ]
+            progressBar [ centerX ] (Just "Loading your playlists...")
 
 
 playlistView : (Playlist -> Msg) -> Playlist -> Element Msg
@@ -850,7 +768,7 @@ songsView model playlist =
                         , column (songsListStyle model) <| List.map (song model) s
                         ]
                 )
-            |> RemoteData.withDefault (progressBar Nothing)
+            |> RemoteData.withDefault (progressBar [ centerX, centerY ] <| Just ("Loading songs from " ++ playlist.name))
         ]
 
 
@@ -861,8 +779,8 @@ song ({ comparedProvider } as model) track =
             Selection.providerType comparedProvider
     in
     column [ width fill, spacing 5 ]
-        [ paragraph []
-            [ text <| track.title ++ " - " ++ track.artist
+        [ row [ width fill, height (shrink |> minimum 25) ]
+            [ paragraph [ width fill ] [ text <| track.title ++ " - " ++ track.artist ]
             , compared |> Maybe.map (searchStatusIcon model track.id) |> Maybe.withDefault Element.none
             ]
         , compared |> Maybe.map (matchingTracksView model track) |> Maybe.withDefault Element.none
@@ -880,9 +798,10 @@ searchStatusIcon { songs } trackId pType =
             Element.html <|
                 Html.i
                     [ Html.class "fa fa-times"
-                    , Html.style "margin-left" "6px"
+                    , Html.style "margin" "0 .75em"
                     , Html.style "color" "red"
                     , Html.title ("This track doesn't exist on " ++ providerName pType ++ " :(")
+                    , Html.onClick (ToggleTitleEditable ( trackId, pType ))
                     ]
                     []
 
@@ -890,7 +809,7 @@ searchStatusIcon { songs } trackId pType =
             Element.html <|
                 Html.i
                     [ Html.class "fa fa-check"
-                    , Html.style "margin-left" "6px"
+                    , Html.style "margin" "0 .75em"
                     , Html.style "color" "green"
                     , Html.title ("Hurray! Found your track on " ++ providerName pType)
                     ]
@@ -915,17 +834,17 @@ matchingTracksView ({ songs, comparedProvider, alternativeTitles } as model) ({ 
         altTitle =
             Dict.get comparedKey alternativeTitles
     in
-    case matchingTracks of
-        Just (Success []) ->
+    case ( matchingTracks, altTitle ) of
+        ( Just (Success []), Just ( t, True ) ) ->
             row [ spacing 3 ]
                 [ Input.text [ width <| fillPortion 2 ]
                     { onChange = ChangeAltTitle comparedKey
-                    , text = Maybe.withDefault "" altTitle
+                    , text = t
                     , placeholder = Nothing
                     , label = Input.labelAbove [] <| text "Fix song title:"
                     }
-                , button ([ alignBottom ] ++ primaryButtonStyle model ++ (Maybe.not altTitle |> disabledButtonStyle))
-                    { onPress = Maybe.map (RetrySearchSong track) altTitle
+                , button ([ alignBottom ] ++ primaryButtonStyle model ++ (Maybe.fromBool (t == "") |> disabledButtonStyle))
+                    { onPress = Just <| RetrySearchSong track t
                     , label = text "retry"
                     }
                 ]
@@ -1001,6 +920,107 @@ connectedProviderDecoder providers =
                     _ ->
                         JD.fail "Expected a valid MusicProviderType name to decode"
             )
+
+
+
+-- Styles
+
+
+scaled : Int -> Float
+scaled =
+    Element.modular 16 1.25
+
+
+small =
+    scaled 1 |> round
+
+
+medium =
+    scaled 2 |> round
+
+
+large =
+    scaled 3 |> round
+
+
+palette =
+    { primary = Element.rgb255 220 94 93
+    , primaryFaded = Element.rgba255 250 160 112 0.1
+    , secondary = Element.rgb255 69 162 134
+    , ternary = Element.rgb255 248 160 116
+    , quaternary = Element.rgb255 189 199 79
+    , transparentWhite = Element.rgba255 255 255 255 0.7
+    , transparent = Element.rgba255 255 255 255 0
+    , white = Element.rgb255 255 255 255
+    , text = Element.rgb255 42 67 80
+    }
+
+
+baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
+    let
+        w =
+            case ( device.class, device.orientation ) of
+                ( Phone, Portrait ) ->
+                    fill
+
+                ( Tablet, Portrait ) ->
+                    fill
+
+                _ ->
+                    shrink
+    in
+    [ paddingXY 10 9
+    , Font.color textColor
+    , Border.rounded 5
+    , Border.color bgHoverColor
+    , Border.solid
+    , Border.width 1
+    , width w
+    , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
+    ]
+
+
+disabledButtonStyle whatever =
+    case whatever of
+        Just _ ->
+            [ alpha 0.5, mouseOver [] ]
+
+        Nothing ->
+            []
+
+
+iconButtonStyle =
+    [ paddingXY 10 8 ]
+
+
+primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
+primaryButtonStyle { device } =
+    baseButtonStyle device ( palette.transparent, palette.text ) ( palette.secondary, palette.white )
+
+
+linkButtonStyle : List (Element.Attribute msg)
+linkButtonStyle =
+    [ Font.color palette.secondary
+    , Font.underline
+    , mouseOver [ Font.color palette.quaternary ]
+    ]
+
+
+songsListStyle { device } =
+    let
+        height =
+            case device.class of
+                Phone ->
+                    "42vh"
+
+                _ ->
+                    "72vh"
+    in
+    [ spacing 8, width fill, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
+
+
+playlistsListStyle { device } =
+    [ spacing 5, Element.htmlAttribute <| Html.style "max-height" "59vh", width fill, scrollbarY ]
 
 
 
