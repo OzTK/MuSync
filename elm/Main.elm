@@ -763,7 +763,7 @@ songsView model playlist =
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    column [ spacing 5, height fill, width fill ]
+                    column [ spacing 5, height fill ]
                         [ comparedSearch model playlist
                         , column (songsListStyle model) <| List.map (song model) s
                         ]
@@ -780,8 +780,13 @@ song ({ comparedProvider } as model) track =
     in
     column [ width fill, spacing 5 ]
         [ row [ width fill, height (shrink |> minimum 25) ]
-            [ paragraph [ width fill ] [ text <| track.title ++ " - " ++ track.artist ]
-            , compared |> Maybe.map (searchStatusIcon model track.id) |> Maybe.withDefault Element.none
+            [ paragraph [] [ text <| track.title ++ " - " ++ track.artist ]
+            , compared
+                |> Maybe.map
+                    (\tracks ->
+                        el [ alignRight ] <| searchStatusIcon model track.id tracks
+                    )
+                |> Maybe.withDefault Element.none
             ]
         , compared |> Maybe.map (matchingTracksView model track) |> Maybe.withDefault Element.none
         ]
@@ -1016,7 +1021,7 @@ songsListStyle { device } =
                 _ ->
                     "72vh"
     in
-    [ spacing 8, width fill, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
+    [ spacing 8, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
 
 
 playlistsListStyle { device } =
