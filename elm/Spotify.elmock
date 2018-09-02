@@ -8,7 +8,6 @@ port module Spotify exposing
     , searchTrack
     )
 
-
 import Model exposing (MusicProviderType(..), UserInfo)
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -16,12 +15,12 @@ import Task
 import Track exposing (Track)
 
 
-getUserInfo : String -> (String -> WebData UserInfo -> msg) -> Cmd msg
+getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
 getUserInfo token tagger =
     UserInfo "1" "Test User"
         |> Task.succeed
         |> RemoteData.asCmd
-        |> Cmd.map (tagger token)
+        |> Cmd.map tagger
 
 
 searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg

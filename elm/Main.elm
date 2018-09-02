@@ -615,7 +615,7 @@ providerSelector tagger label providers =
                         |> SelectableList.mapBoth (providerOption True) (providerOption False)
                         |> SelectableList.toList
                         |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
-                        |> List.withDefault [ placeholderOption True "-- Connect at least one more provider --" ]
+                        |> List.withDefault [ placeholderOption True "-- Connect provider --" ]
                     )
                 )
         ]
@@ -724,14 +724,14 @@ content model =
         , Element.behindContent <| note [ height (px 200), alpha 0.5, centerX, centerY ]
         ]
     <|
-        [ wrappedRow [ spacing 5, width fill, htmlAttribute <| Html.style "z-index" "10" ]
+        [ wrappedRow [ spacing 5, width fill ]
             [ model.availableConnections
                 |> Connections.connectedProviders
                 |> Selection.asSelectableList model.playlists
                 |> providerSelector PlaylistsProviderChanged (Just "Provider")
             , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
             ]
-        , row [ width fill, htmlAttribute <| Html.style "z-index" "10" ] [ playlistsView model ]
+        , row [ width fill ] [ playlistsView model ]
         ]
 
 

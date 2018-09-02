@@ -3,7 +3,7 @@ describe('Visiting the website and connecting a music provider', () => {
         cy.visit("/");
         let providerPickerLength = 1;
 
-        cy.contains('-- Connect at least one more provider --')
+        cy.contains('-- Connect provider --')
             .parent().as('providers')
             .children().should('have.length', providerPickerLength);
 
@@ -42,7 +42,7 @@ describe('Visiting the website and connecting a music provider', () => {
         });
 
         it('shows a placeholder if no other provider is connected', () => {
-            cy.contains('-- Connect at least one more provider --')
+            cy.contains('-- Connect provider --')
                 .parent()
                 .children()
                 .should('have.length', 1);

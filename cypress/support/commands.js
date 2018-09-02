@@ -1,5 +1,5 @@
 Cypress.Commands.add("withItems", () => {
-  const items = cy.get('main > .e > .c > .r:nth-of-type(2) p');
+  const items = cy.get('main > .c > .r p');
   items.should('have.length.gt', 1);
   return items;
 });
