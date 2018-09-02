@@ -12,7 +12,11 @@ import Dict.Any as Dict exposing (AnyDict)
 import Dict.Any.Extra as Dict
 import Element
     exposing
-        ( Element
+        ( DeviceClass(..)
+        , Element
+        , Orientation(..)
+        , alignBottom
+        , alignLeft
         , alignRight
         , alignTop
         , alpha
@@ -355,7 +359,7 @@ update msg model =
 
 
 
--- Helpers
+-- Effects
 
 
 afterProviderStatusUpdate pType maybeToken =
@@ -458,21 +462,6 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
             Cmd.none
 
 
-asSelectableList :
-    WithProviderSelection providerType data
-    -> List (ConnectedProvider providerType)
-    -> SelectableList (ConnectedProvider providerType)
-asSelectableList selection providers =
-    let
-        connected =
-            providers |> SelectableList.fromList
-    in
-    selection
-        |> Selection.connection
-        |> Maybe.map (SelectableList.select connected)
-        |> Maybe.withDefault connected
-
-
 
 -- Styles
 
@@ -506,14 +495,24 @@ palette =
     }
 
 
-primaryButtonStyle : Bool -> List (Element.Attribute msg)
-primaryButtonStyle disabled =
-    [ paddingXY 16 8
+primaryButtonStyle : Bool -> { m | device : Element.Device } -> List (Element.Attribute msg)
+primaryButtonStyle disabled { device } =
+    let
+        w =
+            case device.class of
+                Phone ->
+                    fill
+
+                _ ->
+                    shrink
+    in
+    [ paddingXY 10 9
     , Font.color palette.text
     , Border.rounded 5
     , Border.color palette.secondary
     , Border.solid
     , Border.width 1
+    , width w
     ]
         ++ (if disabled then
                 [ alpha 0.5 ]
@@ -529,6 +528,23 @@ linkButtonStyle =
     , Font.underline
     , mouseOver [ Font.color palette.quaternary ]
     ]
+
+
+songsListStyle { device } =
+    let
+        height =
+            case device.class of
+                Phone ->
+                    "42vh"
+
+                _ ->
+                    "72vh"
+    in
+    [ spacing 8, width fill, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
+
+
+playlistsListStyle { device } =
+    [ spacing 5, Element.htmlAttribute <| Html.style "max-height" "59vh", width fill, scrollbarY ]
 
 
 
@@ -555,8 +571,8 @@ view model =
         , width fill
         ]
     <|
-        column [ padding 16, height fill, width fill ]
-            [ row [ Region.navigation ] [ header ]
+        column [ paddingXY 16 8, spacing 5, height fill, width fill ]
+            [ row [ Region.navigation, width fill ] [ header model ]
             , row [ Region.mainContent, width fill, height fill ] [ content model ]
             ]
 
@@ -619,28 +635,35 @@ placeholderOption isSelected label =
     Html.option [ Html.selected isSelected, Html.value "__placeholder__" ] [ Html.text label ]
 
 
-buttons : { m | availableConnections : List (ProviderConnection MusicProviderType) } -> List (Element Msg)
-buttons { availableConnections } =
-    List.map (connectButton ToggleConnect) availableConnections
+buttons : { m | availableConnections : List (ProviderConnection MusicProviderType), device : Element.Device } -> List (Element Msg)
+buttons model =
+    List.map
+        (\c ->
+            let
+                disabled =
+                    Connection.isConnecting c
+            in
+            connectButton (primaryButtonStyle disabled model)
+                (if disabled then
+                    Nothing
+
+                 else
+                    Just ToggleConnect
+                )
+                c
+        )
+        model.availableConnections
 
 
-connectButton : (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Element Msg
-connectButton tagger connection =
+connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Element Msg
+connectButton style tagger connection =
     let
         connected =
             Connection.isConnected connection
-
-        connecting =
-            Connection.isConnecting connection
     in
     button
-        ([ width fill, height (px 42) ] ++ primaryButtonStyle connecting)
-        { onPress =
-            if connecting then
-                Nothing
-
-            else
-                Just <| tagger (Connection.type_ connection)
+        ([ width fill, height (px 42) ] ++ style)
+        { onPress = Maybe.map (\t -> t <| Connection.type_ connection) tagger
         , label =
             row [ centerX, width (fillPortion 2 |> minimum 94), spacing 3 ] <|
                 [ connection |> Connection.type_ |> providerLogoOrName [ height (px 20), width (px 20) ]
@@ -648,7 +671,7 @@ connectButton tagger connection =
                     (if connected then
                         "Disconnect "
 
-                     else if connecting then
+                     else if not (Maybe.toBool tagger) then
                         "Connecting "
 
                      else
@@ -672,43 +695,47 @@ note attrs =
 -- View parts
 
 
-header : Element msg
-header =
-    logo [ Element.alignLeft, width (px 250) ]
+header : { m | device : Element.Device } -> Element msg
+header { device } =
+    let
+        align =
+            case ( device.class, device.orientation ) of
+                ( Phone, Portrait ) ->
+                    centerX
+
+                ( Tablet, Portrait ) ->
+                    centerX
+
+                _ ->
+                    alignLeft
+    in
+    logo [ align, width (px 250) ]
 
 
 content : Model -> Element Msg
 content model =
-    el [ Bg.uncropped "assets/img/Note.svg", width fill, height fill ] <|
-        column
-            [ Bg.color palette.transparentWhite
-            , Border.rounded 3
-            , Border.glow palette.ternary 1
-            , width fill
-            , height fill
-            , padding 8
+    column
+        [ Bg.color palette.transparentWhite
+        , Border.rounded 3
+        , Border.glow palette.ternary 1
+        , width fill
+        , height fill
+        , padding 8
+        , Element.behindContent <| note [ height (px 200), alpha 0.5, centerX, centerY ]
+        ]
+    <|
+        [ wrappedRow [ spacing 5, width fill, htmlAttribute <| Html.style "z-index" "10" ]
+            [ model.availableConnections
+                |> Connections.connectedProviders
+                |> Selection.asSelectableList model.playlists
+                |> providerSelector PlaylistsProviderChanged (Just "Provider")
+            , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
             ]
-        <|
-            [ wrappedRow [ spacing 5, width fill ]
-                [ model.availableConnections
-                    |> Connections.connectedProviders
-                    |> asSelectableList model.playlists
-                    |> providerSelector PlaylistsProviderChanged (Just "Provider")
-                , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
-                ]
-            , row [ width fill, htmlAttribute <| Html.style "height" "58vh", scrollbarY ] [ playlistsView model ]
-            ]
+        , row [ width fill, htmlAttribute <| Html.style "z-index" "10" ] [ playlistsView model ]
+        ]
 
 
-playlistsView :
-    { b
-        | availableConnections : List (ProviderConnection MusicProviderType)
-        , comparedProvider : WithProviderSelection MusicProviderType ()
-        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
-        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , alternativeTitles : AnyDict String TrackId String
-    }
-    -> Element Msg
+playlistsView : Model -> Element Msg
 playlistsView model =
     case model.playlists of
         Selection.Importing _ _ { name } ->
@@ -719,7 +746,7 @@ playlistsView model =
                 |> SelectableList.selected
                 |> Maybe.map (songsView model)
                 |> Maybe.withDefault
-                    (column [ spacing 5, height fill, width fill ] <|
+                    (column (playlistsListStyle model) <|
                         SelectableList.toList <|
                             SelectableList.map (playlistView PlaylistSelected) p
                     )
@@ -740,16 +767,8 @@ playlistView tagger p =
         (paragraph [ width fill ] [ text (p.name ++ " (" ++ String.fromInt p.tracksCount ++ " tracks)") ])
 
 
-comparedSearch :
-    { b
-        | availableConnections : List (ProviderConnection MusicProviderType)
-        , comparedProvider : WithProviderSelection MusicProviderType ()
-        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
-    }
-    -> Playlist
-    -> Element Msg
-comparedSearch { availableConnections, playlists, comparedProvider, songs } playlist =
+comparedSearch : Model -> Playlist -> Element Msg
+comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as model) playlist =
     let
         matchedSongs =
             playlist
@@ -777,11 +796,11 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
     wrappedRow [ spacing 8, height shrink ]
         [ availableConnections
             |> Connections.connectedProviders
-            |> asSelectableList playlists
+            |> Selection.asSelectableList playlists
             |> SelectableList.rest
-            |> asSelectableList comparedProvider
+            |> Selection.asSelectableList comparedProvider
             |> providerSelector ComparedProviderChanged (Just "Import to")
-        , button ([] ++ (primaryButtonStyle <| not (Selection.isSelected comparedProvider)))
+        , button ([] ++ primaryButtonStyle (not <| Selection.isSelected comparedProvider) model)
             { onPress =
                 if Selection.isSelected comparedProvider then
                     Just <| SearchMatchingSongs playlist
@@ -790,7 +809,7 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
                     Nothing
             , label = text "search"
             }
-        , button (primaryButtonStyle <| not allSongsGood)
+        , button (primaryButtonStyle (not allSongsGood) model)
             { onPress =
                 if allSongsGood then
                     Just <| ImportPlaylist matchedSongs playlist
@@ -802,97 +821,97 @@ comparedSearch { availableConnections, playlists, comparedProvider, songs } play
         ]
 
 
-songsView :
-    { b
-        | availableConnections : List (ProviderConnection MusicProviderType)
-        , comparedProvider : WithProviderSelection MusicProviderType ()
-        , playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-        , songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List Track))
-        , alternativeTitles : AnyDict String TrackId String
-    }
-    -> Playlist
-    -> Element Msg
+songsView : Model -> Playlist -> Element Msg
 songsView model playlist =
-    column [ height fill, width fill ]
+    column [ width fill, height fill ]
         [ button linkButtonStyle { onPress = Just BackToPlaylists, label = text "<< back" }
         , playlist.songs
             |> RemoteData.map
                 (\s ->
                     column [ spacing 5, height fill, width fill ]
                         [ comparedSearch model playlist
-                        , column [ spacing 8, htmlAttribute <| Html.style "height" "48vh", width fill, scrollbarX, scrollbarY ] <| List.map (song model) s
+                        , column (songsListStyle model) <| List.map (song model) s
                         ]
                 )
             |> RemoteData.withDefault (progressBar Nothing)
         ]
 
 
-song :
-    { c
-        | songs : AnyDict String ( TrackId, MusicProviderType ) (WebData (List b))
-        , comparedProvider : WithProviderSelection MusicProviderType data
-        , alternativeTitles : AnyDict String TrackId String
-    }
-    -> Track
-    -> Element Msg
+song : Model -> Track -> Element Msg
 song ({ comparedProvider } as model) track =
-    row []
-        [ paragraph [] [ text <| track.title ++ " - " ++ track.artist ]
-        , comparedProvider
-            |> Selection.providerType
-            |> Maybe.andThen (matchingTracksView model track)
-            |> Maybe.map Element.html
-            |> Maybe.withDefault Element.none
+    let
+        compared =
+            Selection.providerType comparedProvider
+    in
+    column [ width fill, spacing 5 ]
+        [ paragraph []
+            [ text <| track.title ++ " - " ++ track.artist
+            , compared |> Maybe.map (searchStatusIcon model track.id) |> Maybe.withDefault Element.none
+            ]
+        , compared |> Maybe.map (matchingTracksView model track) |> Maybe.withDefault Element.none
         ]
 
 
-matchingTracksView :
-    { c
-        | comparedProvider : WithProviderSelection MusicProviderType data
-        , songs : AnyDict String ( TrackId, MusicProviderType ) (RemoteData e (List b))
-        , alternativeTitles : AnyDict String TrackId String
-    }
-    -> Track
-    -> MusicProviderType
-    -> Maybe (Html Msg)
-matchingTracksView { songs, comparedProvider, alternativeTitles } ({ id, title } as track) pType =
+searchStatusIcon : { m | songs : AnyDict String MatchingTrackKey (WebData (List Track)) } -> TrackId -> MusicProviderType -> Element Msg
+searchStatusIcon { songs } trackId pType =
     let
         matchingTracks =
-            ( pType, Dict.get ( id, pType ) songs )
+            Dict.get ( trackId, pType ) songs
     in
     case matchingTracks of
-        ( p, Just (Success []) ) ->
-            Just
-                (Html.span []
-                    [ Html.i
-                        [ Html.class "fa fa-times"
-                        , Html.style "margin-left" "6px"
-                        , Html.style "color" "red"
-                        , Html.title ("This track doesn't exist on " ++ providerName p ++ " :(")
-                        ]
-                        []
-                    , Html.label [ Html.for "correct-title-input" ] [ Html.text "Try correcting song title:" ]
-                    , Html.input [ Html.onInput (ChangeAltTitle id), Html.type_ "text", Html.placeholder title, Html.style "display" "inline", Html.style "width" "auto" ] []
-                    , Html.button [ Html.onClick <| RetrySearchSong track (Dict.get id alternativeTitles |> Maybe.withDefault title) ] [ Html.text "retry" ]
+        Just (Success []) ->
+            Element.html <|
+                Html.i
+                    [ Html.class "fa fa-times"
+                    , Html.style "margin-left" "6px"
+                    , Html.style "color" "red"
+                    , Html.title ("This track doesn't exist on " ++ providerName pType ++ " :(")
                     ]
-                )
+                    []
 
-        ( p, Just (Success _) ) ->
-            Just
-                (Html.i
+        Just (Success _) ->
+            Element.html <|
+                Html.i
                     [ Html.class "fa fa-check"
                     , Html.style "margin-left" "6px"
                     , Html.style "color" "green"
-                    , Html.title ("Hurray! Found your track on " ++ providerName p)
+                    , Html.title ("Hurray! Found your track on " ++ providerName pType)
                     ]
                     []
-                )
 
-        ( _, Just Loading ) ->
-            Just (Html.span [ Html.class "loader loader-xs" ] [])
+        Just Loading ->
+            Element.html <| Html.span [ Html.class "loader loader-xs" ] []
 
         _ ->
-            Nothing
+            Element.none
+
+
+matchingTracksView : Model -> Track -> MusicProviderType -> Element Msg
+matchingTracksView ({ songs, comparedProvider, alternativeTitles } as model) ({ id, title } as track) pType =
+    let
+        matchingTracks =
+            Dict.get ( id, pType ) songs
+
+        altTitle =
+            Dict.get id alternativeTitles
+    in
+    case matchingTracks of
+        Just (Success []) ->
+            row [ spacing 3 ]
+                [ Input.text [ width <| fillPortion 2 ]
+                    { onChange = ChangeAltTitle id
+                    , text = Maybe.withDefault "" altTitle
+                    , placeholder = Nothing
+                    , label = Input.labelAbove [] <| text "Fix song title:"
+                    }
+                , button ([ alignBottom ] ++ primaryButtonStyle (not (Maybe.toBool altTitle)) model)
+                    { onPress = Maybe.map (RetrySearchSong track) altTitle
+                    , label = text "retry"
+                    }
+                ]
+
+        _ ->
+            Element.none
 
 
 providerName : MusicProviderType -> String

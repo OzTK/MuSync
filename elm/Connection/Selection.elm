@@ -1,5 +1,6 @@
 module Connection.Selection exposing
     ( WithProviderSelection(..)
+    , asSelectableList
     , connection
     , data
     , importDone
@@ -16,12 +17,28 @@ import Connection.Provider exposing (ConnectedProvider(..))
 import Http
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
+import SelectableList exposing (SelectableList)
 
 
 type WithProviderSelection providerType data
     = NoProviderSelected
     | Selected (ConnectedProvider providerType) (RemoteData Http.Error data)
     | Importing (ConnectedProvider providerType) (RemoteData Http.Error data) Playlist
+
+
+asSelectableList :
+    WithProviderSelection providerType data
+    -> List (ConnectedProvider providerType)
+    -> SelectableList (ConnectedProvider providerType)
+asSelectableList selection providers =
+    let
+        connected =
+            providers |> SelectableList.fromList
+    in
+    selection
+        |> connection
+        |> Maybe.map (SelectableList.select connected)
+        |> Maybe.withDefault connected
 
 
 noSelection : WithProviderSelection providerType data
