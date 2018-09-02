@@ -1,8 +1,8 @@
 module Connection.Provider exposing
     ( ConnectedProvider(..)
-    , ConnectingProvider
-    , DisconnectedProvider
-    , InactiveProvider
+    , ConnectingProvider(..)
+    , DisconnectedProvider(..)
+    , InactiveProvider(..)
     , OAuthToken
     , connected
     , connectedType
