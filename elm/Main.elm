@@ -22,7 +22,7 @@ import Element
         , alpha
         , centerX
         , centerY
-        , clipY
+        , clip
         , column
         , el
         , fill
@@ -504,7 +504,7 @@ view model =
     <|
         column [ paddingXY 16 8, spacing 5, height fill, width fill ]
             [ row [ Region.navigation, width fill ] [ header model ]
-            , row [ Region.mainContent, width fill, height fill ] [ content model ]
+            , row [ Region.mainContent, width fill, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ] [ content model ]
             ]
 
 
@@ -659,7 +659,7 @@ content model =
                 |> providerSelector PlaylistsProviderChanged (Just "Provider")
             , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
             ]
-        , row [ width fill, height fill ] [ playlistsView model ]
+        , playlistsView model
         ]
 
 
@@ -670,16 +670,14 @@ playlistsView model =
             progressBar [ centerX ] (Just <| "Importing " ++ name ++ "...")
 
         Selection.Selected _ (Success p) ->
-            el [ height fill, width fill, alignTop ]
-                (p
-                    |> SelectableList.selected
-                    |> Maybe.map (songsView model)
-                    |> Maybe.withDefault
-                        (column (playlistsListStyle model) <|
-                            SelectableList.toList <|
-                                SelectableList.map (playlistView PlaylistSelected) p
-                        )
-                )
+            p
+                |> SelectableList.selected
+                |> Maybe.map (songsView model)
+                |> Maybe.withDefault
+                    (column (playlistsListStyle model) <|
+                        SelectableList.toList <|
+                            SelectableList.map (playlistView PlaylistSelected) p
+                    )
 
         Selection.Selected _ (Failure _) ->
             paragraph [ width fill ] [ text "An error occured loading your playlists" ]
@@ -758,12 +756,12 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
 
 songsView : Model -> Playlist -> Element Msg
 songsView model playlist =
-    column [ width fill, height fill ]
+    column [ width fill, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
         [ button linkButtonStyle { onPress = Just BackToPlaylists, label = text "<< back" }
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    column [ spacing 5, height fill ]
+                    column [ spacing 5, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
                         [ comparedSearch model playlist
                         , column (songsListStyle model) <| List.map (song model) s
                         ]
@@ -1012,20 +1010,11 @@ linkButtonStyle =
 
 
 songsListStyle { device } =
-    let
-        height =
-            case device.class of
-                Phone ->
-                    "42vh"
-
-                _ ->
-                    "72vh"
-    in
-    [ spacing 8, Element.htmlAttribute <| Html.style "max-height" height, scrollbarY ]
+    [ spacing 8, height fill, scrollbarY ]
 
 
 playlistsListStyle { device } =
-    [ spacing 5, Element.htmlAttribute <| Html.style "max-height" "59vh", width fill, scrollbarY ]
+    [ spacing 5, width fill, height fill, scrollbarY ]
 
 
 
