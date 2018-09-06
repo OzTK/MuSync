@@ -1,5 +1,6 @@
-Cypress.Commands.add("withItems", () => {
-  const items = cy.get('main > .c > .r p');
+Cypress.Commands.add("withItems", (title) => {
+  console.log(title);
+  const items = cy.contains(title).nextAll();
   items.should('have.length.gt', 1);
   return items;
 });
@@ -24,6 +25,6 @@ Cypress.Commands.add(
   (provider, index) => {
     cy.get('main select').as('prov-picker').select(provider);
     cy.get('@prov-picker').should('have.value', provider);
-    cy.withItems().then((items) => items[index].click());
+    cy.withItems("My playlists").then((items) => items[index].click());
   }
 );

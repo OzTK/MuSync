@@ -675,8 +675,11 @@ playlistsView model =
                 |> Maybe.map (songsView model)
                 |> Maybe.withDefault
                     (column (playlistsListStyle model) <|
-                        SelectableList.toList <|
-                            SelectableList.map (playlistView PlaylistSelected) p
+                        el mainTitleStyle (text "My playlists")
+                            :: (p
+                                    |> SelectableList.map (playlistView PlaylistSelected)
+                                    |> SelectableList.toList
+                               )
                     )
 
         Selection.Selected _ (Failure _) ->
@@ -763,7 +766,8 @@ songsView model playlist =
                 (\s ->
                     column [ spacing 5, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
                         [ comparedSearch model playlist
-                        , column (songsListStyle model) <| List.map (song model) s
+                        , column (songsListStyle model) <|
+                            (el mainTitleStyle (text "Songs") :: List.map (song model) s)
                         ]
                 )
             |> RemoteData.withDefault (progressBar [ centerX, centerY ] <| Just ("Loading songs from " ++ playlist.name))
@@ -944,6 +948,10 @@ medium =
 
 large =
     scaled 3 |> round
+
+
+mainTitleStyle =
+    [ Font.size large, Font.color palette.primary ]
 
 
 palette =

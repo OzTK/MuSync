@@ -38,7 +38,7 @@ describe('Visiting the website and connecting a music provider', () => {
         });
 
         it('displays songs from a clicked playlist', () => {
-            cy.withItems((items) => items.should('have.length', 8));
+            cy.withItems('Songs').should('have.length', 8);
         });
 
         it('shows a placeholder if no other provider is connected', () => {
@@ -55,7 +55,7 @@ describe('Visiting the website and connecting a music provider', () => {
         it('takes back to the playlists when clicking the back button', () => {
             cy.contains('<< back').click();
             cy.contains('<< back').should('not.exist');
-            cy.withItems((items) => items.should('have.length', 4))
+            cy.withItems("My playlists").should('have.length', 4)
         });
 
         describe('when connecting another provider', () => {
