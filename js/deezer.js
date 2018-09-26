@@ -26,7 +26,7 @@ function loadDeezer() {
 
 function getDeezerStatus(cb) {
   DZ.getLoginStatus(function (response) {
-    isDzConnected = response.authResponse !== undefined;
+    isDzConnected = !!response.authResponse;
     cb(isDzConnected);
   });
 }
