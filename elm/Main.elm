@@ -69,6 +69,7 @@ import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
 import Spotify
+import Task
 import Track exposing (Track, TrackId)
 
 
@@ -79,7 +80,7 @@ import Track exposing (Track, TrackId)
 type alias Model =
     { playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
     , comparedProvider : WithProviderSelection MusicProviderType ()
-    , availableConnections : List (ProviderConnection MusicProviderType)
+    , availableConnections : SelectableList (ProviderConnection MusicProviderType)
     , songs : AnyDict String MatchingTrackKey (WebData (List Track))
     , alternativeTitles : AnyDict String MatchingTrackKey ( String, Bool )
     , device : Element.Device
@@ -130,9 +131,10 @@ init =
         ( { playlists = Selection.noSelection
           , comparedProvider = Selection.noSelection
           , availableConnections =
-                [ Connection.disconnected Spotify
-                , Connection.disconnected Deezer
-                ]
+                SelectableList.fromList
+                    [ Connection.disconnected Spotify
+                    , Connection.disconnected Deezer
+                    ]
           , songs = Dict.empty serializeMatchingTracksKey
           , alternativeTitles = Dict.empty serializeMatchingTracksKey
           , device = Element.classifyDevice flags
@@ -151,7 +153,7 @@ type Msg
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
-    | PlaylistsProviderChanged (Maybe (ConnectedProvider MusicProviderType))
+    | PlaylistsProviderChanged (Maybe (ProviderConnection MusicProviderType))
     | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
     | UserInfoReceived MusicProviderType (WebData UserInfo)
     | ProviderStatusUpdated MusicProviderType (Maybe OAuthToken) Bool
@@ -172,29 +174,47 @@ update msg model =
             ( { model | device = Element.classifyDevice dimensions }, Cmd.none )
 
         ProviderStatusUpdated pType maybeToken isConnected ->
+            let
+                connection =
+                    case ( isConnected, maybeToken ) of
+                        ( True, Nothing ) ->
+                            Connection.connected pType NotAsked
+
+                        ( True, Just token ) ->
+                            Connection.connectedWithToken pType token NotAsked
+
+                        ( False, _ ) ->
+                            Connection.disconnected pType
+
+                allConnections =
+                    Connections.mapOn pType (\_ -> connection) model.availableConnections
+            in
             ( { model
                 | availableConnections =
-                    Connections.mapOn pType
-                        (\_ ->
-                            case ( isConnected, maybeToken ) of
-                                ( True, Nothing ) ->
-                                    Connection.connected pType NotAsked
+                    if isConnected then
+                        SelectableList.select connection allConnections
 
-                                ( True, Just token ) ->
-                                    Connection.connectedWithToken pType token NotAsked
+                    else
+                        allConnections
+                            |> SelectableList.selected
+                            |> Maybe.andThen
+                                (\con ->
+                                    if Connection.type_ con == pType then
+                                        Just <| SelectableList.clear allConnections
 
-                                ( False, _ ) ->
-                                    Connection.disconnected pType
-                        )
-                        model.availableConnections
+                                    else
+                                        Nothing
+                                )
+                            |> Maybe.withDefault allConnections
               }
-            , afterProviderStatusUpdate pType maybeToken
+            , afterProviderStatusUpdate connection isConnected maybeToken
             )
 
         ToggleConnect pType ->
             let
                 toggleCmd =
                     model.availableConnections
+                        |> SelectableList.toList
                         |> Connections.find pType
                         |> Maybe.mapTogether Connection.isConnected Connection.type_
                         |> Maybe.map (\( a, b ) -> providerToggleConnectionCmd a b)
@@ -213,12 +233,10 @@ update msg model =
                                     Nothing
                             )
                         |> Maybe.withDefault model.playlists
-
-                model_ =
-                    { model | availableConnections = Connections.toggle pType model.availableConnections }
             in
-            ( { model_
+            ( { model
                 | playlists = connectedPlaylists
+                , availableConnections = Connections.toggle pType model.availableConnections
               }
             , toggleCmd
             )
@@ -254,6 +272,7 @@ update msg model =
                 (if loadSongs then
                     [ loadingPlaylists
                         |> Selection.connection
+                        |> Maybe.andThen Connection.asConnected
                         |> Maybe.map (\pType -> loadPlaylistSongs pType p)
                         |> Maybe.withDefault Cmd.none
                     ]
@@ -269,10 +288,7 @@ update msg model =
             )
 
         UserInfoReceived pType user ->
-            ( { model
-                | availableConnections =
-                    Connections.mapOn pType (Connection.map (Provider.setUserInfo user)) model.availableConnections
-              }
+            ( { model | availableConnections = Connections.mapOn pType (Connection.map (Provider.setUserInfo user)) model.availableConnections }
             , Cmd.none
             )
 
@@ -293,8 +309,8 @@ update msg model =
             )
 
         PlaylistsProviderChanged (Just p) ->
-            ( { model | playlists = Selection.select p }
-            , loadPlaylists p
+            ( { model | playlists = Selection.select p, availableConnections = SelectableList.select p model.availableConnections }
+            , p |> Connection.asConnected |> Maybe.map loadPlaylists |> Maybe.withDefault Cmd.none
             )
 
         PlaylistsProviderChanged Nothing ->
@@ -303,7 +319,7 @@ update msg model =
             )
 
         ComparedProviderChanged (Just p) ->
-            ( { model | comparedProvider = Selection.select p }
+            ( { model | comparedProvider = Selection.select <| Connected p }
             , Cmd.none
             )
 
@@ -339,6 +355,7 @@ update msg model =
             ( model
             , model.comparedProvider
                 |> Selection.connection
+                |> Maybe.andThen Connection.asConnected
                 |> Maybe.map (searchSongFromProvider { track | title = title })
                 |> Maybe.withDefault Cmd.none
             )
@@ -378,10 +395,21 @@ update msg model =
 -- Effects
 
 
-afterProviderStatusUpdate pType maybeToken =
-    case ( pType, maybeToken ) of
-        ( Spotify, Just token ) ->
-            Spotify.getUserInfo token (UserInfoReceived Spotify)
+selectConnection con =
+    Task.succeed () |> Task.perform (\_ -> PlaylistsProviderChanged <| Just con)
+
+
+afterProviderStatusUpdate : ProviderConnection MusicProviderType -> Bool -> Maybe OAuthToken -> Cmd Msg
+afterProviderStatusUpdate con isConnected maybeToken =
+    case ( Connection.type_ con, isConnected, maybeToken ) of
+        ( Spotify, True, Just token ) ->
+            Cmd.batch
+                [ Spotify.getUserInfo token (UserInfoReceived Spotify)
+                , selectConnection con
+                ]
+
+        ( _, True, _ ) ->
+            selectConnection con
 
         _ ->
             Cmd.none
@@ -390,8 +418,8 @@ afterProviderStatusUpdate pType maybeToken =
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
 imporPlaylist { comparedProvider } { name } tracks =
     case comparedProvider of
-        Selection.Selected con _ ->
-            case ( Provider.connectedType con, Provider.token con, Provider.user con ) of
+        Selection.Selected (Connected con) _ ->
+            case ( Provider.type_ con, Provider.token con, Provider.user con ) of
                 ( Spotify, Just token, Just { id } ) ->
                     Spotify.importPlaylist token id PlaylistImported tracks name
 
@@ -440,6 +468,7 @@ searchMatchingSong : PlaylistId -> { m | comparedProvider : WithProviderSelectio
 searchMatchingSong playlistId { comparedProvider } track =
     comparedProvider
         |> Selection.connection
+        |> Maybe.andThen Connection.asConnected
         |> Maybe.map (searchSongFromProvider track)
         |> Maybe.withDefault Cmd.none
 
@@ -457,7 +486,7 @@ searchSongFromProvider track provider =
             Cmd.none
 
 
-providerToggleConnectionCmd : Bool -> MusicProviderType -> Cmd msg
+providerToggleConnectionCmd : Bool -> MusicProviderType -> Cmd Msg
 providerToggleConnectionCmd isCurrentlyConnected pType =
     case pType of
         Deezer ->
@@ -469,7 +498,7 @@ providerToggleConnectionCmd isCurrentlyConnected pType =
 
         Spotify ->
             if isCurrentlyConnected then
-                Cmd.none
+                Task.succeed () |> Task.perform (\_ -> ProviderStatusUpdated Spotify Nothing False)
 
             else
                 Spotify.connectS ()
@@ -543,7 +572,7 @@ providerSelector tagger label providers =
                     , Html.onChangeTo tagger (connectedProviderDecoder (SelectableList.toList providers))
                     ]
                     (providers
-                        |> SelectableList.map Provider.connectedType
+                        |> SelectableList.map Provider.type_
                         |> SelectableList.mapBoth (providerOption True) (providerOption False)
                         |> SelectableList.toList
                         |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
@@ -567,24 +596,42 @@ placeholderOption isSelected label =
     Html.option [ Html.selected isSelected, Html.value "__placeholder__" ] [ Html.text label ]
 
 
-buttons : { m | availableConnections : List (ProviderConnection MusicProviderType), device : Element.Device } -> List (Element Msg)
+buttons : { m | availableConnections : SelectableList (ProviderConnection MusicProviderType), device : Element.Device } -> List (Element Msg)
 buttons model =
-    List.map
-        (\c ->
-            let
-                disabled =
-                    c |> Connection.isConnecting |> Maybe.fromBool
+    model.availableConnections
+        |> SelectableList.mapWithStatus
+            (\c isSelected ->
+                let
+                    enabled =
+                        c |> Connection.isConnecting |> not |> Maybe.fromBool
 
-                style =
-                    primaryButtonStyle model ++ disabledButtonStyle disabled
-            in
-            connectButton style (disabled |> Maybe.not |> Maybe.map (\_ -> ToggleConnect)) c
-        )
-        model.availableConnections
+                    tagger =
+                        if isSelected || not (Connection.isConnected c) then
+                            ToggleConnect
+
+                        else
+                            \_ -> PlaylistsProviderChanged (Just c)
+
+                    style =
+                        primaryButtonStyle model
+                            ++ (disabledButtonStyle <| Maybe.not enabled)
+                            ++ (if isSelected then
+                                    primarySelectedButtonStyle
+
+                                else
+                                    []
+                               )
+                in
+                connectButton style
+                    (enabled |> Maybe.map (\_ -> tagger))
+                    c
+                    isSelected
+            )
+        |> SelectableList.toList
 
 
-connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Element Msg
-connectButton style tagger connection =
+connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Bool -> Element Msg
+connectButton style tagger connection selected =
     let
         connected =
             Connection.isConnected connection
@@ -596,14 +643,17 @@ connectButton style tagger connection =
             row [ centerX, width (fillPortion 2 |> minimum 94), spacing 3 ] <|
                 [ connection |> Connection.type_ |> providerLogoOrName [ height (px 20), width (px 20) ]
                 , text
-                    (if connected then
+                    (if connected && selected then
                         "Disconnect"
 
                      else if not (Maybe.toBool tagger) then
                         "Connecting"
 
-                     else
+                     else if not connected then
                         "Connect"
+
+                     else
+                        "Select"
                     )
                 ]
         }
@@ -653,11 +703,7 @@ content model =
         ]
     <|
         [ wrappedRow [ spacing 5, width fill ]
-            [ model.availableConnections
-                |> Connections.connectedProviders
-                |> Selection.asSelectableList model.playlists
-                |> providerSelector PlaylistsProviderChanged (Just "Provider")
-            , row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
+            [ row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
             ]
         , playlistsView model
         ]
@@ -742,9 +788,7 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
     wrappedRow [ spacing 8, height shrink ]
         [ availableConnections
             |> Connections.connectedProviders
-            |> Selection.asSelectableList playlists
             |> SelectableList.rest
-            |> Selection.asSelectableList comparedProvider
             |> providerSelector ComparedProviderChanged (Just "Import to")
         , button searchStyle
             { onPress = searchTagger
@@ -1000,6 +1044,10 @@ disabledButtonStyle whatever =
             []
 
 
+selectedButtonStyle ( bgSelectedColor, textSelectedColor ) =
+    [ Bg.color bgSelectedColor, Font.color textSelectedColor ]
+
+
 iconButtonStyle =
     [ paddingXY 10 8 ]
 
@@ -1007,6 +1055,10 @@ iconButtonStyle =
 primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 primaryButtonStyle { device } =
     baseButtonStyle device ( palette.transparent, palette.text ) ( palette.secondary, palette.white )
+
+
+primarySelectedButtonStyle =
+    selectedButtonStyle ( palette.secondary, palette.white )
 
 
 linkButtonStyle : List (Element.Attribute msg)

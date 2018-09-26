@@ -5,13 +5,13 @@ module Connection.Provider exposing
     , InactiveProvider(..)
     , OAuthToken
     , connected
-    , connectedType
     , connectedWithToken
     , connecting
     , disconnected
     , inactive
     , setUserInfo
     , token
+    , type_
     , user
     )
 
@@ -33,8 +33,8 @@ connected pType userInfo =
     ConnectedProvider pType userInfo
 
 
-connectedType : ConnectedProvider providerType -> providerType
-connectedType connection =
+type_ : ConnectedProvider providerType -> providerType
+type_ connection =
     case connection of
         ConnectedProvider pType _ ->
             pType

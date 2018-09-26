@@ -2,14 +2,18 @@ module SelectableList exposing
     ( SelectableList
     , apply
     , clear
+    , filterMap
     , find
     , fromList
     , hasSelection
+    , isSelected
     , map
     , mapBoth
     , mapSelected
+    , mapWithStatus
     , rest
     , select
+    , selectFirst
     , selected
     , toList
     , upSelect
@@ -73,8 +77,8 @@ toList sList =
             list
 
 
-select : SelectableList a -> a -> SelectableList a
-select sList el =
+select : a -> SelectableList a -> SelectableList a
+select el sList =
     let
         list =
             toList sList
@@ -84,6 +88,29 @@ select sList el =
 
     else
         NotSelected list
+
+
+selectFirst : (a -> Bool) -> SelectableList a -> SelectableList a
+selectFirst predicate sList =
+    let
+        list =
+            toList sList
+    in
+    List.foldl
+        (\el selection ->
+            case selection of
+                Selected _ _ ->
+                    selection
+
+                NotSelected l ->
+                    if predicate el then
+                        Selected el l
+
+                    else
+                        selection
+        )
+        (NotSelected list)
+        list
 
 
 upSelect : (a -> a) -> a -> SelectableList a -> SelectableList a
@@ -122,14 +149,24 @@ selected sList =
             Nothing
 
 
-rest : SelectableList a -> List a
+isSelected : a -> SelectableList a -> Bool
+isSelected item list =
+    case list of
+        Selected selection _ ->
+            item == selection
+
+        NotSelected _ ->
+            False
+
+
+rest : SelectableList a -> SelectableList a
 rest sList =
     case sList of
         Selected sel list ->
-            List.filter ((/=) sel) list
+            NotSelected <| List.filter ((/=) sel) list
 
-        NotSelected list ->
-            list
+        noSelection ->
+            noSelection
 
 
 hasSelection : SelectableList a -> Bool
@@ -145,6 +182,35 @@ map f sList =
 
         NotSelected list ->
             NotSelected <| List.map f list
+
+
+mapWithStatus f sList =
+    case sList of
+        Selected el list ->
+            Selected (f el True) <|
+                List.map
+                    (\elem ->
+                        if elem == el then
+                            f elem True
+
+                        else
+                            f elem False
+                    )
+                    list
+
+        NotSelected list ->
+            NotSelected <| List.map (\elem -> f elem False) list
+
+
+filterMap f sList =
+    case sList of
+        Selected el list ->
+            f el
+                |> Maybe.map (\elem -> Selected elem (List.filterMap f list))
+                |> Maybe.withDefault (NotSelected <| List.filterMap f list)
+
+        NotSelected list ->
+            NotSelected <| List.filterMap f list
 
 
 mapSelected : (a -> a) -> SelectableList a -> SelectableList a

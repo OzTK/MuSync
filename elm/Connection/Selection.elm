@@ -1,6 +1,5 @@
 module Connection.Selection exposing
     ( WithProviderSelection(..)
-    , asSelectableList
     , connection
     , data
     , importDone
@@ -13,7 +12,8 @@ module Connection.Selection exposing
     , setData
     )
 
-import Connection.Provider exposing (ConnectedProvider(..))
+import Connection exposing (ProviderConnection(..))
+import Connection.Provider as Provider exposing (ConnectedProvider(..))
 import Http
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -22,23 +22,8 @@ import SelectableList exposing (SelectableList)
 
 type WithProviderSelection providerType data
     = NoProviderSelected
-    | Selected (ConnectedProvider providerType) (RemoteData Http.Error data)
+    | Selected (ProviderConnection providerType) (RemoteData Http.Error data)
     | Importing (ConnectedProvider providerType) (RemoteData Http.Error data) Playlist
-
-
-asSelectableList :
-    WithProviderSelection providerType data
-    -> List (ConnectedProvider providerType)
-    -> SelectableList (ConnectedProvider providerType)
-asSelectableList selection providers =
-    let
-        connected =
-            providers |> SelectableList.fromList
-    in
-    selection
-        |> connection
-        |> Maybe.map (SelectableList.select connected)
-        |> Maybe.withDefault connected
 
 
 noSelection : WithProviderSelection providerType data
@@ -46,7 +31,7 @@ noSelection =
     NoProviderSelected
 
 
-select : ConnectedProvider providerType -> WithProviderSelection providerType data
+select : ProviderConnection providerType -> WithProviderSelection providerType data
 select con =
     Selected con NotAsked
 
@@ -55,7 +40,7 @@ importDone : WithProviderSelection providerType data -> WithProviderSelection pr
 importDone selection =
     case selection of
         Importing con d _ ->
-            Selected con d
+            Selected (Connected con) d
 
         _ ->
             selection
@@ -64,7 +49,7 @@ importDone selection =
 importing : WithProviderSelection providerType data -> Playlist -> WithProviderSelection providerType data
 importing selection playlist =
     case selection of
-        Selected con d ->
+        Selected (Connected con) d ->
             Importing con d playlist
 
         _ ->
@@ -104,21 +89,24 @@ setData selection d =
 providerType : WithProviderSelection providerType data -> Maybe providerType
 providerType selection =
     case selection of
-        Selected (ConnectedProvider pType _) _ ->
-            Just pType
+        Selected provider _ ->
+            Just <| Connection.type_ provider
 
-        Selected (ConnectedProviderWithToken pType _ _) _ ->
-            Just pType
+        Importing provider _ _ ->
+            Just <| Provider.type_ provider
 
         _ ->
             Nothing
 
 
-connection : WithProviderSelection providerType data -> Maybe (ConnectedProvider providerType)
+connection : WithProviderSelection providerType data -> Maybe (ProviderConnection providerType)
 connection selection =
     case selection of
         Selected provider _ ->
             Just provider
+
+        Importing provider _ _ ->
+            Just (Connected provider)
 
         _ ->
             Nothing

@@ -1,5 +1,6 @@
 module Connection exposing
     ( ProviderConnection(..)
+    , asConnected
     , connected
     , connectedWithToken
     , connecting
@@ -11,6 +12,7 @@ module Connection exposing
     , isInactive
     , map
     , type_
+    , withDefault
     )
 
 import Connection.Provider as P
@@ -59,6 +61,16 @@ connecting =
 inactive : providerType -> ProviderConnection providerType
 inactive =
     Inactive << P.inactive
+
+
+asConnected : ProviderConnection pType -> Maybe (ConnectedProvider pType)
+asConnected connection =
+    case connection of
+        Connected provider ->
+            Just provider
+
+        _ ->
+            Nothing
 
 
 isConnected : ProviderConnection providerType -> Bool
@@ -114,7 +126,7 @@ type_ con =
             pType
 
         Connected connection ->
-            P.connectedType connection
+            P.type_ connection
 
 
 map : (ConnectedProvider pType -> ConnectedProvider pType) -> ProviderConnection pType -> ProviderConnection pType
@@ -125,3 +137,12 @@ map f connection =
 
         _ ->
             connection
+
+
+withDefault default connection =
+    case connection of
+        Connected provider ->
+            provider
+
+        _ ->
+            default
