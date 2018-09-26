@@ -189,35 +189,17 @@ update msg model =
                 allConnections =
                     Connections.mapOn pType (\_ -> connection) model.availableConnections
             in
-            ( { model
-                | availableConnections =
-                    if isConnected then
-                        SelectableList.select connection allConnections
-
-                    else
-                        allConnections
-                            |> SelectableList.selected
-                            |> Maybe.andThen
-                                (\con ->
-                                    if Connection.type_ con == pType then
-                                        Just <| SelectableList.clear allConnections
-
-                                    else
-                                        Nothing
-                                )
-                            |> Maybe.withDefault allConnections
-              }
-            , afterProviderStatusUpdate connection isConnected maybeToken
+            ( { model | availableConnections = allConnections }
+            , afterProviderStatusUpdate connection isConnected maybeToken model.playlists
             )
 
         ToggleConnect pType ->
             let
                 toggleCmd =
                     model.availableConnections
-                        |> SelectableList.toList
-                        |> Connections.find pType
-                        |> Maybe.mapTogether Connection.isConnected Connection.type_
-                        |> Maybe.map (\( a, b ) -> providerToggleConnectionCmd a b)
+                        |> SelectableList.find (\c -> Connection.type_ c == pType)
+                        |> Maybe.map Connection.isConnected
+                        |> Maybe.map (providerToggleConnectionCmd pType)
                         |> Maybe.withDefault Cmd.none
 
                 connectedPlaylists =
@@ -314,7 +296,10 @@ update msg model =
             )
 
         PlaylistsProviderChanged Nothing ->
-            ( { model | playlists = Selection.noSelection }
+            ( { model
+                | playlists = Selection.noSelection
+                , availableConnections = SelectableList.clear model.availableConnections
+              }
             , Cmd.none
             )
 
@@ -395,24 +380,29 @@ update msg model =
 -- Effects
 
 
-selectConnection con =
-    Task.succeed () |> Task.perform (\_ -> PlaylistsProviderChanged <| Just con)
+selectConnection con playlistSelection =
+    playlistSelection
+        |> Selection.data
+        |> Maybe.andThen RemoteData.toMaybe
+        |> Maybe.andThen SelectableList.selected
+        |> Maybe.map (\_ -> Cmd.none)
+        |> Maybe.withDefault (Task.perform (\_ -> PlaylistsProviderChanged <| Just con) <| Task.succeed ())
 
 
-afterProviderStatusUpdate : ProviderConnection MusicProviderType -> Bool -> Maybe OAuthToken -> Cmd Msg
-afterProviderStatusUpdate con isConnected maybeToken =
+afterProviderStatusUpdate : ProviderConnection MusicProviderType -> Bool -> Maybe OAuthToken -> WithProviderSelection MusicProviderType (SelectableList Playlist) -> Cmd Msg
+afterProviderStatusUpdate con isConnected maybeToken playlistSelection =
     case ( Connection.type_ con, isConnected, maybeToken ) of
         ( Spotify, True, Just token ) ->
             Cmd.batch
                 [ Spotify.getUserInfo token (UserInfoReceived Spotify)
-                , selectConnection con
+                , selectConnection con playlistSelection
                 ]
 
         ( _, True, _ ) ->
-            selectConnection con
+            selectConnection con playlistSelection
 
-        _ ->
-            Cmd.none
+        ( _, False, _ ) ->
+            Task.perform (\_ -> PlaylistsProviderChanged Nothing) <| Task.succeed ()
 
 
 imporPlaylist : Model -> Playlist -> List Track -> Cmd Msg
@@ -485,20 +475,21 @@ searchSongFromProvider track provider =
         _ ->
             Cmd.none
 
+notifyProviderDisconnected pType = Task.succeed () |> Task.perform (\_ -> ProviderStatusUpdated pType Nothing False)
 
-providerToggleConnectionCmd : Bool -> MusicProviderType -> Cmd Msg
-providerToggleConnectionCmd isCurrentlyConnected pType =
+providerToggleConnectionCmd : MusicProviderType -> Bool -> Cmd Msg
+providerToggleConnectionCmd pType isCurrentlyConnected =
     case pType of
         Deezer ->
             if isCurrentlyConnected then
-                Deezer.disconnect ()
+                Cmd.batch [Deezer.disconnect (), notifyProviderDisconnected pType]
 
             else
                 Deezer.connectD ()
 
         Spotify ->
             if isCurrentlyConnected then
-                Task.succeed () |> Task.perform (\_ -> ProviderStatusUpdated Spotify Nothing False)
+                notifyProviderDisconnected pType
 
             else
                 Spotify.connectS ()
@@ -675,19 +666,16 @@ note attrs =
 
 header : { m | device : Element.Device } -> Element msg
 header { device } =
-    let
-        align =
-            case ( device.class, device.orientation ) of
-                ( Phone, Portrait ) ->
-                    centerX
+    logo <|
+        case ( device.class, device.orientation ) of
+            ( Phone, Portrait ) ->
+                [ centerX, width (px 80) ]
 
-                ( Tablet, Portrait ) ->
-                    centerX
+            ( Tablet, Portrait ) ->
+                [ centerX, width (px 150) ]
 
-                _ ->
-                    alignLeft
-    in
-    logo [ align, width (px 250) ]
+            _ ->
+                [ alignLeft, width (px 250) ]
 
 
 content : Model -> Element Msg
@@ -789,7 +777,7 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
         [ availableConnections
             |> Connections.connectedProviders
             |> SelectableList.rest
-            |> providerSelector ComparedProviderChanged (Just "Import to")
+            |> providerSelector ComparedProviderChanged (Just "Sync with")
         , button searchStyle
             { onPress = searchTagger
             , label = text "search"

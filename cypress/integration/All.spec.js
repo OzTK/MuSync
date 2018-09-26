@@ -69,7 +69,7 @@ describe('Visiting the website and connecting a music provider', () => {
             })
 
             it('adds it to the compare provider lists', () => {
-                cy.contains('Import to:')
+                cy.contains('Sync with:')
                     .next()
                     .children('select')
                     .as('compareSelect')
@@ -82,7 +82,7 @@ describe('Visiting the website and connecting a music provider', () => {
             })
 
             it('enables the search button when selecting a provider', () => {
-                cy.contains('Import to:')
+                cy.contains('Sync with:')
                     .next()
                     .children('select')
                     .as('compareSelect')
