@@ -1,5 +1,9 @@
-Cypress.Commands.add("withItems", (title) => {
-  const items = cy.contains(title).nextAll();
+Cypress.Commands.add("withItems", (title, extraQuery) => {
+  let items = cy.contains(title).nextAll()
+  if (extraQuery) {
+    items = items.find(extraQuery);
+  }
+
   items.should('have.length.gt', 1);
   return items;
 });

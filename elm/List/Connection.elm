@@ -3,7 +3,6 @@ module List.Connection exposing
     , filter
     , filterByType
     , filterNotByType
-    , find
     , findConnected
     , flatMap
     , map
@@ -130,11 +129,6 @@ mapOn pType f =
                     else
                         con
         )
-
-
-find : providerType -> List (ProviderConnection providerType) -> Maybe (ProviderConnection providerType)
-find pType connections =
-    connections |> filterByType pType |> List.head
 
 
 findConnected : a -> List (ConnectedProvider a) -> Maybe (ConnectedProvider a)

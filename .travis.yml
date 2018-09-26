@@ -1,20 +1,30 @@
 language: node_js
 node_js:
-  - '10'
+  - 10.8
 
 cache:
   directories:
     - node_modules
+  override:
+    - npm ci
+    - npm run cy:verify
 
-install:
-  - npm i -g npm@latest
-  - npm install
+defaults: &defaults
+  script:
+    - npm run build
+    - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
+    - npm run test:it
+    - kill $(jobs -p) || true
+    - cd .. && rm -rf it
 
-script:
-  - npm run build
-  - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm i
-  - npm run test:it
-  - cd .. && rm -rf it
+jobs:
+  include:
+    - stage: test
+      <<: *defaults
+    - stage: test
+      <<: *defaults
+    - stage: test
+      <<: *defaults
 
 deploy:
   provider: surge
