@@ -11,11 +11,12 @@ import Connection.Provider as P
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
         , DisconnectedProvider(..)
+        , MusicProviderType
         )
 import SelectableList exposing (SelectableList)
 
 
-connectedProviders : SelectableList (ProviderConnection providerType) -> SelectableList (ConnectedProvider providerType)
+connectedProviders : SelectableList ProviderConnection -> SelectableList ConnectedProvider
 connectedProviders =
     SelectableList.filterMap
         (\con ->
@@ -29,10 +30,10 @@ connectedProviders =
 
 
 mapOn :
-    providerType
-    -> (ProviderConnection providerType -> ProviderConnection providerType)
-    -> SelectableList (ProviderConnection providerType)
-    -> SelectableList (ProviderConnection providerType)
+    MusicProviderType
+    -> (ProviderConnection -> ProviderConnection)
+    -> SelectableList ProviderConnection
+    -> SelectableList ProviderConnection
 mapOn pType f =
     SelectableList.map
         (\con ->
@@ -67,12 +68,12 @@ mapOn pType f =
         )
 
 
-findConnected : a -> List (ConnectedProvider a) -> Maybe (ConnectedProvider a)
+findConnected : MusicProviderType -> List ConnectedProvider -> Maybe ConnectedProvider
 findConnected pType connections =
     connections |> List.filter (\con -> P.type_ con == pType) |> List.head
 
 
-toggle : providerType -> SelectableList (ProviderConnection providerType) -> SelectableList (ProviderConnection providerType)
+toggle : MusicProviderType -> SelectableList ProviderConnection -> SelectableList ProviderConnection
 toggle pType providers =
     mapOn pType
         (\con ->

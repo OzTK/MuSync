@@ -4,7 +4,7 @@ import Basics.Extra exposing (flip, pair)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
-import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), OAuthToken)
+import Connection.Provider as Provider exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicProviderType(..), OAuthToken)
 import Connection.Selection as Selection exposing (WithProviderSelection(..))
 import Deezer
 import Dict.Any as Dict exposing (AnyDict)
@@ -62,7 +62,7 @@ import Json.Encode as JE
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Model exposing (MusicProviderType(..), UserInfo)
+import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
@@ -76,10 +76,16 @@ import Track exposing (Track, TrackId)
 -- Model
 
 
+type Flow
+    = Connections (List ProviderConnection)
+    | Playlists
+    | Import
+
+
 type alias Model =
-    { playlists : WithProviderSelection MusicProviderType (SelectableList Playlist)
-    , comparedProvider : WithProviderSelection MusicProviderType ()
-    , availableConnections : SelectableList (ProviderConnection MusicProviderType)
+    { playlists : WithProviderSelection (SelectableList Playlist)
+    , comparedProvider : WithProviderSelection ()
+    , availableConnections : SelectableList ProviderConnection
     , songs : AnyDict String MatchingTrackKey (WebData (List Track))
     , alternativeTitles : AnyDict String MatchingTrackKey ( String, Bool )
     , device : Element.Device
@@ -108,7 +114,7 @@ type MatchingTracksKeySerializationError
 
 serializeMatchingTracksKey : MatchingTrackKey -> String
 serializeMatchingTracksKey ( id, pType ) =
-    Track.serializeId id ++ Model.keysSeparator ++ Model.providerToString pType
+    Track.serializeId id ++ Model.keysSeparator ++ Provider.toString pType
 
 
 deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError MatchingTrackKey
@@ -116,7 +122,7 @@ deserializeMatchingTracksKey key =
     case String.split Model.keysSeparator key of
         [ rawTrackId, rawProvider ] ->
             rawProvider
-                |> Model.providerFromString
+                |> Provider.fromString
                 |> Result.fromMaybe (OtherProviderTypeError rawProvider)
                 |> Result.map2 pair (rawTrackId |> Track.deserializeId |> Result.mapError TrackIdError)
 
@@ -152,8 +158,8 @@ type Msg
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
-    | PlaylistsProviderChanged (Maybe (ProviderConnection MusicProviderType))
-    | ComparedProviderChanged (Maybe (ConnectedProvider MusicProviderType))
+    | PlaylistsProviderChanged (Maybe ProviderConnection)
+    | ComparedProviderChanged (Maybe ConnectedProvider)
     | UserInfoReceived MusicProviderType (WebData UserInfo)
     | ProviderStatusUpdated MusicProviderType (Maybe OAuthToken) Bool
     | SearchMatchingSongs Playlist
@@ -388,7 +394,7 @@ selectConnection con playlistSelection =
         |> Maybe.withDefault (Task.perform (\_ -> PlaylistsProviderChanged <| Just con) <| Task.succeed ())
 
 
-afterProviderStatusUpdate : ProviderConnection MusicProviderType -> Bool -> Maybe OAuthToken -> WithProviderSelection MusicProviderType (SelectableList Playlist) -> Cmd Msg
+afterProviderStatusUpdate : ProviderConnection -> Bool -> Maybe OAuthToken -> WithProviderSelection (SelectableList Playlist) -> Cmd Msg
 afterProviderStatusUpdate con isConnected maybeToken playlistSelection =
     case ( Connection.type_ con, isConnected, maybeToken ) of
         ( Spotify, True, Just token ) ->
@@ -427,7 +433,7 @@ imporPlaylist { comparedProvider } { name } tracks =
             Cmd.none
 
 
-loadPlaylists : ConnectedProvider MusicProviderType -> Cmd Msg
+loadPlaylists : ConnectedProvider -> Cmd Msg
 loadPlaylists connection =
     case connection of
         ConnectedProvider Deezer _ ->
@@ -440,7 +446,7 @@ loadPlaylists connection =
             Cmd.none
 
 
-loadPlaylistSongs : ConnectedProvider MusicProviderType -> Playlist -> Cmd Msg
+loadPlaylistSongs : ConnectedProvider -> Playlist -> Cmd Msg
 loadPlaylistSongs connection { id, link } =
     case connection of
         ConnectedProvider Deezer _ ->
@@ -453,7 +459,7 @@ loadPlaylistSongs connection { id, link } =
             Cmd.none
 
 
-searchMatchingSong : PlaylistId -> { m | comparedProvider : WithProviderSelection MusicProviderType data } -> Track -> Cmd Msg
+searchMatchingSong : PlaylistId -> { m | comparedProvider : WithProviderSelection data } -> Track -> Cmd Msg
 searchMatchingSong playlistId { comparedProvider } track =
     comparedProvider
         |> Selection.connection
@@ -462,7 +468,7 @@ searchMatchingSong playlistId { comparedProvider } track =
         |> Maybe.withDefault Cmd.none
 
 
-searchSongFromProvider : Track -> ConnectedProvider MusicProviderType -> Cmd Msg
+searchSongFromProvider : Track -> ConnectedProvider -> Cmd Msg
 searchSongFromProvider track provider =
     case provider of
         ConnectedProviderWithToken Spotify token _ ->
@@ -548,9 +554,9 @@ progressBar attrs message =
 
 
 providerSelector :
-    (Maybe (ConnectedProvider MusicProviderType) -> msg)
+    (Maybe ConnectedProvider -> msg)
     -> Maybe String
-    -> SelectableList (ConnectedProvider MusicProviderType)
+    -> SelectableList ConnectedProvider
     -> Element msg
 providerSelector tagger label providers =
     row
@@ -589,7 +595,7 @@ placeholderOption isSelected label =
     Html.option [ Html.selected isSelected, Html.value "__placeholder__" ] [ Html.text label ]
 
 
-buttons : { m | availableConnections : SelectableList (ProviderConnection MusicProviderType), device : Element.Device } -> List (Element Msg)
+buttons : { m | availableConnections : SelectableList ProviderConnection, device : Element.Device } -> List (Element Msg)
 buttons model =
     model.availableConnections
         |> SelectableList.mapWithStatus
@@ -623,7 +629,7 @@ buttons model =
         |> SelectableList.toList
 
 
-connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection MusicProviderType -> Bool -> Element Msg
+connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection -> Bool -> Element Msg
 connectButton style tagger connection selected =
     let
         connected =
@@ -930,7 +936,7 @@ providerLogoOrName attrs pType =
         |> Maybe.withDefault (text pName)
 
 
-connectedProviderDecoder : List (ConnectedProvider MusicProviderType) -> JD.Decoder (Maybe (ConnectedProvider MusicProviderType))
+connectedProviderDecoder : List ConnectedProvider -> JD.Decoder (Maybe ConnectedProvider)
 connectedProviderDecoder providers =
     let
         found pType =

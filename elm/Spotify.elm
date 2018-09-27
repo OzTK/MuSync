@@ -9,12 +9,13 @@ port module Spotify exposing
     )
 
 import Basics.Extra exposing (pair)
+import Connection.Provider exposing (MusicProviderType(..))
 import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
 import Json.Decode.Pipeline as Pip
 import Json.Encode as JE
-import Model exposing (MusicProviderType(..), UserInfo)
+import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)

@@ -7,7 +7,8 @@ module Track exposing
     )
 
 import Basics.Extra exposing (pair)
-import Model exposing (MusicProviderType, keyPartsSeparator)
+import Connection.Provider as Provider exposing (MusicProviderType(..))
+import Model exposing (keyPartsSeparator)
 
 
 type alias TrackId =
@@ -16,7 +17,7 @@ type alias TrackId =
 
 serializeId : TrackId -> String
 serializeId ( id, pType ) =
-    Model.providerToString pType ++ keyPartsSeparator ++ id
+    Provider.toString pType ++ keyPartsSeparator ++ id
 
 
 type TrackIdSerializationError
@@ -33,7 +34,7 @@ deserializeId rawId =
     case parts of
         [ pType, id ] ->
             pType
-                |> Model.providerFromString
+                |> Provider.fromString
                 |> Maybe.map (pair id)
                 |> Result.fromMaybe (InvalidProviderType pType)
 

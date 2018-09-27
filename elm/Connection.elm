@@ -16,6 +16,7 @@ import Connection.Provider as P
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
         , DisconnectedProvider(..)
+        , MusicProviderType
         , OAuthToken
         )
 import Model exposing (UserInfo)
@@ -26,33 +27,33 @@ import RemoteData exposing (WebData)
 -- Provider connection
 
 
-type ProviderConnection providerType
-    = Disconnected (DisconnectedProvider providerType)
-    | Connecting (ConnectingProvider providerType)
-    | Connected (ConnectedProvider providerType)
+type ProviderConnection
+    = Disconnected DisconnectedProvider
+    | Connecting ConnectingProvider
+    | Connected ConnectedProvider
 
 
-connected : providerType -> WebData UserInfo -> ProviderConnection providerType
+connected : MusicProviderType -> WebData UserInfo -> ProviderConnection
 connected pType userInfo =
     Connected <| P.connected pType userInfo
 
 
-connectedWithToken : providerType -> OAuthToken -> WebData UserInfo -> ProviderConnection providerType
+connectedWithToken : MusicProviderType -> OAuthToken -> WebData UserInfo -> ProviderConnection
 connectedWithToken pType token user =
     Connected <| P.connectedWithToken pType token user
 
 
-disconnected : providerType -> ProviderConnection providerType
+disconnected : MusicProviderType -> ProviderConnection
 disconnected =
     Disconnected << P.disconnected
 
 
-connecting : providerType -> ProviderConnection providerType
+connecting : MusicProviderType -> ProviderConnection
 connecting =
     Connecting << P.connecting
 
 
-asConnected : ProviderConnection pType -> Maybe (ConnectedProvider pType)
+asConnected : ProviderConnection -> Maybe ConnectedProvider
 asConnected connection =
     case connection of
         Connected provider ->
@@ -62,7 +63,7 @@ asConnected connection =
             Nothing
 
 
-isConnected : ProviderConnection providerType -> Bool
+isConnected : ProviderConnection -> Bool
 isConnected connection =
     case connection of
         Connected _ ->
@@ -72,7 +73,7 @@ isConnected connection =
             False
 
 
-isConnecting : ProviderConnection providerType -> Bool
+isConnecting : ProviderConnection -> Bool
 isConnecting connection =
     case connection of
         Connecting _ ->
@@ -82,7 +83,7 @@ isConnecting connection =
             False
 
 
-type_ : ProviderConnection providerType -> providerType
+type_ : ProviderConnection -> MusicProviderType
 type_ con =
     case con of
         Disconnected (DisconnectedProvider pType) ->
@@ -95,7 +96,7 @@ type_ con =
             P.type_ connection
 
 
-map : (ConnectedProvider pType -> ConnectedProvider pType) -> ProviderConnection pType -> ProviderConnection pType
+map : (ConnectedProvider -> ConnectedProvider) -> ProviderConnection -> ProviderConnection
 map f connection =
     case connection of
         Connected provider ->

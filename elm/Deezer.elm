@@ -20,12 +20,12 @@ port module Deezer exposing
 
 import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip, pair)
+import Connection.Provider exposing (MusicProviderType(..))
 import Dict
 import Http exposing (Error(..), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import Json.Encode as JE
-import Model exposing (MusicProviderType(..))
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Track exposing (Track)

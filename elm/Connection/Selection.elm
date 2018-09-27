@@ -13,30 +13,30 @@ module Connection.Selection exposing
     )
 
 import Connection exposing (ProviderConnection(..))
-import Connection.Provider as Provider exposing (ConnectedProvider(..))
+import Connection.Provider as Provider exposing (ConnectedProvider(..), MusicProviderType)
 import Http
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
 import SelectableList exposing (SelectableList)
 
 
-type WithProviderSelection providerType data
+type WithProviderSelection data
     = NoProviderSelected
-    | Selected (ProviderConnection providerType) (RemoteData Http.Error data)
-    | Importing (ConnectedProvider providerType) (RemoteData Http.Error data) Playlist
+    | Selected ProviderConnection (RemoteData Http.Error data)
+    | Importing ConnectedProvider (RemoteData Http.Error data) Playlist
 
 
-noSelection : WithProviderSelection providerType data
+noSelection : WithProviderSelection data
 noSelection =
     NoProviderSelected
 
 
-select : ProviderConnection providerType -> WithProviderSelection providerType data
+select : ProviderConnection -> WithProviderSelection data
 select con =
     Selected con NotAsked
 
 
-importDone : WithProviderSelection providerType data -> WithProviderSelection providerType data
+importDone : WithProviderSelection data -> WithProviderSelection data
 importDone selection =
     case selection of
         Importing con d _ ->
@@ -46,7 +46,7 @@ importDone selection =
             selection
 
 
-importing : WithProviderSelection providerType data -> Playlist -> WithProviderSelection providerType data
+importing : WithProviderSelection data -> Playlist -> WithProviderSelection data
 importing selection playlist =
     case selection of
         Selected (Connected con) d ->
@@ -56,7 +56,7 @@ importing selection playlist =
             selection
 
 
-isSelected : WithProviderSelection providerType data -> Bool
+isSelected : WithProviderSelection data -> Bool
 isSelected selection =
     case selection of
         NoProviderSelected ->
@@ -66,7 +66,7 @@ isSelected selection =
             True
 
 
-data : WithProviderSelection providerType data -> Maybe (RemoteData Http.Error data)
+data : WithProviderSelection data -> Maybe (RemoteData Http.Error data)
 data selection =
     case selection of
         Selected _ d ->
@@ -76,7 +76,7 @@ data selection =
             Nothing
 
 
-setData : WithProviderSelection providerType data -> RemoteData Http.Error data -> WithProviderSelection providerType data
+setData : WithProviderSelection data -> RemoteData Http.Error data -> WithProviderSelection data
 setData selection d =
     case selection of
         Selected con _ ->
@@ -86,7 +86,7 @@ setData selection d =
             selection
 
 
-type_ : WithProviderSelection providerType data -> Maybe providerType
+type_ : WithProviderSelection data -> Maybe MusicProviderType
 type_ selection =
     case selection of
         Selected provider _ ->
@@ -99,7 +99,7 @@ type_ selection =
             Nothing
 
 
-connection : WithProviderSelection providerType data -> Maybe (ProviderConnection providerType)
+connection : WithProviderSelection data -> Maybe ProviderConnection
 connection selection =
     case selection of
         Selected provider _ ->
@@ -112,7 +112,7 @@ connection selection =
             Nothing
 
 
-map : (a -> a) -> WithProviderSelection providerType a -> WithProviderSelection providerType a
+map : (a -> a) -> WithProviderSelection a -> WithProviderSelection a
 map f selection =
     case selection of
         Selected con (Success d) ->

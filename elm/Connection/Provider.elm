@@ -2,12 +2,15 @@ module Connection.Provider exposing
     ( ConnectedProvider(..)
     , ConnectingProvider(..)
     , DisconnectedProvider(..)
+    , MusicProviderType(..)
     , OAuthToken
     , connected
     , connectedWithToken
     , connecting
     , disconnected
+    , fromString
     , setUserInfo
+    , toString
     , token
     , type_
     , user
@@ -17,21 +20,63 @@ import Model exposing (UserInfo)
 import RemoteData exposing (RemoteData(..), WebData)
 
 
+type MusicProviderType
+    = Spotify
+    | Deezer
+    | Google
+    | Amazon
+
+
 type alias OAuthToken =
     String
 
 
-type ConnectedProvider providerType
-    = ConnectedProvider providerType (WebData UserInfo)
-    | ConnectedProviderWithToken providerType OAuthToken (WebData UserInfo)
+type ConnectedProvider
+    = ConnectedProvider MusicProviderType (WebData UserInfo)
+    | ConnectedProviderWithToken MusicProviderType OAuthToken (WebData UserInfo)
 
 
-connected : providerType -> WebData UserInfo -> ConnectedProvider providerType
+fromString : String -> Maybe MusicProviderType
+fromString pName =
+    case pName of
+        "Spotify" ->
+            Just Spotify
+
+        "Deezer" ->
+            Just Deezer
+
+        "Google" ->
+            Just Google
+
+        "Amazon" ->
+            Just Amazon
+
+        _ ->
+            Nothing
+
+
+toString : MusicProviderType -> String
+toString pType =
+    case pType of
+        Spotify ->
+            "Spotify"
+
+        Deezer ->
+            "Deezer"
+
+        Google ->
+            "Google"
+
+        Amazon ->
+            "Amazon"
+
+
+connected : MusicProviderType -> WebData UserInfo -> ConnectedProvider
 connected pType userInfo =
     ConnectedProvider pType userInfo
 
 
-type_ : ConnectedProvider providerType -> providerType
+type_ : ConnectedProvider -> MusicProviderType
 type_ connection =
     case connection of
         ConnectedProvider pType _ ->
@@ -41,7 +86,7 @@ type_ connection =
             pType
 
 
-token : ConnectedProvider providerType -> Maybe OAuthToken
+token : ConnectedProvider -> Maybe OAuthToken
 token con =
     case con of
         ConnectedProviderWithToken _ t _ ->
@@ -51,7 +96,7 @@ token con =
             Nothing
 
 
-user : ConnectedProvider providerType -> Maybe UserInfo
+user : ConnectedProvider -> Maybe UserInfo
 user con =
     case con of
         ConnectedProviderWithToken _ _ (Success u) ->
@@ -64,7 +109,7 @@ user con =
             Nothing
 
 
-setUserInfo : WebData UserInfo -> ConnectedProvider pType -> ConnectedProvider pType
+setUserInfo : WebData UserInfo -> ConnectedProvider -> ConnectedProvider
 setUserInfo userInfo provider =
     case provider of
         ConnectedProvider pType _ ->
@@ -74,24 +119,24 @@ setUserInfo userInfo provider =
             ConnectedProviderWithToken pType t userInfo
 
 
-connectedWithToken : providerType -> OAuthToken -> WebData UserInfo -> ConnectedProvider providerType
+connectedWithToken : MusicProviderType -> OAuthToken -> WebData UserInfo -> ConnectedProvider
 connectedWithToken pType t u =
     ConnectedProviderWithToken pType t u
 
 
-type DisconnectedProvider providerType
-    = DisconnectedProvider providerType
+type DisconnectedProvider
+    = DisconnectedProvider MusicProviderType
 
 
-disconnected : providerType -> DisconnectedProvider providerType
+disconnected : MusicProviderType -> DisconnectedProvider
 disconnected =
     DisconnectedProvider
 
 
-type ConnectingProvider pType
-    = ConnectingProvider pType
+type ConnectingProvider
+    = ConnectingProvider MusicProviderType
 
 
-connecting : providerType -> ConnectingProvider providerType
+connecting : MusicProviderType -> ConnectingProvider
 connecting =
     ConnectingProvider
