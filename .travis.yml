@@ -20,10 +20,6 @@ defaults: &defaults
     - npm run test:it
     - cd .. && rm -rf it
 
-deploy: &deploy
-  provider: surge
-  skip_cleanup: true
-
 jobs:
   include:
     - stage: integration tests
