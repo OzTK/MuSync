@@ -7,9 +7,9 @@ module Connection.Selection exposing
     , isSelected
     , map
     , noSelection
-    , providerType
     , select
     , setData
+    , type_
     )
 
 import Connection exposing (ProviderConnection(..))
@@ -86,8 +86,8 @@ setData selection d =
             selection
 
 
-providerType : WithProviderSelection providerType data -> Maybe providerType
-providerType selection =
+type_ : WithProviderSelection providerType data -> Maybe providerType
+type_ selection =
     case selection of
         Selected provider _ ->
             Just <| Connection.type_ provider

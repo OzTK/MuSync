@@ -5,14 +5,10 @@ module Connection exposing
     , connectedWithToken
     , connecting
     , disconnected
-    , inactive
     , isConnected
     , isConnecting
-    , isDisconnected
-    , isInactive
     , map
     , type_
-    , withDefault
     )
 
 import Connection.Provider as P
@@ -20,7 +16,6 @@ import Connection.Provider as P
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
         , DisconnectedProvider(..)
-        , InactiveProvider(..)
         , OAuthToken
         )
 import Model exposing (UserInfo)
@@ -32,8 +27,7 @@ import RemoteData exposing (WebData)
 
 
 type ProviderConnection providerType
-    = Inactive (InactiveProvider providerType)
-    | Disconnected (DisconnectedProvider providerType)
+    = Disconnected (DisconnectedProvider providerType)
     | Connecting (ConnectingProvider providerType)
     | Connected (ConnectedProvider providerType)
 
@@ -58,11 +52,6 @@ connecting =
     Connecting << P.connecting
 
 
-inactive : providerType -> ProviderConnection providerType
-inactive =
-    Inactive << P.inactive
-
-
 asConnected : ProviderConnection pType -> Maybe (ConnectedProvider pType)
 asConnected connection =
     case connection of
@@ -83,16 +72,6 @@ isConnected connection =
             False
 
 
-isDisconnected : ProviderConnection providerType -> Bool
-isDisconnected connection =
-    case connection of
-        Disconnected _ ->
-            True
-
-        _ ->
-            False
-
-
 isConnecting : ProviderConnection providerType -> Bool
 isConnecting connection =
     case connection of
@@ -103,22 +82,9 @@ isConnecting connection =
             False
 
 
-isInactive : ProviderConnection providerType -> Bool
-isInactive connection =
-    case connection of
-        Inactive _ ->
-            True
-
-        _ ->
-            False
-
-
 type_ : ProviderConnection providerType -> providerType
 type_ con =
     case con of
-        Inactive (InactiveProvider pType) ->
-            pType
-
         Disconnected (DisconnectedProvider pType) ->
             pType
 

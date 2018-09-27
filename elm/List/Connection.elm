@@ -1,11 +1,6 @@
 module List.Connection exposing
     ( connectedProviders
-    , filter
-    , filterByType
-    , filterNotByType
     , findConnected
-    , flatMap
-    , map
     , mapOn
     , toggle
     )
@@ -16,7 +11,6 @@ import Connection.Provider as P
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
         , DisconnectedProvider(..)
-        , InactiveProvider(..)
         )
 import SelectableList exposing (SelectableList)
 
@@ -34,57 +28,6 @@ connectedProviders =
         )
 
 
-flatMap : (pType -> b) -> List (ProviderConnection pType) -> List b
-flatMap f =
-    List.map
-        (\con ->
-            case con of
-                Inactive (InactiveProvider pType) ->
-                    f pType
-
-                Disconnected (DisconnectedProvider pType) ->
-                    f pType
-
-                Connecting (ConnectingProvider pType) ->
-                    f pType
-
-                Connected (ConnectedProvider pType _) ->
-                    f pType
-
-                Connected (ConnectedProviderWithToken pType _ _) ->
-                    f pType
-        )
-
-
-map :
-    (ProviderConnection providerType -> providerType -> ProviderConnection providerType)
-    -> List (ProviderConnection providerType)
-    -> List (ProviderConnection providerType)
-map f =
-    List.map
-        (\con ->
-            let
-                fcon =
-                    f con
-            in
-            case con of
-                Inactive (InactiveProvider pType) ->
-                    fcon pType
-
-                Disconnected (DisconnectedProvider pType) ->
-                    fcon pType
-
-                Connecting (ConnectingProvider pType) ->
-                    fcon pType
-
-                Connected (ConnectedProvider pType _) ->
-                    fcon pType
-
-                Connected (ConnectedProviderWithToken pType _ _) ->
-                    fcon pType
-        )
-
-
 mapOn :
     providerType
     -> (ProviderConnection providerType -> ProviderConnection providerType)
@@ -94,13 +37,6 @@ mapOn pType f =
     SelectableList.map
         (\con ->
             case con of
-                Inactive (InactiveProvider pt) ->
-                    if pt == pType then
-                        f con
-
-                    else
-                        con
-
                 Disconnected (DisconnectedProvider pt) ->
                     if pt == pType then
                         f con
@@ -134,31 +70,6 @@ mapOn pType f =
 findConnected : a -> List (ConnectedProvider a) -> Maybe (ConnectedProvider a)
 findConnected pType connections =
     connections |> List.filter (\con -> P.type_ con == pType) |> List.head
-
-
-filterByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
-filterByType pType =
-    List.filter (\con -> Connection.type_ con == pType)
-
-
-filterNotByType : providerType -> List (ProviderConnection providerType) -> List (ProviderConnection providerType)
-filterNotByType pType =
-    List.filter (\con -> Connection.type_ con /= pType)
-
-
-filter :
-    Maybe providerType
-    -> (ProviderConnection providerType -> Bool)
-    -> List (ProviderConnection providerType)
-    -> List (ProviderConnection providerType)
-filter pType f =
-    List.filter
-        (\con ->
-            pType
-                |> Maybe.map ((==) (Connection.type_ con))
-                |> Maybe.withDefault True
-                |> (&&) (f con)
-        )
 
 
 toggle : providerType -> SelectableList (ProviderConnection providerType) -> SelectableList (ProviderConnection providerType)

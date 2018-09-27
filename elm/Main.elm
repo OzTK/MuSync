@@ -1,6 +1,5 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Either exposing (Either(..))
 import Basics.Extra exposing (flip, pair)
 import Browser
 import Browser.Events as Browser
@@ -204,7 +203,7 @@ update msg model =
 
                 connectedPlaylists =
                     model.playlists
-                        |> Selection.providerType
+                        |> Selection.type_
                         |> Maybe.map ((==) pType)
                         |> Maybe.andThen
                             (\selected ->
@@ -322,7 +321,7 @@ update msg model =
 
                 loading =
                     model.comparedProvider
-                        |> Selection.providerType
+                        |> Selection.type_
                         |> Maybe.andThen
                             (\pType ->
                                 p.songs
@@ -475,14 +474,17 @@ searchSongFromProvider track provider =
         _ ->
             Cmd.none
 
-notifyProviderDisconnected pType = Task.succeed () |> Task.perform (\_ -> ProviderStatusUpdated pType Nothing False)
+
+notifyProviderDisconnected pType =
+    Task.succeed () |> Task.perform (\_ -> ProviderStatusUpdated pType Nothing False)
+
 
 providerToggleConnectionCmd : MusicProviderType -> Bool -> Cmd Msg
 providerToggleConnectionCmd pType isCurrentlyConnected =
     case pType of
         Deezer ->
             if isCurrentlyConnected then
-                Cmd.batch [Deezer.disconnect (), notifyProviderDisconnected pType]
+                Cmd.batch [ Deezer.disconnect (), notifyProviderDisconnected pType ]
 
             else
                 Deezer.connectD ()
@@ -566,7 +568,7 @@ providerSelector tagger label providers =
                         |> SelectableList.map Provider.type_
                         |> SelectableList.mapBoth (providerOption True) (providerOption False)
                         |> SelectableList.toList
-                        |> List.nonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
+                        |> List.ifNonEmpty ((::) (placeholderOption (SelectableList.hasSelection providers) "-- Select a provider --"))
                         |> List.withDefault [ placeholderOption True "-- Connect provider --" ]
                     )
                 )
@@ -749,7 +751,7 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
                             )
                             ids
                     )
-                    (Selection.providerType comparedProvider)
+                    (Selection.type_ comparedProvider)
                 |> Maybe.withDefault []
 
         importTagger =
@@ -810,7 +812,7 @@ song : Model -> Track -> Element Msg
 song ({ comparedProvider } as model) track =
     let
         compared =
-            Selection.providerType comparedProvider
+            Selection.type_ comparedProvider
     in
     column [ width fill, spacing 5 ]
         [ row [ width fill, height (shrink |> minimum 25) ]

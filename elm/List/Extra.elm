@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenMaybe, andThenResult, nonEmpty, withDefault)
+module List.Extra exposing (andThenMaybe, ifNonEmpty, withDefault)
 
 
 withDefault : List a -> List a -> List a
@@ -10,23 +10,13 @@ withDefault placeholderList list =
         list
 
 
-nonEmpty : (List a -> List a) -> List a -> List a
-nonEmpty f list =
+ifNonEmpty : (List a -> List a) -> List a -> List a
+ifNonEmpty f list =
     if List.isEmpty list then
         list
 
     else
         f list
-
-
-andThenResult : (a -> Result error b) -> List a -> Result error (List b)
-andThenResult f list =
-    List.foldl
-        (\item result ->
-            Result.map2 (::) (f item) result
-        )
-        (Result.Ok [])
-        list
 
 
 andThenMaybe : (a -> Maybe b) -> List a -> Maybe (List b)

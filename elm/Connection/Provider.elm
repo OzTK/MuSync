@@ -2,13 +2,11 @@ module Connection.Provider exposing
     ( ConnectedProvider(..)
     , ConnectingProvider(..)
     , DisconnectedProvider(..)
-    , InactiveProvider(..)
     , OAuthToken
     , connected
     , connectedWithToken
     , connecting
     , disconnected
-    , inactive
     , setUserInfo
     , token
     , type_
@@ -97,12 +95,3 @@ type ConnectingProvider pType
 connecting : providerType -> ConnectingProvider providerType
 connecting =
     ConnectingProvider
-
-
-type InactiveProvider providerType
-    = InactiveProvider providerType
-
-
-inactive : providerType -> InactiveProvider providerType
-inactive =
-    InactiveProvider

@@ -1,6 +1,5 @@
 module SelectableList exposing
     ( SelectableList
-    , apply
     , clear
     , filterMap
     , find
@@ -240,24 +239,6 @@ mapBoth fSelected fUnselected sList =
 
         NotSelected list ->
             NotSelected <| List.map fUnselected list
-
-
-apply : (List a -> List a) -> SelectableList a -> SelectableList a
-apply f sList =
-    let
-        list =
-            sList |> toList |> f
-    in
-    case sList of
-        Selected sel _ ->
-            if List.member sel list then
-                Selected sel list
-
-            else
-                NotSelected list
-
-        NotSelected _ ->
-            NotSelected list
 
 
 find : (a -> Bool) -> SelectableList a -> Maybe a

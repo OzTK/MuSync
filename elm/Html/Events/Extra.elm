@@ -1,13 +1,8 @@
-module Html.Events.Extra exposing (onChange, onChangeTo)
+module Html.Events.Extra exposing (onChangeTo)
 
 import Html
 import Html.Events exposing (on, targetValue)
 import Json.Decode as Json
-
-
-onChange : (String -> msg) -> Html.Attribute msg
-onChange tagger =
-    on "change" (Json.map tagger targetValue)
 
 
 onChangeTo : (to -> msg) -> Json.Decoder to -> Html.Attribute msg
