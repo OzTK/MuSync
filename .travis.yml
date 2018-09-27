@@ -5,6 +5,8 @@ node_js:
 cache:
   directories:
     - node_modules
+    - ~/.npm
+    - ~/.cache
   override:
     - npm ci
     - npm run cy:verify
@@ -14,7 +16,6 @@ defaults: &defaults
     - npm run build
     - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
     - npm run test:it
-    - kill $(jobs -p) || true
     - cd .. && rm -rf it
 
 jobs:
