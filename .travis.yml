@@ -11,22 +11,30 @@ cache:
     - npm ci
     - npm run cy:verify
 
+install:
+  - npm run build
+
 defaults: &defaults
   script:
-    - npm run build
     - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
     - npm run test:it
     - cd .. && rm -rf it
 
-jobs:
-  include:
-    - stage: test
-      <<: *defaults
-    - stage: test
-      <<: *defaults
-    - stage: test
-      <<: *defaults
-
-deploy:
+deploy: &deploy
   provider: surge
   skip_cleanup: true
+
+jobs:
+  include:
+    - stage: integration tests
+      <<: *defaults
+    - stage: integration tests
+      <<: *defaults
+    - stage: integration tests
+      <<: *defaults
+    - stage: deploy
+      name: 'Deploying to surge.sh'
+      script: skip
+      deploy: &surge
+        provider: surge
+        skip_cleanup: true
