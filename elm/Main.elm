@@ -33,6 +33,8 @@ import Element
         , maximum
         , minimum
         , mouseOver
+        , moveDown
+        , moveUp
         , padding
         , paddingXY
         , paragraph
@@ -52,6 +54,7 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button)
 import Element.Region as Region
+import Flow exposing (Flow(..))
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -76,14 +79,9 @@ import Track exposing (Track, TrackId)
 -- Model
 
 
-type Flow
-    = Connections (List ProviderConnection)
-    | Playlists
-    | Import
-
-
 type alias Model =
-    { playlists : WithProviderSelection (SelectableList Playlist)
+    { flow : Flow
+    , playlists : WithProviderSelection (SelectableList Playlist)
     , comparedProvider : WithProviderSelection ()
     , availableConnections : SelectableList ProviderConnection
     , songs : AnyDict String MatchingTrackKey (WebData (List Track))
@@ -133,7 +131,8 @@ deserializeMatchingTracksKey key =
 init : Flags -> ( Model, Cmd Msg )
 init =
     \flags ->
-        ( { playlists = Selection.noSelection
+        ( { flow = Flow.gotoConnect [ Connection.disconnected Spotify, Connection.disconnected Deezer ]
+          , playlists = Selection.noSelection
           , comparedProvider = Selection.noSelection
           , availableConnections =
                 SelectableList.fromList
@@ -153,7 +152,7 @@ init =
 
 
 type Msg
-    = ToggleConnect MusicProviderType
+    = ToggleConnect ProviderConnection
     | PlaylistsFetched MusicProviderType (WebData (List Playlist))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelected Playlist
@@ -175,8 +174,8 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        BrowserResized dimensions ->
-            ( { model | device = Element.classifyDevice dimensions }, Cmd.none )
+        BrowserResized dims ->
+            ( { model | device = Element.classifyDevice dims }, Cmd.none )
 
         ProviderStatusUpdated pType maybeToken isConnected ->
             let
@@ -194,12 +193,15 @@ update msg model =
                 allConnections =
                     Connections.mapOn pType (\_ -> connection) model.availableConnections
             in
-            ( { model | availableConnections = allConnections }
+            ( { model | availableConnections = allConnections, flow = Flow.updateConnection (\_ -> connection) pType model.flow }
             , afterProviderStatusUpdate connection isConnected maybeToken model.playlists
             )
 
-        ToggleConnect pType ->
+        ToggleConnect connection ->
             let
+                pType =
+                    Connection.type_ connection
+
                 toggleCmd =
                     model.availableConnections
                         |> SelectableList.find (\c -> Connection.type_ c == pType)
@@ -525,7 +527,7 @@ view model =
         , Font.family
             [ Font.typeface "ClinicaPro-Regular" ]
         , Font.color palette.text
-        , Font.size small
+        , model |> dimensions |> .smallText
         , height fill
         , width fill
         ]
@@ -629,7 +631,7 @@ buttons model =
         |> SelectableList.toList
 
 
-connectButton : List (Element.Attribute Msg) -> Maybe (MusicProviderType -> Msg) -> ProviderConnection -> Bool -> Element Msg
+connectButton : List (Element.Attribute Msg) -> Maybe (ProviderConnection -> Msg) -> ProviderConnection -> Bool -> Element Msg
 connectButton style tagger connection selected =
     let
         connected =
@@ -637,7 +639,7 @@ connectButton style tagger connection selected =
     in
     button
         (style ++ iconButtonStyle)
-        { onPress = Maybe.map (\t -> t <| Connection.type_ connection) tagger
+        { onPress = Maybe.map (\t -> t connection) tagger
         , label =
             row [ centerX, width (fillPortion 2 |> minimum 94), spacing 3 ] <|
                 [ connection |> Connection.type_ |> providerLogoOrName [ height (px 20), width (px 20) ]
@@ -695,14 +697,81 @@ content model =
         , width fill
         , height fill
         , padding 8
-        , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
+        , clip
+
+        -- , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
         ]
     <|
-        [ wrappedRow [ spacing 5, width fill ]
-            [ row [ spacing 8, paddingXY 0 5, centerX, width fill ] <| buttons model
-            ]
-        , playlistsView model
+        [ routeMainView model ]
+
+
+
+-- New layout
+
+
+routeMainView : Model -> Element Msg
+routeMainView { flow, device } =
+    case flow of
+        Connect connections ->
+            connectView { device = device } ToggleConnect connections
+
+        PickPlaylists _ ->
+            Element.el [] <| text "Pick your playlist"
+
+
+connectionStatus : Bool -> Element msg
+connectionStatus isConnected =
+    image [ width (px 50) ]
+        { src =
+            if isConnected then
+                "/assets/img/noun_connected.svg"
+
+            else
+                "/assets/img/noun_disconnected.svg"
+        , description =
+            if isConnected then
+                "Connected"
+
+            else
+                "Disconnected"
+        }
+
+
+connectView : { m | device : Element.Device } -> (ProviderConnection -> Msg) -> List ProviderConnection -> Element Msg
+connectView model tagger connections =
+    column [ width fill, centerY, moveUp 46, model |> dimensions |> .largeSpacing ]
+        [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
+        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX, centerY ]
+            (connections
+                |> List.map
+                    (\connection ->
+                        button
+                            [ model |> dimensions |> .largePadding
+                            , Border.color palette.primary
+                            , Border.rounded 5
+                            , Border.width 2
+                            , mouseOver [ Bg.color palette.primary ]
+                            ]
+                            { onPress =
+                                if Connection.isConnected connection then
+                                    Nothing
+
+                                else
+                                    Just <| tagger connection
+                            , label =
+                                column [ model |> dimensions |> .smallSpacing, model |> dimensions |> .smallHPadding ]
+                                    [ providerLogoOrName [ model |> dimensions |> .buttonImageWidth, centerX ] <| Connection.type_ connection
+                                    , connectionStatus <| Connection.isConnected connection
+                                    ]
+                            }
+                    )
+            )
+        , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Next", onPress = Nothing }
         ]
+
+
+
+-- Old layout
 
 
 playlistsView : Model -> Element Msg
@@ -717,7 +786,7 @@ playlistsView model =
                 |> Maybe.map (songsView model)
                 |> Maybe.withDefault
                     (column (playlistsListStyle model) <|
-                        el mainTitleStyle (text "My playlists")
+                        el (mainTitleStyle model) (text "My playlists")
                             :: (p
                                     |> SelectableList.map (playlistView PlaylistSelected)
                                     |> SelectableList.toList
@@ -807,7 +876,7 @@ songsView model playlist =
                     column [ spacing 5, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
                         [ comparedSearch model playlist
                         , column (songsListStyle model) <|
-                            (el mainTitleStyle (text "Songs") :: List.map (song model) s)
+                            (el (mainTitleStyle model) (text "Songs") :: List.map (song model) s)
                         ]
                 )
             |> RemoteData.withDefault (progressBar [ centerX, centerY ] <| Just ("Loading songs from " ++ playlist.name))
@@ -978,22 +1047,65 @@ scaled =
     Element.modular 16 1.25
 
 
-small =
-    scaled 1 |> round
+type alias DimensionPalette msg =
+    { smallText : Element.Attribute msg
+    , mediumText : Element.Attribute msg
+    , largeText : Element.Attribute msg
+    , smallSpacing : Element.Attribute msg
+    , mediumSpacing : Element.Attribute msg
+    , largeSpacing : Element.Attribute msg
+    , smallPadding : Element.Attribute msg
+    , largePadding : Element.Attribute msg
+    , smallHPadding : Element.Attribute msg
+    , buttonImageWidth : Element.Attribute msg
+    }
 
 
-medium =
-    scaled 2 |> round
+dimensions : { m | device : Element.Device } -> DimensionPalette msg
+dimensions { device } =
+    case device.class of
+        Phone ->
+            { smallText = scaled 1 |> round |> Font.size
+            , mediumText = scaled 2 |> round |> Font.size
+            , largeText = scaled 3 |> round |> Font.size
+            , smallSpacing = scaled 1 |> round |> spacing
+            , mediumSpacing = scaled 3 |> round |> spacing
+            , largeSpacing = scaled 7 |> round |> spacing
+            , smallPadding = scaled 1 |> round |> padding
+            , largePadding = scaled 2 |> round |> padding
+            , smallHPadding = scaled -2 |> round |> flip paddingXY 0
+            , buttonImageWidth = scaled 4 |> round |> px |> width
+            }
+
+        _ ->
+            { smallText = scaled 1 |> round |> Font.size
+            , mediumText = scaled 2 |> round |> Font.size
+            , largeText = scaled 3 |> round |> Font.size
+            , smallSpacing = scaled 1 |> round |> spacing
+            , mediumSpacing = scaled 3 |> round |> spacing
+            , largeSpacing = scaled 9 |> round |> spacing
+            , smallPadding = scaled 2 |> round |> padding
+            , largePadding = scaled 5 |> round |> padding
+            , smallHPadding = scaled 2 |> round |> flip paddingXY 0
+            , buttonImageWidth = scaled 6 |> round |> px |> width
+            }
 
 
-large =
-    scaled 3 |> round
+type alias ColorPalette =
+    { primary : Element.Color
+    , primaryFaded : Element.Color
+    , secondary : Element.Color
+    , ternary : Element.Color
+    , quaternary : Element.Color
+    , transparentWhite : Element.Color
+    , transparent : Element.Color
+    , white : Element.Color
+    , black : Element.Color
+    , text : Element.Color
+    }
 
 
-mainTitleStyle =
-    [ Font.size large, Font.color palette.primary ]
-
-
+palette : ColorPalette
 palette =
     { primary = Element.rgb255 220 94 93
     , primaryFaded = Element.rgba255 250 160 112 0.1
@@ -1003,8 +1115,14 @@ palette =
     , transparentWhite = Element.rgba255 255 255 255 0.7
     , transparent = Element.rgba255 255 255 255 0
     , white = Element.rgb255 255 255 255
+    , black = Element.rgb255 0 0 0
     , text = Element.rgb255 42 67 80
     }
+
+
+mainTitleStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
+mainTitleStyle model =
+    [ model |> dimensions |> .largeText, Font.color palette.primary ]
 
 
 baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =

@@ -8,7 +8,8 @@ port module Spotify exposing
     , searchTrack
     )
 
-import Model exposing (MusicProviderType(..), UserInfo)
+import Connection.Provider exposing (MusicProviderType(..))
+import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
 import Task
