@@ -696,7 +696,7 @@ content model =
         , Border.glow palette.ternary 1
         , width fill
         , height fill
-        , padding 8
+        , model |> dimensions |> .smallPadding
         , clip
 
         -- , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
@@ -739,9 +739,9 @@ connectionStatus isConnected =
 
 connectView : { m | device : Element.Device } -> (ProviderConnection -> Msg) -> List ProviderConnection -> Element Msg
 connectView model tagger connections =
-    column [ width fill, centerY, moveUp 46, model |> dimensions |> .largeSpacing ]
+    column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
         [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX, centerY ]
+        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX ]
             (connections
                 |> List.map
                     (\connection ->
@@ -1057,6 +1057,7 @@ type alias DimensionPalette msg =
     , smallPadding : Element.Attribute msg
     , largePadding : Element.Attribute msg
     , smallHPadding : Element.Attribute msg
+    , smallVPadding : Element.Attribute msg
     , buttonImageWidth : Element.Attribute msg
     }
 
@@ -1070,10 +1071,11 @@ dimensions { device } =
             , largeText = scaled 3 |> round |> Font.size
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
-            , largeSpacing = scaled 7 |> round |> spacing
-            , smallPadding = scaled 1 |> round |> padding
+            , largeSpacing = scaled 5 |> round |> spacing
+            , smallPadding = scaled -2 |> round |> padding
             , largePadding = scaled 2 |> round |> padding
             , smallHPadding = scaled -2 |> round |> flip paddingXY 0
+            , smallVPadding = scaled -3 |> round |> paddingXY 0
             , buttonImageWidth = scaled 4 |> round |> px |> width
             }
 
@@ -1087,6 +1089,7 @@ dimensions { device } =
             , smallPadding = scaled 2 |> round |> padding
             , largePadding = scaled 5 |> round |> padding
             , smallHPadding = scaled 2 |> round |> flip paddingXY 0
+            , smallVPadding = scaled 1 |> round |> paddingXY 0
             , buttonImageWidth = scaled 6 |> round |> px |> width
             }
 
@@ -1127,26 +1130,28 @@ mainTitleStyle model =
 
 baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     let
-        w =
+        d =
+            { device = device } |> dimensions
+
+        deviceDependent =
             case ( device.class, device.orientation ) of
                 ( Phone, Portrait ) ->
-                    fill
+                    [ width fill, alignBottom, d.smallPadding ]
 
                 ( Tablet, Portrait ) ->
-                    fill
+                    [ width fill, alignBottom, d.smallPadding ]
 
                 _ ->
-                    shrink
+                    [ width (shrink |> minimum 120), d.smallVPadding ]
     in
-    [ paddingXY 10 9
-    , Font.color textColor
+    [ Font.color textColor
     , Border.rounded 5
     , Border.color bgHoverColor
     , Border.solid
     , Border.width 1
-    , width w
     , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
     ]
+        ++ deviceDependent
 
 
 disabledButtonStyle whatever =
