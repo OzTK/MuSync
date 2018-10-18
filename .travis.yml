@@ -28,7 +28,8 @@ jobs:
       <<: *defaults
     - stage: deploy
       name: 'Deploying to surge.sh'
-      script: skip
+      script:
+        - npm run build
       deploy: &surge
         provider: surge
         skip_cleanup: true
