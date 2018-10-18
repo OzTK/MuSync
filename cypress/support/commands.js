@@ -11,14 +11,13 @@ Cypress.Commands.add("withItems", (title, extraQuery) => {
 Cypress.Commands.add(
   "connectProvider",
   (providerName) =>
-  cy.get('[role="button"]:contains(Connect)').find('img').then((imgs) => {
-    if (imgs[0].alt !== providerName) {
-      return;
-    }
+  cy.get(`[role="button"][aria-label="${providerName}"]`).click()
+)
 
-    const button = cy.wrap(imgs[0]).closest('[role="button"]');
-    return button.click().then(() => providerName);
-  })
+Cypress.Commands.add(
+  "withPlaylists",
+  (providerName) =>
+  cy.contains(providerName).parent().children('label')
 )
 
 Cypress.Commands.add(

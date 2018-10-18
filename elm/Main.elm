@@ -820,6 +820,7 @@ connectView model tagger transitioner connections =
                             , Border.rounded 5
                             , Border.width 2
                             , mouseOver [ Bg.color palette.primary ]
+                            , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> Provider.toString) connection)
                             ]
                             { onPress =
                                 if Connection.isConnected connection then
