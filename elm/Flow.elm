@@ -19,10 +19,15 @@ type alias SelectablePlaylistsByConnection =
     AnyDict String ConnectedProvider (List ( Bool, Playlist ))
 
 
+type alias PlaylistsByConnection =
+    AnyDict String ConnectedProvider (List Playlist)
+
+
 type Flow
     = Connect (List ProviderConnection)
     | LoadPlaylists ConnectionsWithLoadingPlaylists
     | PickPlaylists SelectablePlaylistsByConnection
+    | Sync PlaylistsByConnection
 
 
 start : List ProviderConnection -> Flow
@@ -49,6 +54,22 @@ next flow =
 
                 _ ->
                     flow
+
+        PickPlaylists selection ->
+            selection
+                |> Dict.map
+                    (\_ playlists ->
+                        List.filterMap
+                            (\( selected, p ) ->
+                                if selected then
+                                    Just p
+
+                                else
+                                    Nothing
+                            )
+                            playlists
+                    )
+                |> Sync
 
         _ ->
             flow

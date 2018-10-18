@@ -738,31 +738,37 @@ content model =
 
 
 routeMainView : Model -> Element Msg
-routeMainView { flow, device } =
-    case flow of
+routeMainView model =
+    case model.flow of
         Connect connections ->
-            connectView { device = device } ToggleConnect StepFlow connections
+            connectView model ToggleConnect StepFlow connections
 
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
         PickPlaylists playlistsMap ->
-            Element.column [ width fill, height fill ] <|
-                [ paragraph [ { device = device } |> dimensions |> .largeText, Font.center ] [ text "Pick the playlists you want to transfer" ] ]
-                    ++ (playlistsMap
-                            |> Dict.keys
-                            |> List.map
-                                (\c ->
-                                    Element.column [] <|
-                                        (text ((Provider.type_ >> Provider.toString) c)
-                                            :: (playlistsMap
-                                                    |> Dict.get c
-                                                    |> Maybe.map (List.map (playlistCheckbox <| TogglePlaylistSelected c))
-                                                    |> Maybe.withDefault [ text "No tracks" ]
-                                               )
-                                        )
-                                )
-                       )
+            Element.column [ width fill, height fill, clip, hack_forceClip, model |> dimensions |> .mediumSpacing ] <|
+                [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Pick the playlists you want to transfer" ]
+                , Element.column [ width fill, height fill, scrollbarY, model |> dimensions |> .mediumSpacing ]
+                    (playlistsMap
+                        |> Dict.keys
+                        |> List.map
+                            (\c ->
+                                Element.column [ model |> dimensions |> .smallSpacing ] <|
+                                    ((Element.el [ model |> dimensions |> .mediumText ] <| text <| (Provider.type_ >> Provider.toString) c)
+                                        :: (playlistsMap
+                                                |> Dict.get c
+                                                |> Maybe.map (List.map (playlistCheckbox <| TogglePlaylistSelected c))
+                                                |> Maybe.withDefault [ text "No tracks" ]
+                                           )
+                                    )
+                            )
+                    )
+                , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Sync", onPress = Just StepFlow }
+                ]
+
+        Sync _ ->
+            progressBar [ centerX, centerY ] (Just "Syncing your playlists")
 
 
 playlistCheckbox : (PlaylistId -> Bool -> msg) -> ( Bool, Playlist ) -> Element msg
@@ -1258,6 +1264,15 @@ songsListStyle { device } =
 
 playlistsListStyle { device } =
     [ spacing 5, width fill, height fill, scrollbarY ]
+
+
+
+-- HACKS
+
+
+hack_forceClip : Element.Attribute msg
+hack_forceClip =
+    htmlAttribute (Html.style "flex-shrink" "1")
 
 
 
