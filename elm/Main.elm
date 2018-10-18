@@ -1,6 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (flip, pair)
+import Basics.Extra exposing (flip)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
@@ -52,7 +52,7 @@ import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
 import Element.Font as Font
-import Element.Input as Input exposing (button)
+import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
 import Flow exposing (Flow(..))
 import Html exposing (Html)
@@ -73,6 +73,7 @@ import SelectableList exposing (SelectableList)
 import Spotify
 import Task
 import Track exposing (Track, TrackId)
+import Tuple exposing (pair)
 
 
 
@@ -131,7 +132,7 @@ deserializeMatchingTracksKey key =
 init : Flags -> ( Model, Cmd Msg )
 init =
     \flags ->
-        ( { flow = Flow.gotoConnect [ Connection.disconnected Spotify, Connection.disconnected Deezer ]
+        ( { flow = Flow.start [ Connection.disconnected Spotify, Connection.disconnected Deezer ]
           , playlists = Selection.noSelection
           , comparedProvider = Selection.noSelection
           , availableConnections =
@@ -153,7 +154,7 @@ init =
 
 type Msg
     = ToggleConnect ProviderConnection
-    | PlaylistsFetched MusicProviderType (WebData (List Playlist))
+    | PlaylistsFetched ConnectedProvider (WebData (List Playlist))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelected Playlist
     | BackToPlaylists
@@ -169,6 +170,8 @@ type Msg
     | ImportPlaylist (List Track) Playlist
     | PlaylistImported (WebData Playlist)
     | BrowserResized Dimensions
+    | StepFlow
+    | TogglePlaylistSelected ConnectedProvider PlaylistId Bool
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -193,7 +196,10 @@ update msg model =
                 allConnections =
                     Connections.mapOn pType (\_ -> connection) model.availableConnections
             in
-            ( { model | availableConnections = allConnections, flow = Flow.updateConnection (\_ -> connection) pType model.flow }
+            ( { model
+                | availableConnections = allConnections
+                , flow = Flow.updateConnection (\_ -> connection) pType model.flow
+              }
             , afterProviderStatusUpdate connection isConnected maybeToken model.playlists
             )
 
@@ -288,18 +294,21 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistsFetched _ playlistsData ->
+        PlaylistsFetched connection playlistsData ->
             let
                 data =
                     playlistsData |> RemoteData.map SelectableList.fromList
             in
-            ( { model | playlists = Selection.setData model.playlists data }
+            ( { model
+                | playlists = Selection.setData model.playlists data
+                , flow = model.flow |> Flow.udpateLoadingPlaylists connection playlistsData |> Flow.next
+              }
             , Cmd.none
             )
 
         PlaylistsProviderChanged (Just p) ->
             ( { model | playlists = Selection.select p, availableConnections = SelectableList.select p model.availableConnections }
-            , p |> Connection.asConnected |> Maybe.map loadPlaylists |> Maybe.withDefault Cmd.none
+            , Cmd.none
             )
 
         PlaylistsProviderChanged Nothing ->
@@ -382,6 +391,25 @@ update msg model =
             , Cmd.none
             )
 
+        StepFlow ->
+            let
+                newFlow =
+                    Flow.next model.flow
+            in
+            ( { model | flow = newFlow }, getFlowStepCmd newFlow )
+
+        TogglePlaylistSelected connection playlist isSelected ->
+            ( { model | flow = Flow.togglePlaylist connection playlist model.flow }, Cmd.none )
+
+
+getFlowStepCmd flow =
+    case flow of
+        LoadPlaylists byProvider ->
+            byProvider |> List.map (Tuple.first >> loadPlaylists) |> Cmd.batch
+
+        _ ->
+            Cmd.none
+
 
 
 -- Effects
@@ -442,7 +470,7 @@ loadPlaylists connection =
             Deezer.loadAllPlaylists ()
 
         ConnectedProviderWithToken Spotify token _ ->
-            Spotify.getPlaylists token (PlaylistsFetched Spotify)
+            Spotify.getPlaylists token (PlaylistsFetched connection)
 
         _ ->
             Cmd.none
@@ -550,7 +578,7 @@ progressBar attrs message =
                 [ Html.class "progress progress-sm progress-indeterminate" ]
                 [ Html.div [ Html.class "progress-bar" ] [] ]
         , message
-            |> Maybe.map (paragraph [ width shrink, centerX, centerY ] << List.singleton << text)
+            |> Maybe.map (paragraph [ width shrink, centerX, centerY, Font.center ] << List.singleton << text)
             |> Maybe.withDefault Element.none
         ]
 
@@ -647,7 +675,7 @@ connectButton style tagger connection selected =
                     (if connected && selected then
                         "Disconnect"
 
-                     else if not (Maybe.toBool tagger) then
+                     else if not (Maybe.isDefined tagger) then
                         "Connecting"
 
                      else if not connected then
@@ -713,10 +741,45 @@ routeMainView : Model -> Element Msg
 routeMainView { flow, device } =
     case flow of
         Connect connections ->
-            connectView { device = device } ToggleConnect connections
+            connectView { device = device } ToggleConnect StepFlow connections
 
-        PickPlaylists _ ->
-            Element.el [] <| text "Pick your playlist"
+        LoadPlaylists _ ->
+            progressBar [ centerX, centerY ] (Just "Fetching your playlists")
+
+        PickPlaylists playlistsMap ->
+            Element.column [ width fill, height fill ] <|
+                [ paragraph [ { device = device } |> dimensions |> .largeText, Font.center ] [ text "Pick the playlists you want to transfer" ] ]
+                    ++ (playlistsMap
+                            |> Dict.keys
+                            |> List.map
+                                (\c ->
+                                    Element.column [] <|
+                                        (text ((Provider.type_ >> Provider.toString) c)
+                                            :: (playlistsMap
+                                                    |> Dict.get c
+                                                    |> Maybe.map (List.map (playlistCheckbox <| TogglePlaylistSelected c))
+                                                    |> Maybe.withDefault [ text "No tracks" ]
+                                               )
+                                        )
+                                )
+                       )
+
+
+playlistCheckbox : (PlaylistId -> Bool -> msg) -> ( Bool, Playlist ) -> Element msg
+playlistCheckbox tagger ( selected, playlist ) =
+    checkbox []
+        { onChange = tagger playlist.id
+        , icon =
+            \checked ->
+                text <|
+                    if checked then
+                        "[X]"
+
+                    else
+                        "[   ]"
+        , checked = selected
+        , label = labelRight [] <| text (Playlist.summary playlist)
+        }
 
 
 connectionStatus : Bool -> Element msg
@@ -737,8 +800,8 @@ connectionStatus isConnected =
         }
 
 
-connectView : { m | device : Element.Device } -> (ProviderConnection -> Msg) -> List ProviderConnection -> Element Msg
-connectView model tagger connections =
+connectView : { m | device : Element.Device } -> (ProviderConnection -> msg) -> msg -> List ProviderConnection -> Element msg
+connectView model tagger transitioner connections =
     column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
         [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
         , wrappedRow [ model |> dimensions |> .smallSpacing, centerX ]
@@ -766,7 +829,7 @@ connectView model tagger connections =
                             }
                     )
             )
-        , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Next", onPress = Nothing }
+        , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Next", onPress = Just transitioner }
         ]
 
 
@@ -852,8 +915,9 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
     in
     wrappedRow [ spacing 8, height shrink ]
         [ availableConnections
+            |> SelectableList.toList
             |> Connections.connectedProviders
-            |> SelectableList.rest
+            |> SelectableList.fromList
             |> providerSelector ComparedProviderChanged (Just "Sync with")
         , button searchStyle
             { onPress = searchTagger
@@ -1220,7 +1284,7 @@ handleDeezerMatchingTracksFetched ( rawKey, json ) =
 
 
 handleSpotifyStatusUpdate ( maybeErr, token ) =
-    maybeErr |> Maybe.toBool |> not |> ProviderStatusUpdated Spotify (Just token)
+    maybeErr |> Maybe.isDefined |> not |> ProviderStatusUpdated Spotify (Just token)
 
 
 handleDeezerPlaylistTracksFetched ( pid, json ) =
@@ -1231,7 +1295,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Deezer.updateStatus <| ProviderStatusUpdated Deezer Nothing
-        , Deezer.receivePlaylists (PlaylistsFetched Deezer << Deezer.decodePlaylists)
+        , Deezer.receivePlaylists (PlaylistsFetched (Provider.connected Deezer NotAsked) << Deezer.decodePlaylists)
         , Deezer.receivePlaylistSongs handleDeezerPlaylistTracksFetched
         , Deezer.receiveMatchingTracks handleDeezerMatchingTracksFetched
         , Deezer.playlistCreated (PlaylistImported << Deezer.decodePlaylist)

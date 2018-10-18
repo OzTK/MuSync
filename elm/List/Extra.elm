@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenMaybe, ifNonEmpty, withDefault)
+module List.Extra exposing (andThenMaybe, ifNonEmpty, update, withDefault)
 
 
 withDefault : List a -> List a -> List a
@@ -27,3 +27,15 @@ andThenMaybe f list =
         )
         (Just [])
         list
+
+
+update : (item -> Bool) -> (item -> item) -> List item -> List item
+update predicate f =
+    List.map
+        (\item ->
+            if predicate item then
+                f item
+
+            else
+                item
+        )

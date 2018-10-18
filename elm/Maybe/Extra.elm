@@ -1,4 +1,4 @@
-module Maybe.Extra exposing (fromBool, mapTogether, not, toBool)
+module Maybe.Extra exposing (fromBool, isDefined, mapTogether, not)
 
 
 mapTogether : (a -> b) -> (a -> c) -> Maybe a -> Maybe ( b, c )
@@ -11,8 +11,8 @@ mapTogether f1 f2 maybe =
             Nothing
 
 
-toBool : Maybe a -> Bool
-toBool =
+isDefined : Maybe a -> Bool
+isDefined =
     Maybe.map (\_ -> True) >> Maybe.withDefault False
 
 

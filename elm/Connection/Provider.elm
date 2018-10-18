@@ -16,8 +16,13 @@ module Connection.Provider exposing
     , user
     )
 
+import Json.Decode as Decode exposing (fail, succeed)
 import Model exposing (UserInfo)
 import RemoteData exposing (RemoteData(..), WebData)
+
+
+musicProviderTypeDecoder =
+    Decode.map (fromString >> Maybe.map succeed >> Maybe.withDefault (fail "Unknown Music Provider type"))
 
 
 type MusicProviderType

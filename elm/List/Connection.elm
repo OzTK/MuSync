@@ -16,9 +16,9 @@ import Connection.Provider as P
 import SelectableList exposing (SelectableList)
 
 
-connectedProviders : SelectableList ProviderConnection -> SelectableList ConnectedProvider
+connectedProviders : List ProviderConnection -> List ConnectedProvider
 connectedProviders =
-    SelectableList.filterMap
+    List.filterMap
         (\con ->
             case con of
                 Connected provider ->

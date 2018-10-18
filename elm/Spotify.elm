@@ -8,7 +8,6 @@ port module Spotify exposing
     , searchTrack
     )
 
-import Basics.Extra exposing (pair)
 import Connection.Provider exposing (MusicProviderType(..))
 import Dict
 import Http exposing (header)
@@ -22,6 +21,7 @@ import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task
 import Track exposing (Track)
+import Tuple exposing (pair)
 
 
 

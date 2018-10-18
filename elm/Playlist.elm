@@ -1,4 +1,4 @@
-module Playlist exposing (Playlist, PlaylistId, loadSongs, setSongs, songIds)
+module Playlist exposing (Playlist, PlaylistId, loadSongs, setSongs, songIds, summary)
 
 import RemoteData exposing (RemoteData(..), WebData)
 import Track exposing (Track, TrackId)
@@ -15,6 +15,11 @@ type alias Playlist =
     , link : String
     , tracksCount : Int
     }
+
+
+summary : Playlist -> String
+summary { name, tracksCount } =
+    name ++ " (" ++ String.fromInt tracksCount ++ " tracks)"
 
 
 loadSongs : Playlist -> Playlist

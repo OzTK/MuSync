@@ -6,9 +6,9 @@ module Track exposing
     , serializeId
     )
 
-import Basics.Extra exposing (pair)
 import Connection.Provider as Provider exposing (MusicProviderType(..))
 import Model exposing (keyPartsSeparator)
+import Tuple exposing (pair)
 
 
 type alias TrackId =
