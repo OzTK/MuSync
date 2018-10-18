@@ -7,8 +7,8 @@
     "clean": "rm -rf elm-stuff & rm -rf tests/elm-stuff",
     "build": "elm make elm/Main.elm --output=js/elm.js --optimize",
     "build:dev": "elm make elm/Main.elm --output=js/elm.js --debug",
-    "debug": "elm-live elm/Main.elm --output=js/elm.js --open --debug",
-    "start": "elm-live --output=js/elm.js elm/Main.elm --no-recover",
+    "debug": "elm-live elm/Main.elm --open -- --output=js/elm.js --debug",
+    "start": "elm-live elm/Main.elm --no-recover -- --output=js/elm.js",
     "cy": "cypress open",
     "cy:all": "cypress run",
     "cy:verify": "cypress verify",
@@ -44,6 +44,6 @@
   "devDependencies": {
     "cypress": "^3.1.0",
     "elm": "^0.19.0-bugfix2",
-    "elm-live": "^3.0.1"
+    "elm-live": "^3.1.0"
   }
 }

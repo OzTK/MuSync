@@ -11,11 +11,9 @@ cache:
     - npm ci
     - npm run cy:verify
 
-install:
-  - npm run build
-
 defaults: &defaults
   script:
+    - npm run build
     - mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
     - npm run test:it
     - cd .. && rm -rf it
