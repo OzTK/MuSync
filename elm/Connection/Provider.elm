@@ -41,6 +41,18 @@ type ConnectedProvider
     | ConnectedProviderWithToken MusicProviderType OAuthToken (WebData UserInfo)
 
 
+type DifferentConnectedProviders
+    = DifferentConnectedProviders ConnectedProvider ConnectedProvider
+
+
+otherProvider provider1 provider2 =
+    if provider1 /= provider2 then
+        Just <| DifferentConnectedProviders provider1 provider2
+
+    else
+        Nothing
+
+
 fromString : String -> Maybe MusicProviderType
 fromString pName =
     case pName of

@@ -562,7 +562,7 @@ view model =
     <|
         column [ paddingXY 16 8, spacing 5, height fill, width fill ]
             [ row [ Region.navigation, width fill ] [ header model ]
-            , row [ Region.mainContent, width fill, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ] [ content model ]
+            , row [ Region.mainContent, width fill, height fill, clip, hack_forceClip ] [ content model ]
             ]
 
 
@@ -727,6 +727,7 @@ content model =
         , model |> dimensions |> .smallPadding
         , clip
 
+        -- Background note: looks better without it right now
         -- , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
         ]
     <|
@@ -754,14 +755,21 @@ routeMainView model =
                         |> Dict.keys
                         |> List.map
                             (\c ->
+                                let
+                                    ( otherCon, p ) =
+                                        Dict.get c playlistsMap |> Maybe.withDefault ( c, [] )
+                                in
                                 Element.column [ model |> dimensions |> .smallSpacing ] <|
-                                    ((Element.el [ model |> dimensions |> .mediumText ] <| text <| (Provider.type_ >> Provider.toString) c)
-                                        :: (playlistsMap
-                                                |> Dict.get c
-                                                |> Maybe.map (List.map (playlistCheckbox <| TogglePlaylistSelected c))
-                                                |> Maybe.withDefault [ text "No tracks" ]
-                                           )
+                                    (Element.el [ model |> dimensions |> .mediumText ] <|
+                                        text <|
+                                            (Provider.type_ >> Provider.toString) c
+                                                ++ " --> "
+                                                ++ (Provider.type_ >> Provider.toString) otherCon
                                     )
+                                        :: (p
+                                                |> List.map (playlistCheckbox <| TogglePlaylistSelected c)
+                                                |> List.withDefault [ text "No tracks" ]
+                                           )
                             )
                     )
                 , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Sync", onPress = Just StepFlow }
@@ -810,7 +818,7 @@ connectView : { m | device : Element.Device } -> (ProviderConnection -> msg) -> 
 connectView model tagger transitioner connections =
     column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
         [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX ]
+        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX, centerY ]
             (connections
                 |> List.map
                     (\connection ->
@@ -1207,10 +1215,10 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
         deviceDependent =
             case ( device.class, device.orientation ) of
                 ( Phone, Portrait ) ->
-                    [ width fill, alignBottom, d.smallPadding ]
+                    [ width fill, d.smallPadding ]
 
                 ( Tablet, Portrait ) ->
-                    [ width fill, alignBottom, d.smallPadding ]
+                    [ width fill, d.smallPadding ]
 
                 _ ->
                     [ width (shrink |> minimum 120), d.smallVPadding ]
@@ -1220,6 +1228,7 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     , Border.color bgHoverColor
     , Border.solid
     , Border.width 1
+    , alignBottom
     , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
     ]
         ++ deviceDependent

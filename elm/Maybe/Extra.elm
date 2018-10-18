@@ -1,4 +1,4 @@
-module Maybe.Extra exposing (fromBool, isDefined, mapTogether, not)
+module Maybe.Extra exposing (fromBool, fromList, isDefined, mapTogether, not)
 
 
 mapTogether : (a -> b) -> (a -> c) -> Maybe a -> Maybe ( b, c )
@@ -33,3 +33,8 @@ not maybe =
 
         Nothing ->
             Just True
+
+
+fromList : List (Maybe any) -> Maybe (List any)
+fromList =
+    List.foldr (Maybe.map2 (::)) <| Just []

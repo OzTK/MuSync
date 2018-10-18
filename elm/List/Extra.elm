@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenMaybe, ifNonEmpty, update, withDefault)
+module List.Extra exposing (andThenMaybe, find, ifNonEmpty, update, withDefault)
 
 
 withDefault : List a -> List a -> List a
@@ -39,3 +39,17 @@ update predicate f =
             else
                 item
         )
+
+
+find : (elem -> Bool) -> List elem -> Maybe elem
+find f list =
+    case list of
+        first :: rest ->
+            if f first then
+                Just first
+
+            else
+                find f rest
+
+        [] ->
+            Nothing

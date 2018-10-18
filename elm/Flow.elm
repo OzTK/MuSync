@@ -16,11 +16,11 @@ type alias ConnectionsWithLoadingPlaylists =
 
 
 type alias SelectablePlaylistsByConnection =
-    AnyDict String ConnectedProvider (List ( Bool, Playlist ))
+    AnyDict String ConnectedProvider ( ConnectedProvider, List ( Bool, Playlist ) )
 
 
 type alias PlaylistsByConnection =
-    AnyDict String ConnectedProvider (List Playlist)
+    AnyDict String ConnectedProvider ( ConnectedProvider, List Playlist )
 
 
 type Flow
@@ -46,28 +46,36 @@ next flow =
                 )
 
         LoadPlaylists data ->
-            case data |> List.map (\( con, d ) -> RemoteData.map (\p -> ( con, List.map (pair False) p )) d) |> RemoteData.fromList of
-                Success playlistsMap ->
-                    playlistsMap
-                        |> Dict.fromList (Provider.type_ >> Provider.toString)
-                        |> PickPlaylists
-
-                _ ->
-                    flow
+            data
+                |> List.map
+                    (\( con, d ) ->
+                        d
+                            |> RemoteData.toMaybe
+                            |> Maybe.map2
+                                (\( otherCon, _ ) p ->
+                                    ( con, ( otherCon, List.map (pair False) p ) )
+                                )
+                                (List.find (Tuple.first >> (/=) con) data)
+                    )
+                |> Maybe.fromList
+                |> Maybe.map (Dict.fromList (Provider.type_ >> Provider.toString))
+                |> Maybe.map PickPlaylists
+                |> Maybe.withDefault flow
 
         PickPlaylists selection ->
             selection
                 |> Dict.map
-                    (\_ playlists ->
-                        List.filterMap
-                            (\( selected, p ) ->
-                                if selected then
-                                    Just p
+                    (\_ ( otherCon, playlists ) ->
+                        playlists
+                            |> List.filterMap
+                                (\( selected, p ) ->
+                                    if selected then
+                                        Just p
 
-                                else
-                                    Nothing
-                            )
-                            playlists
+                                    else
+                                        Nothing
+                                )
+                            |> pair otherCon
                     )
                 |> Sync
 
@@ -130,7 +138,10 @@ togglePlaylist connection id flow =
     case flow of
         PickPlaylists playlistsMap ->
             playlistsMap
-                |> Dict.update connection (Maybe.map (List.update (second >> .id >> (==) id) (Tuple.mapFirst not)))
+                |> Dict.update connection
+                    (Maybe.map <|
+                        Tuple.mapSecond (List.update (second >> .id >> (==) id) (Tuple.mapFirst not))
+                    )
                 |> PickPlaylists
 
         _ ->
