@@ -1,6 +1,6 @@
 describe('when connecting a second provider', () => {
     before(() => {
-        cy.visit('/').connectProvider('Spotify')
+        cy.visit('/').connectProvider('Spotify').connectProvider('Deezer')
         cy.contains('Next')
             .click()
             .withPlaylists('Spotify').click({
