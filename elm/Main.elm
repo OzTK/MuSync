@@ -553,7 +553,7 @@ view model =
         }
         [ Bg.color palette.primaryFaded
         , Font.family
-            [ Font.typeface "ClinicaPro-Regular" ]
+            [ Font.typeface "FiraCode-Regular" ]
         , Font.color palette.text
         , model |> dimensions |> .smallText
         , height fill
@@ -572,7 +572,7 @@ view model =
 
 progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
 progressBar attrs message =
-    column ([ htmlAttribute <| Html.style "width" "calc(15vh + 15vw)" ] ++ attrs)
+    column ([ htmlAttribute <| Html.style "width" "calc(50vw)" ] ++ attrs)
         [ Element.html <|
             Html.div
                 [ Html.class "progress progress-sm progress-indeterminate" ]
@@ -790,7 +790,7 @@ playlistCheckbox tagger ( selected, playlist ) =
                         "[X]"
 
                     else
-                        "[   ]"
+                        "[ ]"
         , checked = selected
         , label = labelRight [] <| text (Playlist.summary playlist)
         }
@@ -1145,9 +1145,9 @@ dimensions : { m | device : Element.Device } -> DimensionPalette msg
 dimensions { device } =
     case device.class of
         Phone ->
-            { smallText = scaled 1 |> round |> Font.size
-            , mediumText = scaled 2 |> round |> Font.size
-            , largeText = scaled 3 |> round |> Font.size
+            { smallText = scaled -1 |> round |> Font.size
+            , mediumText = scaled 1 |> round |> Font.size
+            , largeText = scaled 2 |> round |> Font.size
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 5 |> round |> spacing
