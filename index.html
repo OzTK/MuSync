@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="dzn" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Playlist Importer</title>
+  <link rel="manifest" href="manifest.json">
+  <title>MuSync≈ƒ</title>
   <!-- Using local css for now
   <link rel="stylesheet" href="https://cdn.shoelace.style/1.0.0-beta22/shoelace.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css">
@@ -34,6 +35,19 @@
   <div id="app"></div>
 
   <!-- Elm (ports, init, ...) -->
+  <script src="js/manup.min.js"></script>
+  <script>
+    if (navigator.serviceWorker.controller) {
+      console.log('Active service worker found, no need to register')
+    } else {
+      //Register the ServiceWorker
+      navigator.serviceWorker.register('service-worker.js', {
+        scope: './'
+      }).then(function (reg) {
+        console.log('Service worker has been registered for scope:' + reg.scope);
+      });
+    }
+  </script>
   <script src="js/elm.js"></script>
   <script>
     var elmApp = Elm.Main.init({
