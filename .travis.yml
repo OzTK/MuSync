@@ -22,10 +22,6 @@ jobs:
   include:
     - stage: integration tests
       <<: *defaults
-    - stage: integration tests
-      <<: *defaults
-    - stage: integration tests
-      <<: *defaults
     - stage: deploy
       name: 'Deploying to surge.sh'
       script:
