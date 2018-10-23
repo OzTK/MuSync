@@ -4,9 +4,9 @@
   "name": "MuSync",
   "scope": "/",
   "display": "standalone",
-  "start_url": "https://playlist-importer.surge.sh/",
+  "start_url": ".",
   "short_name": "MuSync",
-  "theme_color": "",
+  "theme_color": "#FEF5F1",
   "description": "Keep your music library free!",
   "orientation": "any",
   "background_color": "#FEF5F1",
@@ -20,11 +20,6 @@
     {
       "src": "/assets/img/icon/windows10/LockScreenLogo.scale-200.png.png",
       "sizes": "48x48",
-      "type": "image/png"
-    },
-    {
-      "src": "/assets/img/icon/windows10/SplashScreen.scale-200.png.png",
-      "sizes": "1240x600",
       "type": "image/png"
     },
     {
@@ -80,11 +75,6 @@
     {
       "src": "/assets/img/icon/android/android-launchericon-36-36.png",
       "sizes": "36x36",
-      "type": "image/png"
-    },
-    {
-      "src": "/assets/img/icon/ios/ios-appicon-1024-1024.png",
-      "sizes": "1024x1024",
       "type": "image/png"
     },
     {

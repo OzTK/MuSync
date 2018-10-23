@@ -12,6 +12,9 @@ var preLoad = function () {
 
 self.addEventListener('fetch', function (event) {
   console.log('The service worker is serving the asset.');
+  if (!event.request.url) {
+    return Promise.resolve()
+  }
   event.respondWith(checkResponse(event.request).catch(function () {
     return returnFromCache(event.request)
   }));
@@ -21,7 +24,7 @@ self.addEventListener('fetch', function (event) {
 var checkResponse = function (request) {
   return new Promise(function (fulfill, reject) {
     fetch(request).then(function (response) {
-      if (response.status !== 404) {
+      if (response.status !== 404 || response.type === 'opaque') {
         fulfill(response)
       } else {
         reject()
@@ -31,9 +34,13 @@ var checkResponse = function (request) {
 };
 
 var addToCache = function (request) {
+  if (request.url.startsWith('chrome-extension://')) {
+    console.log("ignoring extension: " + request.url)
+    return Promise.resolve()
+  }
   return caches.open('offline').then(function (cache) {
     return fetch(request).then(function (response) {
-      console.log('add page to offline' + response.url)
+      console.log('add page to offline ' + request.url)
       return cache.put(request, response);
     });
   });
