@@ -553,7 +553,7 @@ view model =
         }
         [ Bg.color palette.primaryFaded
         , Font.family
-            [ Font.typeface "FiraCode-Regular" ]
+            [ Font.typeface "Fira Code" ]
         , Font.color palette.text
         , model |> dimensions |> .smallText
         , height fill
