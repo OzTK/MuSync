@@ -26,6 +26,7 @@ import Element
         , el
         , fill
         , fillPortion
+        , focused
         , height
         , html
         , htmlAttribute
@@ -726,9 +727,6 @@ content model =
         , height fill
         , model |> dimensions |> .smallPadding
         , clip
-
-        -- Background note: looks better without it right now
-        -- , Element.behindContent <| note [ height (px 200), alpha 0.1, centerX, centerY ]
         ]
     <|
         [ routeMainView model ]
@@ -748,9 +746,13 @@ routeMainView model =
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
         PickPlaylists playlistsMap ->
-            Element.column [ width fill, height fill, clip, hack_forceClip, model |> dimensions |> .mediumSpacing ] <|
-                [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Pick the playlists you want to transfer" ]
-                , Element.column [ width fill, height fill, scrollbarY, model |> dimensions |> .mediumSpacing ]
+            let
+                d =
+                    dimensions model
+            in
+            Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing, d.smallPadding ] <|
+                [ paragraph [ d.largeText, Font.center ] [ text "Pick the playlists you want to transfer" ]
+                , Element.column [ width fill, height fill, scrollbarY, d.mediumSpacing ]
                     (playlistsMap
                         |> Dict.keys
                         |> List.map
@@ -759,8 +761,8 @@ routeMainView model =
                                     ( otherCon, p ) =
                                         Dict.get c playlistsMap |> Maybe.withDefault ( c, [] )
                                 in
-                                Element.column [ model |> dimensions |> .smallSpacing ] <|
-                                    (Element.el [ model |> dimensions |> .mediumText ] <|
+                                Element.column [ d.smallSpacing ] <|
+                                    (Element.el [ d.mediumText ] <|
                                         text <|
                                             (Provider.type_ >> Provider.toString) c
                                                 ++ " --> "
@@ -818,16 +820,17 @@ connectView : { m | device : Element.Device } -> (ProviderConnection -> msg) -> 
 connectView model tagger transitioner connections =
     column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
         [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , wrappedRow [ model |> dimensions |> .smallSpacing, centerX, centerY ]
+        , row [ model |> dimensions |> .smallSpacing, centerX, centerY ]
             (connections
                 |> List.map
                     (\connection ->
                         button
                             [ model |> dimensions |> .largePadding
-                            , Border.color palette.primary
-                            , Border.rounded 5
-                            , Border.width 2
-                            , mouseOver [ Bg.color palette.primary ]
+                            , Bg.color palette.white
+                            , Border.rounded 3
+                            , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+                            , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
+                            , transition "box-shadow"
                             , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> Provider.toString) connection)
                             ]
                             { onPress =
@@ -947,12 +950,12 @@ comparedSearch ({ availableConnections, playlists, comparedProvider, songs } as 
 
 songsView : Model -> Playlist -> Element Msg
 songsView model playlist =
-    column [ width fill, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
+    column [ width fill, height fill, clip, hack_forceClip ]
         [ button linkButtonStyle { onPress = Just BackToPlaylists, label = text "<< back" }
         , playlist.songs
             |> RemoteData.map
                 (\s ->
-                    column [ spacing 5, height fill, clip, htmlAttribute (Html.style "flex-shrink" "1") ]
+                    column [ spacing 5, height fill, clip, hack_forceClip ]
                         [ comparedSearch model playlist
                         , column (songsListStyle model) <|
                             (el (mainTitleStyle model) (text "Songs") :: List.map (song model) s)
@@ -1202,6 +1205,11 @@ palette =
     }
 
 
+transition : String -> Element.Attribute msg
+transition prop =
+    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease-out")
+
+
 mainTitleStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 mainTitleStyle model =
     [ model |> dimensions |> .largeText, Font.color palette.primary ]
@@ -1224,12 +1232,21 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
                     [ width (shrink |> minimum 120), d.smallVPadding ]
     in
     [ Font.color textColor
+    , Bg.color bgColor
     , Border.rounded 5
     , Border.color bgHoverColor
     , Border.solid
     , Border.width 1
     , alignBottom
-    , mouseOver [ Bg.color bgHoverColor, Font.color textHoverColor ]
+    , Font.center
+    , Font.semiBold
+    , Border.shadow { offset = ( 0, 0 ), blur = 8, size = 1, color = palette.text }
+    , transition "box-shadow"
+    , mouseOver
+        [ Bg.color bgHoverColor
+        , Font.color textHoverColor
+        , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+        ]
     ]
         ++ deviceDependent
 
@@ -1253,7 +1270,7 @@ iconButtonStyle =
 
 primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 primaryButtonStyle { device } =
-    baseButtonStyle device ( palette.transparent, palette.text ) ( palette.secondary, palette.white )
+    baseButtonStyle device ( palette.secondary, palette.white ) ( palette.secondary, palette.white )
 
 
 primarySelectedButtonStyle =
