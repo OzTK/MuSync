@@ -17,7 +17,7 @@ Cypress.Commands.add(
 Cypress.Commands.add(
   "withPlaylists",
   (providerName) =>
-  cy.contains(providerName).parent().children('label')
+  cy.contains(providerName).parent().parent().children('label')
 )
 
 Cypress.Commands.add(

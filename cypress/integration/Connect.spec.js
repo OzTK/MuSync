@@ -4,6 +4,7 @@ describe('Visiting the website and connecting music providers', () => {
     let providerPickerLength = 2
 
     cy.contains('Connect your favorite music providers')
+      .parent()
       .next()
       .find('[role="button"]')
       .as('providers')

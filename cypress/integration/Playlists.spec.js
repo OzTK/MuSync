@@ -9,12 +9,13 @@ describe('Connecting a music provider and displaying its playlists', () => {
     cy.contains('Spotify')
       .should('exist')
       .parent()
+      .parent()
       .children('label')
       .should('have.length', 4)
   })
 
   it('selects playlists when clicking on them', () => {
-    cy.contains('Spotify').parent().children('label').as('playlists')
+    cy.contains('Spotify').parent().parent().children('label').as('playlists')
 
     cy.get('@playlists').each((p) => {
       cy.wrap(p)
