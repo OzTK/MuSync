@@ -8,7 +8,6 @@ port module Spotify exposing
     , searchTrack
     )
 
-import Connection.Provider exposing (MusicProviderType(..))
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -46,14 +45,14 @@ getPlaylists _ tagger =
 
 getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
 getPlaylistTracksFromLink _ tagger _ =
-    [ { id = ( "1", Spotify ), artist = "Johnny Halliday", title = "Allmuer le feu" }
-    , { id = ( "2", Spotify ), artist = "Serge Gainsbourg", title = "Petit" }
-    , { id = ( "3", Spotify ), artist = "The Beatles", title = "Yellow Submarine" }
-    , { id = ( "4", Spotify ), artist = "Iron Maiden", title = "666" }
-    , { id = ( "5", Spotify ), artist = "Mickael Jackson", title = "Beat it" }
-    , { id = ( "6", Spotify ), artist = "RHCP", title = "Californication" }
-    , { id = ( "7", Spotify ), artist = "The Clash", title = "London Calling" }
-    , { id = ( "8", Spotify ), artist = "The Tiger Lillies", title = "Terrible" }
+    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu" }
+    , { id = "2", artist = "Serge Gainsbourg", title = "Petit" }
+    , { id = "3", artist = "The Beatles", title = "Yellow Submarine" }
+    , { id = "4", artist = "Iron Maiden", title = "666" }
+    , { id = "5", artist = "Mickael Jackson", title = "Beat it" }
+    , { id = "6", artist = "RHCP", title = "Californication" }
+    , { id = "7", artist = "The Clash", title = "London Calling" }
+    , { id = "8", artist = "The Tiger Lillies", title = "Terrible" }
     ]
         |> Task.succeed
         |> RemoteData.asCmd
