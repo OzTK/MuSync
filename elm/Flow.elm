@@ -1,13 +1,15 @@
-module Flow exposing (Flow(..), next, start, togglePlaylist, udpateLoadingPlaylists, updateConnection)
+module Flow exposing (Flow(..), clearSelection, next, pickPlaylist, pickService, start, udpateLoadingPlaylists, updateConnection)
 
 import Connection exposing (ProviderConnection)
-import Connection.Provider as Provider exposing (ConnectedProvider, MusicProviderType)
 import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
+import MusicService exposing (ConnectedProvider, MusicService)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
+import SelectableList exposing (ListWithSelection)
+import String.Extra as String
 import Tuple exposing (pair, second)
 
 
@@ -15,19 +17,27 @@ type alias ConnectionsWithLoadingPlaylists =
     List ( ConnectedProvider, WebData (List Playlist) )
 
 
-type alias SelectablePlaylistsByConnection =
-    AnyDict String ConnectedProvider ( ConnectedProvider, List ( Bool, Playlist ) )
+type alias PlaylistsDict =
+    AnyDict String ( ConnectedProvider, PlaylistId ) Playlist
 
 
-type alias PlaylistsByConnection =
-    AnyDict String ConnectedProvider ( ConnectedProvider, List Playlist )
+type Selection
+    = NoSelection
+    | PlaylistSelected ConnectedProvider PlaylistId
+    | OtherServiceSelected ConnectedProvider PlaylistId ConnectedProvider
+
+
+type alias PlaylistAndSelection =
+    { selection : Selection
+    , playlists : PlaylistsDict
+    }
 
 
 type Flow
     = Connect (List ProviderConnection)
     | LoadPlaylists ConnectionsWithLoadingPlaylists
-    | PickPlaylists SelectablePlaylistsByConnection
-    | Sync PlaylistsByConnection
+    | PickPlaylists PlaylistAndSelection
+    | Sync PlaylistsDict ConnectedProvider PlaylistId ConnectedProvider
 
 
 start : List ProviderConnection -> Flow
@@ -39,11 +49,15 @@ next : Flow -> Flow
 next flow =
     case flow of
         Connect connections ->
-            LoadPlaylists
-                (connections
-                    |> Connections.connectedProviders
-                    |> List.map (\c -> ( c, Loading ))
-                )
+            let
+                connected =
+                    Connections.connectedProviders connections
+            in
+            if List.length connected > 1 then
+                LoadPlaylists (List.map (\c -> ( c, Loading )) connected)
+
+            else
+                flow
 
         LoadPlaylists data ->
             data
@@ -51,33 +65,22 @@ next flow =
                     (\( con, d ) ->
                         d
                             |> RemoteData.toMaybe
-                            |> Maybe.map2
-                                (\( otherCon, _ ) p ->
-                                    ( con, ( otherCon, List.map (pair False) p ) )
-                                )
-                                (List.find (Tuple.first >> (/=) con) data)
+                            |> Maybe.map (List.map (\p -> ( ( con, p.id ), p )))
                     )
                 |> Maybe.fromList
-                |> Maybe.map (Dict.fromList (Provider.type_ >> Provider.toString))
+                |> Maybe.map List.concat
+                |> Maybe.map (Dict.fromList (Tuple.mapFirst (MusicService.type_ >> MusicService.toString) >> String.fromPair "_"))
+                |> Maybe.map (PlaylistAndSelection NoSelection)
                 |> Maybe.map PickPlaylists
                 |> Maybe.withDefault flow
 
-        PickPlaylists selection ->
-            selection
-                |> Dict.map
-                    (\_ ( otherCon, playlists ) ->
-                        playlists
-                            |> List.filterMap
-                                (\( selected, p ) ->
-                                    if selected then
-                                        Just p
+        PickPlaylists { playlists, selection } ->
+            case selection of
+                OtherServiceSelected s1 p s2 ->
+                    Sync playlists s1 p s2
 
-                                    else
-                                        Nothing
-                                )
-                            |> pair otherCon
-                    )
-                |> Sync
+                _ ->
+                    flow
 
         _ ->
             flow
@@ -87,7 +90,7 @@ next flow =
 -- Connect
 
 
-updateConnection : (ProviderConnection -> ProviderConnection) -> MusicProviderType -> Flow -> Flow
+updateConnection : (ProviderConnection -> ProviderConnection) -> MusicService -> Flow -> Flow
 updateConnection updater pType flow =
     case flow of
         Connect connections ->
@@ -133,16 +136,46 @@ udpateLoadingPlaylists connection playlists flow =
 -- PickPlaylists
 
 
-togglePlaylist : ConnectedProvider -> PlaylistId -> Flow -> Flow
-togglePlaylist connection id flow =
+pickPlaylist : ConnectedProvider -> PlaylistId -> Flow -> Flow
+pickPlaylist connection id flow =
     case flow of
-        PickPlaylists playlistsMap ->
-            playlistsMap
-                |> Dict.update connection
-                    (Maybe.map <|
-                        Tuple.mapSecond (List.update (second >> .id >> (==) id) (Tuple.mapFirst not))
-                    )
-                |> PickPlaylists
+        PickPlaylists { playlists, selection } ->
+            case selection of
+                NoSelection ->
+                    PickPlaylists <| PlaylistAndSelection (PlaylistSelected connection id) playlists
+
+                _ ->
+                    flow
+
+        _ ->
+            flow
+
+
+pickService : ConnectedProvider -> Flow -> Flow
+pickService otherConnection flow =
+    case flow of
+        PickPlaylists { playlists, selection } ->
+            case selection of
+                PlaylistSelected connection id ->
+                    if otherConnection /= connection then
+                        PickPlaylists <|
+                            PlaylistAndSelection (OtherServiceSelected connection id otherConnection) playlists
+
+                    else
+                        flow
+
+                _ ->
+                    flow
+
+        _ ->
+            flow
+
+
+clearSelection : Flow -> Flow
+clearSelection flow =
+    case flow of
+        PickPlaylists { playlists, selection } ->
+            PickPlaylists <| PlaylistAndSelection NoSelection playlists
 
         _ ->
             flow

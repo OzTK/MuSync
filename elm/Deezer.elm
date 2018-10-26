@@ -20,7 +20,6 @@ port module Deezer exposing
 
 import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip)
-import Connection.Provider exposing (MusicProviderType(..))
 import Dict
 import Http exposing (Error(..), Response)
 import Json.Decode as JD exposing (Decoder, int, map, string)
@@ -45,7 +44,7 @@ playlist =
 track : Decoder Track
 track =
     JD.succeed Track
-        |> custom (JD.succeed pair |> required "id" (map String.fromInt int) |> hardcoded Deezer)
+        |> required "id" (map String.fromInt int)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
 

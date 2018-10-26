@@ -1,5 +1,6 @@
 module SelectableList exposing
     ( SelectableList
+    , ListWithSelection
     , clear
     , filterMap
     , find
@@ -19,8 +20,12 @@ module SelectableList exposing
     )
 
 
+type ListWithSelection a
+    = Selection a (List a)
+
+
 type SelectableList a
-    = Selected a (List a)
+    = Selected (ListWithSelection a)
     | NotSelected (List a)
 
 
@@ -43,15 +48,16 @@ findAndUpdate updater element =
 update : (a -> a) -> a -> SelectableList a -> SelectableList a
 update updater el sList =
     case sList of
-        Selected sel list ->
-            Selected
-                (if el == sel then
-                    updater el
+        Selected (Selection sel list) ->
+            Selected <|
+                Selection
+                    (if el == sel then
+                        updater el
 
-                 else
-                    el
-                )
-                (findAndUpdate updater el list)
+                     else
+                        el
+                    )
+                    (findAndUpdate updater el list)
 
         NotSelected list ->
             NotSelected (findAndUpdate updater el list)
@@ -69,7 +75,7 @@ fromList list =
 toList : SelectableList a -> List a
 toList sList =
     case sList of
-        Selected _ list ->
+        Selected (Selection _ list) ->
             list
 
         NotSelected list ->
@@ -83,7 +89,7 @@ select el sList =
             toList sList
     in
     if List.member el list then
-        Selected el list
+        Selected <| Selection el list
 
     else
         NotSelected list
@@ -98,12 +104,12 @@ selectFirst predicate sList =
     List.foldl
         (\el selection ->
             case selection of
-                Selected _ _ ->
+                Selected (Selection _ _) ->
                     selection
 
                 NotSelected l ->
                     if predicate el then
-                        Selected el l
+                        Selected <| Selection el l
 
                     else
                         selection
@@ -130,7 +136,8 @@ upSelect updater element sList =
                 else
                     updated
             )
-        |> Selected updated
+        |> Selection updated
+        |> Selected
 
 
 clear : SelectableList a -> SelectableList a
@@ -141,7 +148,7 @@ clear sList =
 selected : SelectableList a -> Maybe a
 selected sList =
     case sList of
-        Selected el _ ->
+        Selected (Selection el _) ->
             Just el
 
         NotSelected _ ->
@@ -151,7 +158,7 @@ selected sList =
 isSelected : a -> SelectableList a -> Bool
 isSelected item list =
     case list of
-        Selected selection _ ->
+        Selected (Selection selection _) ->
             item == selection
 
         NotSelected _ ->
@@ -161,7 +168,7 @@ isSelected item list =
 rest : SelectableList a -> SelectableList a
 rest sList =
     case sList of
-        Selected sel list ->
+        Selected (Selection sel list) ->
             NotSelected <| List.filter ((/=) sel) list
 
         noSelection ->
@@ -176,8 +183,8 @@ hasSelection sList =
 map : (a -> b) -> SelectableList a -> SelectableList b
 map f sList =
     case sList of
-        Selected el list ->
-            Selected (f el) (List.map f list)
+        Selected (Selection el list) ->
+            Selected <| Selection (f el) (List.map f list)
 
         NotSelected list ->
             NotSelected <| List.map f list
@@ -185,17 +192,18 @@ map f sList =
 
 mapWithStatus f sList =
     case sList of
-        Selected el list ->
-            Selected (f el True) <|
-                List.map
-                    (\elem ->
-                        if elem == el then
-                            f elem True
+        Selected (Selection el list) ->
+            Selected <|
+                Selection (f el True) <|
+                    List.map
+                        (\elem ->
+                            if elem == el then
+                                f elem True
 
-                        else
-                            f elem False
-                    )
-                    list
+                            else
+                                f elem False
+                        )
+                        list
 
         NotSelected list ->
             NotSelected <| List.map (\elem -> f elem False) list
@@ -203,9 +211,9 @@ mapWithStatus f sList =
 
 filterMap f sList =
     case sList of
-        Selected el list ->
+        Selected (Selection el list) ->
             f el
-                |> Maybe.map (\elem -> Selected elem (List.filterMap f list))
+                |> Maybe.map (\elem -> Selected <| Selection elem (List.filterMap f list))
                 |> Maybe.withDefault (NotSelected <| List.filterMap f list)
 
         NotSelected list ->
@@ -215,7 +223,7 @@ filterMap f sList =
 mapSelected : (a -> a) -> SelectableList a -> SelectableList a
 mapSelected f sList =
     case sList of
-        Selected el list ->
+        Selected (Selection el list) ->
             upSelect f el sList
 
         _ ->
@@ -225,17 +233,19 @@ mapSelected f sList =
 mapBoth : (a -> b) -> (a -> b) -> SelectableList a -> SelectableList b
 mapBoth fSelected fUnselected sList =
     case sList of
-        Selected sel list ->
-            Selected (fSelected sel) <|
-                List.map
-                    (\el ->
-                        if el == sel then
-                            fSelected el
+        Selected (Selection sel list) ->
+            Selected
+                (Selection (fSelected sel) <|
+                    List.map
+                        (\el ->
+                            if el == sel then
+                                fSelected el
 
-                        else
-                            fUnselected el
-                    )
-                    list
+                            else
+                                fUnselected el
+                        )
+                        list
+                )
 
         NotSelected list ->
             NotSelected <| List.map fUnselected list

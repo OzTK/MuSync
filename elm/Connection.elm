@@ -8,19 +8,23 @@ module Connection exposing
     , isConnected
     , isConnecting
     , map
+    , toggleProviderConnect
     , type_
     )
 
-import Connection.Provider as P
+import Deezer
+import Model exposing (UserInfo)
+import MusicService as P
     exposing
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
         , DisconnectedProvider(..)
-        , MusicProviderType
+        , MusicService(..)
         , OAuthToken
         )
-import Model exposing (UserInfo)
 import RemoteData exposing (WebData)
+import Spotify
+import Task
 
 
 
@@ -33,22 +37,22 @@ type ProviderConnection
     | Connected ConnectedProvider
 
 
-connected : MusicProviderType -> WebData UserInfo -> ProviderConnection
+connected : MusicService -> WebData UserInfo -> ProviderConnection
 connected pType userInfo =
     Connected <| P.connected pType userInfo
 
 
-connectedWithToken : MusicProviderType -> OAuthToken -> WebData UserInfo -> ProviderConnection
+connectedWithToken : MusicService -> OAuthToken -> WebData UserInfo -> ProviderConnection
 connectedWithToken pType token user =
     Connected <| P.connectedWithToken pType token user
 
 
-disconnected : MusicProviderType -> ProviderConnection
+disconnected : MusicService -> ProviderConnection
 disconnected =
     Disconnected << P.disconnected
 
 
-connecting : MusicProviderType -> ProviderConnection
+connecting : MusicService -> ProviderConnection
 connecting =
     Connecting << P.connecting
 
@@ -83,7 +87,7 @@ isConnecting connection =
             False
 
 
-type_ : ProviderConnection -> MusicProviderType
+type_ : ProviderConnection -> MusicService
 type_ con =
     case con of
         Disconnected (DisconnectedProvider pType) ->
@@ -113,3 +117,27 @@ withDefault default connection =
 
         _ ->
             default
+
+
+notifyProviderDisconnected : (DisconnectedProvider -> msg) -> DisconnectedProvider -> Cmd msg
+notifyProviderDisconnected tagger connection =
+    Task.succeed () |> Task.perform (\_ -> tagger connection)
+
+
+toggleProviderConnect : (DisconnectedProvider -> msg) -> ProviderConnection -> Cmd msg
+toggleProviderConnect tagger connection =
+    case ( type_ connection, connection ) of
+        ( Deezer, Connected con ) ->
+            Cmd.batch [ Deezer.disconnect (), notifyProviderDisconnected tagger <| P.disconnect con ]
+
+        ( Deezer, Disconnected _ ) ->
+            Deezer.connectD ()
+
+        ( Spotify, Connected con ) ->
+            notifyProviderDisconnected tagger <| P.disconnect con
+
+        ( Spotify, Disconnected _ ) ->
+            Spotify.connectS ()
+
+        _ ->
+            Cmd.none

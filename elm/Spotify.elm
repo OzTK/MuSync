@@ -8,7 +8,6 @@ port module Spotify exposing
     , searchTrack
     )
 
-import Connection.Provider exposing (MusicProviderType(..))
 import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -57,11 +56,7 @@ toArtistName artists =
 track : Decoder Track
 track =
     Decode.succeed Track
-        |> Pip.custom
-            (Decode.succeed pair
-                |> Pip.required "id" string
-                |> Pip.hardcoded Spotify
-            )
+        |> Pip.required "id" string
         |> Pip.required "name" string
         |> Pip.custom
             (Decode.succeed toArtistName
@@ -221,7 +216,7 @@ addSongsToPlaylistTask token songs playlistData =
                 (JE.object
                     [ ( "uris"
                       , songs
-                            |> List.map (.id >> Tuple.first)
+                            |> List.map .id
                             |> List.map ((++) "spotify:track:")
                             |> JE.list JE.string
                       )

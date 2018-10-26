@@ -1,4 +1,4 @@
-module Maybe.Extra exposing (fromBool, fromList, isDefined, mapTogether, not)
+module Maybe.Extra exposing (filter, fromBool, fromList, isDefined, mapTogether, not)
 
 
 mapTogether : (a -> b) -> (a -> c) -> Maybe a -> Maybe ( b, c )
@@ -38,3 +38,14 @@ not maybe =
 fromList : List (Maybe any) -> Maybe (List any)
 fromList =
     List.foldr (Maybe.map2 (::)) <| Just []
+
+
+filter : (any -> Bool) -> Maybe any -> Maybe any
+filter f =
+    Maybe.andThen <|
+        \value ->
+            if f value then
+                Just value
+
+            else
+                Nothing
