@@ -1,4 +1,4 @@
-module Flow exposing (Flow(..), clearSelection, next, pickPlaylist, pickService, start, udpateLoadingPlaylists, updateConnection)
+module Flow exposing (Flow(..), clearSelection, next, canStep, pickPlaylist, pickService, start, udpateLoadingPlaylists, updateConnection)
 
 import Connection exposing (ProviderConnection)
 import Dict.Any as Dict exposing (AnyDict)
@@ -43,6 +43,27 @@ type Flow
 start : List ProviderConnection -> Flow
 start connections =
     Connect connections
+
+
+canStep : Flow -> Bool
+canStep flow =
+    case flow of
+        Connect connections ->
+            connections |> Connections.connectedProviders |> List.length |> (<) 1
+
+        LoadPlaylists data ->
+            data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
+
+        PickPlaylists { selection } ->
+            case selection of
+                OtherServiceSelected _ _ _ ->
+                    True
+
+                _ ->
+                    False
+
+        Sync _ _ _ _ ->
+            False
 
 
 next : Flow -> Flow

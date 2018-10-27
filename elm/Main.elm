@@ -31,6 +31,7 @@ import Element
         , image
         , maximum
         , minimum
+        , mouseDown
         , mouseOver
         , moveDown
         , moveUp
@@ -459,7 +460,7 @@ connectionStatus isConnected =
         }
 
 
-connectView : { m | device : Element.Device } -> (ProviderConnection -> msg) -> msg -> List ProviderConnection -> Element msg
+connectView : { m | device : Element.Device, flow : Flow } -> (ProviderConnection -> msg) -> msg -> List ProviderConnection -> Element msg
 connectView model tagger transitioner connections =
     column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
         [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
@@ -468,14 +469,22 @@ connectView model tagger transitioner connections =
                 |> List.map
                     (\connection ->
                         button
-                            [ model |> dimensions |> .largePadding
-                            , Bg.color palette.white
-                            , Border.rounded 3
-                            , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
-                            , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
-                            , transition "box-shadow"
-                            , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
-                            ]
+                            ([ model |> dimensions |> .largePadding
+                             , Bg.color palette.white
+                             , Border.rounded 3
+                             , transition "box-shadow"
+                             , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
+                             , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+                             ]
+                                ++ (if Connection.isConnected connection then
+                                        [ Border.innerGlow palette.text 1 ]
+
+                                    else
+                                        [ mouseDown [ Border.glow palette.text 1 ]
+                                        , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
+                                        ]
+                                   )
+                            )
                             { onPress =
                                 if Connection.isConnected connection then
                                     Nothing
@@ -490,7 +499,16 @@ connectView model tagger transitioner connections =
                             }
                     )
             )
-        , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Next", onPress = Just transitioner }
+        , Flow.canStep model.flow
+            |> Maybe.fromBool
+            |> Maybe.map
+                (const <|
+                    button (primaryButtonStyle model ++ [ centerX ])
+                        { label = text "Next"
+                        , onPress = Just transitioner
+                        }
+                )
+            |> Maybe.withDefault (el [ height (px 50) ] Element.none)
         ]
 
 
