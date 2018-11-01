@@ -408,18 +408,23 @@ routeMainView model =
 
 playlistRow : { m | device : Element.Device } -> (PlaylistId -> msg) -> Playlist -> Element msg
 playlistRow model tagger playlist =
+    let
+        d =
+            dimensions model
+    in
     button
         [ width fill
         , clip
         , Border.widthEach { top = 1, left = 0, right = 0, bottom = 0 }
         , Border.color palette.primaryFaded
-        , model |> dimensions |> .smallPaddingAll
+        , d.smallPaddingAll
         , mouseOver [ Bg.color palette.ternaryFaded ]
+        , transition "background"
         ]
         { onPress = Just <| tagger playlist.id
         , label =
-            row [ width fill, spacing 1 ] <|
-                [ el [ width fill, clip, htmlAttribute <| Html.style "text-overflow" "ellipsis", htmlAttribute <| Html.style "display" "inline-block" ] <|
+            row [ width fill, d.smallSpacing ] <|
+                [ el ([ width fill, clip ] ++ hack_textEllipsis) <|
                     Element.html <|
                         Html.text <|
                             Playlist.summary playlist
@@ -447,7 +452,7 @@ playlistsList model { playlists } =
                 |> Dict.map
                     (\connection playlistIds ->
                         Element.column [ width fill ] <|
-                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.textFaded ] <|
+                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
                                 text <|
                                     MusicService.connectionToString connection
                             )
@@ -835,6 +840,11 @@ playlistsListStyle { device } =
 hack_forceClip : Element.Attribute msg
 hack_forceClip =
     htmlAttribute (Html.style "flex-shrink" "1")
+
+
+hack_textEllipsis : List (Element.Attribute msg)
+hack_textEllipsis =
+    [ htmlAttribute <| Html.style "text-overflow" "ellipsis", htmlAttribute <| Html.style "display" "inline-block" ]
 
 
 
