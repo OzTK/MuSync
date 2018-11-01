@@ -19,7 +19,7 @@ type alias Playlist =
 
 summary : Playlist -> String
 summary { name, tracksCount } =
-    name ++ " (" ++ String.fromInt tracksCount ++ " tracks)"
+    name
 
 
 loadSongs : Playlist -> Playlist

@@ -34,7 +34,8 @@ var checkResponse = function (request) {
 };
 
 var addToCache = function (request) {
-  if (request.url.startsWith('chrome-extension://')) {
+  if (request.url.startsWith('chrome-extension://') ||
+      request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
     console.log("ignoring extension: " + request.url)
     return Promise.resolve()
   }

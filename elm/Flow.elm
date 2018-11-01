@@ -1,4 +1,17 @@
-module Flow exposing (Flow(..), clearSelection, next, canStep, pickPlaylist, pickService, start, udpateLoadingPlaylists, updateConnection)
+module Flow exposing
+    ( ConnectionsWithLoadingPlaylists
+    , Flow(..)
+    , PlaylistAndSelection
+    , allServices
+    , canStep
+    , clearSelection
+    , next
+    , pickPlaylist
+    , pickService
+    , start
+    , udpateLoadingPlaylists
+    , updateConnection
+    )
 
 import Connection exposing (ProviderConnection)
 import Dict.Any as Dict exposing (AnyDict)
@@ -90,7 +103,7 @@ next flow =
                     )
                 |> Maybe.fromList
                 |> Maybe.map List.concat
-                |> Maybe.map (Dict.fromList (Tuple.mapFirst (MusicService.type_ >> MusicService.toString) >> String.fromPair "_"))
+                |> Maybe.map (Dict.fromList (Tuple.mapFirst MusicService.connectionToString >> String.fromPair "_"))
                 |> Maybe.map (PlaylistAndSelection NoSelection)
                 |> Maybe.map PickPlaylists
                 |> Maybe.withDefault flow
@@ -109,6 +122,16 @@ next flow =
 
 
 -- Connect
+
+
+allServices : Flow -> Maybe (List ProviderConnection)
+allServices flow =
+    case flow of
+        Connect services ->
+            Just services
+
+        _ ->
+            Nothing
 
 
 updateConnection : (ProviderConnection -> ProviderConnection) -> MusicService -> Flow -> Flow

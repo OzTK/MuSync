@@ -9,7 +9,8 @@ import Dict.Any as Dict exposing (AnyDict)
 import Dict.Any.Extra as Dict
 import Element
     exposing
-        ( DeviceClass(..)
+        ( Color
+        , DeviceClass(..)
         , Element
         , Orientation(..)
         , alignBottom
@@ -36,6 +37,7 @@ import Element
         , moveDown
         , moveUp
         , padding
+        , paddingEach
         , paddingXY
         , paragraph
         , px
@@ -54,7 +56,7 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
-import Flow exposing (Flow(..))
+import Flow exposing (ConnectionsWithLoadingPlaylists, Flow(..), PlaylistAndSelection)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -301,6 +303,10 @@ getFlowStepCmd flow =
 
 view : Model -> Html Msg
 view model =
+    let
+        d =
+            dimensions model
+    in
     Element.layoutWith
         { options =
             [ Element.focusStyle
@@ -310,18 +316,32 @@ view model =
                 }
             ]
         }
-        [ Bg.color palette.primaryFaded
-        , Font.family
+        [ Font.family
             [ Font.typeface "Fira Code" ]
         , Font.color palette.text
-        , model |> dimensions |> .smallText
+        , d.smallText
         , height fill
         , width fill
         ]
     <|
-        column [ paddingXY 16 8, spacing 5, height fill, width fill ]
-            [ row [ Region.navigation, width fill ] [ header model ]
-            , row [ Region.mainContent, width fill, height fill, clip, hack_forceClip ] [ content model ]
+        column [ height fill, width fill ]
+            [ row
+                [ Region.navigation
+                , width fill
+                , d.smallPaddingAll
+                , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
+                , Border.color palette.textFaded
+                ]
+                [ header model ]
+            , row
+                [ Region.mainContent
+                , width fill
+                , height fill
+                , clip
+                , d.mediumPaddingTop
+                , hack_forceClip
+                ]
+                [ routeMainView model ]
             ]
 
 
@@ -370,76 +390,76 @@ header { device } =
                 [ alignLeft, width (px 250) ]
 
 
-content : Model -> Element Msg
-content model =
-    column
-        [ Bg.color palette.transparentWhite
-        , Border.rounded 3
-        , Border.glow palette.ternary 1
-        , width fill
-        , height fill
-        , model |> dimensions |> .smallPadding
-        , clip
-        ]
-    <|
-        [ routeMainView model ]
-
-
-
--- New layout
-
-
 routeMainView : Model -> Element Msg
 routeMainView model =
     case model.flow of
         Connect connections ->
-            connectView model ToggleConnect StepFlow connections
+            connectView model connections <| Flow.canStep model.flow
 
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
-        PickPlaylists { playlists } ->
-            let
-                d =
-                    dimensions model
-
-                serviceName =
-                    MusicService.type_ >> MusicService.toString
-            in
-            Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing, d.smallPadding ] <|
-                [ paragraph [ d.largeText, Font.center ] [ text "Pick the playlists you want to transfer" ]
-                , Element.column [ width fill, height fill, scrollbarY, d.mediumSpacing ]
-                    (playlists
-                        |> Dict.keys
-                        |> List.foldl (\( c, id ) grouped -> Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped) (Dict.empty serviceName)
-                        |> Dict.map
-                            (\connection playlistIds ->
-                                Element.column [ d.smallSpacing ] <|
-                                    (Element.el [ d.mediumText ] <|
-                                        text <|
-                                            serviceName connection
-                                    )
-                                        :: (playlistIds
-                                                |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
-                                                |> List.map (playlistRow <| TogglePlaylistSelected connection)
-                                                |> List.withDefault [ text "No tracks" ]
-                                           )
-                            )
-                        |> Dict.values
-                    )
-                , button (primaryButtonStyle model ++ [ centerX ]) { label = text "Sync", onPress = Just StepFlow }
-                ]
+        PickPlaylists playlistsSelection ->
+            playlistsList model playlistsSelection
 
         Sync _ _ _ _ ->
             progressBar [ centerX, centerY ] (Just "Syncing your playlists")
 
 
-playlistRow : (PlaylistId -> msg) -> Playlist -> Element msg
-playlistRow tagger playlist =
-    button [ width fill, mouseOver [ Bg.color palette.white ] ]
+playlistRow : { m | device : Element.Device } -> (PlaylistId -> msg) -> Playlist -> Element msg
+playlistRow model tagger playlist =
+    button
+        [ width fill
+        , clip
+        , Border.widthEach { top = 1, left = 0, right = 0, bottom = 0 }
+        , Border.color palette.primaryFaded
+        , model |> dimensions |> .smallPaddingAll
+        , mouseOver [ Bg.color palette.ternaryFaded ]
+        ]
         { onPress = Just <| tagger playlist.id
-        , label = text (Playlist.summary playlist)
+        , label =
+            row [ width fill, spacing 1 ] <|
+                [ el [ width fill, clip, htmlAttribute <| Html.style "text-overflow" "ellipsis", htmlAttribute <| Html.style "display" "inline-block" ] <|
+                    Element.html <|
+                        Html.text <|
+                            Playlist.summary playlist
+                , text <| String.fromInt playlist.tracksCount ++ " tracks"
+                ]
         }
+
+
+playlistsList : { m | device : Element.Device } -> PlaylistAndSelection -> Element Msg
+playlistsList model { playlists } =
+    let
+        d =
+            dimensions model
+    in
+    Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing ] <|
+        [ paragraph [ d.largeText, Font.center ] [ text "Pick a playlist you want to transfer" ]
+        , Element.column [ width fill, height fill, scrollbarY ]
+            (playlists
+                |> Dict.keys
+                |> List.foldl
+                    (\( c, id ) grouped ->
+                        Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped
+                    )
+                    (Dict.empty MusicService.connectionToString)
+                |> Dict.map
+                    (\connection playlistIds ->
+                        Element.column [ width fill ] <|
+                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.textFaded ] <|
+                                text <|
+                                    MusicService.connectionToString connection
+                            )
+                                :: (playlistIds
+                                        |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+                                        |> List.map (playlistRow model <| TogglePlaylistSelected connection)
+                                        |> List.withDefault [ text "No tracks" ]
+                                   )
+                    )
+                |> Dict.values
+            )
+        ]
 
 
 connectionStatus : Bool -> Element msg
@@ -460,16 +480,20 @@ connectionStatus isConnected =
         }
 
 
-connectView : { m | device : Element.Device, flow : Flow } -> (ProviderConnection -> msg) -> msg -> List ProviderConnection -> Element msg
-connectView model tagger transitioner connections =
-    column [ width fill, height fill, model |> dimensions |> .largeSpacing ]
-        [ paragraph [ model |> dimensions |> .largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , row [ model |> dimensions |> .smallSpacing, centerX, centerY ]
+connectView : { m | device : Element.Device } -> List ProviderConnection -> Bool -> Element Msg
+connectView model connections canStep =
+    let
+        d =
+            dimensions model
+    in
+    column [ width fill, height fill, d.largeSpacing, d.smallVPadding ]
+        [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
+        , row [ d.smallSpacing, centerX, centerY ]
             (connections
                 |> List.map
                     (\connection ->
                         button
-                            ([ model |> dimensions |> .largePadding
+                            ([ d.largePadding
                              , Bg.color palette.white
                              , Border.rounded 3
                              , transition "box-shadow"
@@ -490,25 +514,25 @@ connectView model tagger transitioner connections =
                                     Nothing
 
                                 else
-                                    Just <| tagger connection
+                                    Just <| ToggleConnect connection
                             , label =
-                                column [ model |> dimensions |> .smallSpacing, model |> dimensions |> .smallHPadding ]
-                                    [ providerLogoOrName [ model |> dimensions |> .buttonImageWidth, centerX ] <| Connection.type_ connection
+                                column [ d.smallSpacing, d.smallHPadding ]
+                                    [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
                                     , connectionStatus <| Connection.isConnected connection
                                     ]
                             }
                     )
             )
-        , Flow.canStep model.flow
-            |> Maybe.fromBool
+        , Maybe.fromBool canStep
             |> Maybe.map
                 (const <|
-                    button (primaryButtonStyle model ++ [ centerX ])
-                        { label = text "Next"
-                        , onPress = Just transitioner
-                        }
+                    el [ width fill, d.smallHPadding ] <|
+                        button (primaryButtonStyle model ++ [ centerX ])
+                            { label = text "Next"
+                            , onPress = Just StepFlow
+                            }
                 )
-            |> Maybe.withDefault (el [ height (px 50) ] Element.none)
+            |> Maybe.withDefault (el [ d.buttonHeight ] Element.none)
         ]
 
 
@@ -597,16 +621,29 @@ type alias DimensionPalette msg =
     , smallSpacing : Element.Attribute msg
     , mediumSpacing : Element.Attribute msg
     , largeSpacing : Element.Attribute msg
-    , smallPadding : Element.Attribute msg
-    , largePadding : Element.Attribute msg
+    , smallPadding : Int
+    , smallPaddingAll : Element.Attribute msg
     , smallHPadding : Element.Attribute msg
     , smallVPadding : Element.Attribute msg
+    , mediumPaddingTop : Element.Attribute msg
+    , largePadding : Element.Attribute msg
     , buttonImageWidth : Element.Attribute msg
+    , buttonHeight : Element.Attribute msg
+    , headerTopPadding : Element.Attribute msg
     }
 
 
 dimensions : { m | device : Element.Device } -> DimensionPalette msg
 dimensions { device } =
+    let
+        ( smallPadding, mediumPadding ) =
+            case device.class of
+                Phone ->
+                    ( scaled -2 |> round, scaled 1 |> round )
+
+                _ ->
+                    ( scaled 1 |> round, scaled 3 |> round )
+    in
     case device.class of
         Phone ->
             { smallText = scaled -1 |> round |> Font.size
@@ -615,11 +652,15 @@ dimensions { device } =
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 5 |> round |> spacing
-            , smallPadding = scaled -2 |> round |> padding
+            , smallPadding = smallPadding
+            , smallPaddingAll = padding smallPadding
+            , smallHPadding = paddingXY smallPadding 0
+            , smallVPadding = paddingXY 0 smallPadding
+            , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 2 |> round |> padding
-            , smallHPadding = scaled -2 |> round |> flip paddingXY 0
-            , smallVPadding = scaled -3 |> round |> paddingXY 0
             , buttonImageWidth = scaled 4 |> round |> px |> width
+            , buttonHeight = scaled 4 |> round |> px |> height
+            , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
             }
 
         _ ->
@@ -629,11 +670,15 @@ dimensions { device } =
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 9 |> round |> spacing
-            , smallPadding = scaled 2 |> round |> padding
+            , smallPadding = smallPadding
+            , smallPaddingAll = padding smallPadding
+            , smallHPadding = paddingXY smallPadding 0
+            , smallVPadding = paddingXY 0 smallPadding
+            , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 5 |> round |> padding
-            , smallHPadding = scaled 2 |> round |> flip paddingXY 0
-            , smallVPadding = scaled 1 |> round |> paddingXY 0
             , buttonImageWidth = scaled 6 |> round |> px |> width
+            , buttonHeight = scaled 6 |> round |> px |> height
+            , headerTopPadding = paddingEach { top = round (scaled 2), right = 0, bottom = 0, left = 0 }
             }
 
 
@@ -641,28 +686,56 @@ type alias ColorPalette =
     { primary : Element.Color
     , primaryFaded : Element.Color
     , secondary : Element.Color
+    , secondaryFaded : Element.Color
     , ternary : Element.Color
+    , ternaryFaded : Element.Color
     , quaternary : Element.Color
     , transparentWhite : Element.Color
     , transparent : Element.Color
     , white : Element.Color
     , black : Element.Color
     , text : Element.Color
+    , textFaded : Element.Color
     }
+
+
+fade : Float -> Color -> Color
+fade alpha color =
+    let
+        rgbColor =
+            Element.toRgb color
+    in
+    { rgbColor | alpha = alpha } |> Element.fromRgb
 
 
 palette : ColorPalette
 palette =
+    let
+        white =
+            Element.rgb255 255 255 255
+
+        textColor =
+            Element.rgb255 42 67 80
+
+        secondary =
+            Element.rgb255 69 162 134
+
+        ternary =
+            Element.rgb255 248 160 116
+    in
     { primary = Element.rgb255 220 94 93
-    , primaryFaded = Element.rgba255 250 160 112 0.1
-    , secondary = Element.rgb255 69 162 134
-    , ternary = Element.rgb255 248 160 116
+    , primaryFaded = Element.rgba255 220 94 93 0.1
+    , secondary = secondary
+    , secondaryFaded = secondary |> fade 0.2
+    , ternary = ternary
+    , ternaryFaded = ternary |> fade 0.2
     , quaternary = Element.rgb255 189 199 79
-    , transparentWhite = Element.rgba255 255 255 255 0.7
     , transparent = Element.rgba255 255 255 255 0
-    , white = Element.rgb255 255 255 255
+    , white = white
+    , transparentWhite = white |> fade 0.7
     , black = Element.rgb255 0 0 0
-    , text = Element.rgb255 42 67 80
+    , text = textColor
+    , textFaded = textColor |> fade 0.17
     }
 
 
@@ -679,18 +752,18 @@ mainTitleStyle model =
 baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     let
         d =
-            { device = device } |> dimensions
+            dimensions { device = device }
 
         deviceDependent =
             case ( device.class, device.orientation ) of
                 ( Phone, Portrait ) ->
-                    [ width fill, d.smallPadding ]
+                    [ width fill ]
 
                 ( Tablet, Portrait ) ->
-                    [ width fill, d.smallPadding ]
+                    [ width fill ]
 
                 _ ->
-                    [ width (shrink |> minimum 120), d.smallVPadding ]
+                    [ width (shrink |> minimum 120) ]
     in
     [ Font.color textColor
     , Bg.color bgColor
@@ -708,6 +781,7 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
         , Font.color textHoverColor
         , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
         ]
+    , d.buttonHeight
     ]
         ++ deviceDependent
 

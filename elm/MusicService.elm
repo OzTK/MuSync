@@ -7,6 +7,7 @@ module MusicService exposing
     , connected
     , connectedWithToken
     , connecting
+    , connectionToString
     , disconnect
     , disconnected
     , fromString
@@ -42,6 +43,11 @@ type alias OAuthToken =
 type ConnectedProvider
     = ConnectedProvider MusicService (WebData UserInfo)
     | ConnectedProviderWithToken MusicService OAuthToken (WebData UserInfo)
+
+
+connectionToString : ConnectedProvider -> String
+connectionToString =
+    type_ >> toString
 
 
 connected : MusicService -> WebData UserInfo -> ConnectedProvider
