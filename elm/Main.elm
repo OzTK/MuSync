@@ -306,6 +306,13 @@ view model =
     let
         d =
             dimensions model
+
+        panelPushing =
+            if model.flow |> Flow.selectedPlaylist |> Maybe.isDefined |> not then
+                [ moveDown 375 ]
+
+            else
+                [ moveDown 0 ]
     in
     Element.layoutWith
         { options =
@@ -342,11 +349,11 @@ view model =
                 , hack_forceClip
                 ]
                 [ routeMainView model ]
-            , el [ width fill ]
+            , el ([ width fill, transition "transform" ] ++ panelPushing)
                 (model.flow
                     |> Flow.selectedPlaylist
                     |> Maybe.map (importConfigView model)
-                    |> Maybe.withDefault Element.none
+                    |> Maybe.withDefault (Element.el [] Element.none)
                 )
             ]
 
@@ -357,9 +364,11 @@ importConfigView model { name } =
         d =
             dimensions model
     in
-    column [ width fill, d.mediumPaddingAll, d.largeSpacing, Border.color palette.textFaded, Border.widthEach { bottom = 0, left = 0, right = 0, top = 1 } ]
-        [ paragraph [ Region.heading 2 ] [ text ("Transferring " ++ name) ]
-        , button (primaryButtonStyle model) { onPress = Nothing, label = text "Transfer" }
+    column
+        [ width fill, d.mediumSpacing, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transferring playlist"
+        , paragraph [ d.smallPaddingAll ] [ text name ]
+        , button (primaryButtonStyle model) { onPress = Nothing, label = text "Next" }
         ]
 
 
@@ -479,7 +488,7 @@ playlistsList model playlists =
                 |> Dict.map
                     (\connection playlistIds ->
                         Element.column [ width fill ] <|
-                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
+                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.secondaryFaded ] <|
                                 text <|
                                     MusicService.connectionToString connection
                             )
@@ -518,7 +527,7 @@ connectView model connections canStep =
         d =
             dimensions model
     in
-    column [ width fill, height fill, d.largeSpacing, d.smallVPadding ]
+    column [ width fill, height fill, d.largeSpacing ]
         [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
         , row [ d.smallSpacing, centerX, centerY ]
             (connections
@@ -558,7 +567,7 @@ connectView model connections canStep =
         , Maybe.fromBool canStep
             |> Maybe.map
                 (const <|
-                    el [ width fill, d.smallHPadding ] <|
+                    el [ width fill ] <|
                         button (primaryButtonStyle model ++ [ centerX ])
                             { label = text "Next"
                             , onPress = Just StepFlow
@@ -802,19 +811,16 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     in
     [ Font.color textColor
     , Bg.color bgColor
-    , Border.rounded 5
     , Border.color bgHoverColor
     , Border.solid
     , Border.width 1
     , alignBottom
     , Font.center
     , Font.semiBold
-    , Border.shadow { offset = ( 0, 0 ), blur = 8, size = 1, color = palette.text }
     , transition "box-shadow"
     , mouseOver
         [ Bg.color bgHoverColor
         , Font.color textHoverColor
-        , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
         ]
     , d.buttonHeight
     ]
