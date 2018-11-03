@@ -1,13 +1,14 @@
 module Flow exposing
     ( ConnectionsWithLoadingPlaylists
     , Flow(..)
-    , PlaylistAndSelection
+    , PlaylistsDict
     , allServices
     , canStep
     , clearSelection
     , next
     , pickPlaylist
     , pickService
+    , selectedPlaylist
     , start
     , udpateLoadingPlaylists
     , updateConnection
@@ -188,6 +189,13 @@ pickPlaylist connection id flow =
                 NoSelection ->
                     PickPlaylists <| PlaylistAndSelection (PlaylistSelected connection id) playlists
 
+                PlaylistSelected con pId ->
+                    if (con == connection) && pId == id then
+                        PickPlaylists <| PlaylistAndSelection NoSelection playlists
+
+                    else
+                        PickPlaylists <| PlaylistAndSelection (PlaylistSelected connection id) playlists
+
                 _ ->
                     flow
 
@@ -213,6 +221,24 @@ pickService otherConnection flow =
 
         _ ->
             flow
+
+
+selectedPlaylist : Flow -> Maybe Playlist
+selectedPlaylist flow =
+    case flow of
+        PickPlaylists { selection, playlists } ->
+            case selection of
+                NoSelection ->
+                    Nothing
+
+                PlaylistSelected connection id ->
+                    Dict.get ( connection, id ) playlists
+
+                OtherServiceSelected connection id _ ->
+                    Dict.get ( connection, id ) playlists
+
+        _ ->
+            Nothing
 
 
 clearSelection : Flow -> Flow

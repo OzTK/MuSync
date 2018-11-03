@@ -56,7 +56,7 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
-import Flow exposing (ConnectionsWithLoadingPlaylists, Flow(..), PlaylistAndSelection)
+import Flow exposing (ConnectionsWithLoadingPlaylists, Flow(..), PlaylistsDict)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -342,7 +342,25 @@ view model =
                 , hack_forceClip
                 ]
                 [ routeMainView model ]
+            , el [ width fill ]
+                (model.flow
+                    |> Flow.selectedPlaylist
+                    |> Maybe.map (importConfigView model)
+                    |> Maybe.withDefault Element.none
+                )
             ]
+
+
+importConfigView : { m | device : Element.Device } -> Playlist -> Element Msg
+importConfigView model { name } =
+    let
+        d =
+            dimensions model
+    in
+    column [ width fill, d.mediumPaddingAll, d.largeSpacing, Border.color palette.textFaded, Border.widthEach { bottom = 0, left = 0, right = 0, top = 1 } ]
+        [ paragraph [ Region.heading 2 ] [ text ("Transferring " ++ name) ]
+        , button (primaryButtonStyle model) { onPress = Nothing, label = text "Transfer" }
+        ]
 
 
 
@@ -399,28 +417,37 @@ routeMainView model =
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
-        PickPlaylists playlistsSelection ->
-            playlistsList model playlistsSelection
+        PickPlaylists { playlists } ->
+            playlistsList model playlists
 
         Sync _ _ _ _ ->
             progressBar [ centerX, centerY ] (Just "Syncing your playlists")
 
 
-playlistRow : { m | device : Element.Device } -> (PlaylistId -> msg) -> Playlist -> Element msg
+playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> Playlist -> Element msg
 playlistRow model tagger playlist =
     let
         d =
             dimensions model
+
+        isSelected =
+            model.flow |> Flow.selectedPlaylist |> Maybe.map (.id >> (==) playlist.id) |> Maybe.withDefault False
     in
     button
-        [ width fill
-        , clip
-        , Border.widthEach { top = 1, left = 0, right = 0, bottom = 0 }
-        , Border.color palette.primaryFaded
-        , d.smallPaddingAll
-        , mouseOver [ Bg.color palette.ternaryFaded ]
-        , transition "background"
-        ]
+        ([ width fill
+         , clip
+         , Border.widthEach { top = 1, left = 0, right = 0, bottom = 0 }
+         , Border.color palette.primaryFaded
+         , d.smallPaddingAll
+         , transition "background"
+         ]
+            ++ (if isSelected then
+                    [ Bg.color palette.quaternary ]
+
+                else
+                    [ mouseOver [ Bg.color palette.ternaryFaded ] ]
+               )
+        )
         { onPress = Just <| tagger playlist.id
         , label =
             row [ width fill, d.smallSpacing ] <|
@@ -433,8 +460,8 @@ playlistRow model tagger playlist =
         }
 
 
-playlistsList : { m | device : Element.Device } -> PlaylistAndSelection -> Element Msg
-playlistsList model { playlists } =
+playlistsList : { m | device : Element.Device, flow : Flow } -> PlaylistsDict -> Element Msg
+playlistsList model playlists =
     let
         d =
             dimensions model
@@ -630,6 +657,7 @@ type alias DimensionPalette msg =
     , smallPaddingAll : Element.Attribute msg
     , smallHPadding : Element.Attribute msg
     , smallVPadding : Element.Attribute msg
+    , mediumPaddingAll : Element.Attribute msg
     , mediumPaddingTop : Element.Attribute msg
     , largePadding : Element.Attribute msg
     , buttonImageWidth : Element.Attribute msg
@@ -661,6 +689,7 @@ dimensions { device } =
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
             , smallVPadding = paddingXY 0 smallPadding
+            , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 2 |> round |> padding
             , buttonImageWidth = scaled 4 |> round |> px |> width
@@ -679,6 +708,7 @@ dimensions { device } =
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
             , smallVPadding = paddingXY 0 smallPadding
+            , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 5 |> round |> padding
             , buttonImageWidth = scaled 6 |> round |> px |> width
