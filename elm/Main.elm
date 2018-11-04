@@ -45,6 +45,7 @@ import Element
         , scrollbarX
         , scrollbarY
         , shrink
+        , spaceEvenly
         , spacing
         , text
         , width
@@ -155,8 +156,7 @@ type Msg
     = ToggleConnect ProviderConnection
     | PlaylistsFetched ConnectedProvider (WebData (List Playlist))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
-    | PlaylistSelected Playlist
-    | BackToPlaylists
+    | PlaylistSelectionCleared
     | ComparedProviderChanged (Maybe ConnectedProvider)
     | UserInfoReceived MusicService (WebData UserInfo)
     | ProviderConnected ConnectedProvider
@@ -207,13 +207,8 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistSelected p ->
-            ( model
-            , Cmd.none
-            )
-
-        BackToPlaylists ->
-            ( model
+        PlaylistSelectionCleared ->
+            ( { model | flow = Flow.clearSelection model.flow }
             , Cmd.none
             )
 
@@ -307,12 +302,15 @@ view model =
         d =
             dimensions model
 
+        isSelected =
+            model.flow |> Flow.selectedPlaylist |> Maybe.isDefined
+
         panelPushing =
-            if model.flow |> Flow.selectedPlaylist |> Maybe.isDefined |> not then
+            if not isSelected then
                 [ moveDown 0 ]
 
             else
-                [ moveUp 170 ]
+                [ moveUp <| toFloat d.panelHeight ]
     in
     Element.layoutWith
         { options =
@@ -334,12 +332,18 @@ view model =
         column
             [ height fill
             , width fill
+            , Element.inFront <|
+                if isSelected then
+                    el [ height fill, width fill, Bg.color palette.textFaded, onClick PlaylistSelectionCleared ] Element.none
+
+                else
+                    Element.none
             , Element.below <|
-                el ([ width fill, height (px 170), Bg.color palette.white, transition "transform" ] ++ panelPushing)
+                el ([ width fill, height (px d.panelHeight), Bg.color palette.white, transition "transform" ] ++ panelPushing)
                     (model.flow
                         |> Flow.selectedPlaylist
                         |> Maybe.map (importConfigView model)
-                        |> Maybe.withDefault (Element.el [] Element.none)
+                        |> Maybe.withDefault (Element.el [ height (px d.panelHeight) ] Element.none)
                     )
             ]
             [ row
@@ -369,9 +373,9 @@ importConfigView model { name } =
             dimensions model
     in
     column
-        [ width fill, height fill, d.mediumSpacing, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transferring playlist"
-        , paragraph [ d.smallPaddingAll ] [ text name ]
+        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
+        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
         , button (primaryButtonStyle model) { onPress = Nothing, label = text "Next" }
         ]
 
@@ -455,7 +459,7 @@ playlistRow model tagger playlist =
          , transition "background"
          ]
             ++ (if isSelected then
-                    [ Bg.color palette.quaternary ]
+                    [ Bg.color palette.ternaryFaded, Border.innerGlow palette.textFaded 1 ]
 
                 else
                     [ mouseOver [ Bg.color palette.ternaryFaded ] ]
@@ -492,7 +496,7 @@ playlistsList model playlists =
                 |> Dict.map
                     (\connection playlistIds ->
                         Element.column [ width fill ] <|
-                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.secondaryFaded ] <|
+                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
                                 text <|
                                     MusicService.connectionToString connection
                             )
@@ -676,6 +680,7 @@ type alias DimensionPalette msg =
     , buttonImageWidth : Element.Attribute msg
     , buttonHeight : Element.Attribute msg
     , headerTopPadding : Element.Attribute msg
+    , panelHeight : Int
     }
 
 
@@ -708,6 +713,7 @@ dimensions { device } =
             , buttonImageWidth = scaled 4 |> round |> px |> width
             , buttonHeight = scaled 5 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
+            , panelHeight = 180
             }
 
         _ ->
@@ -727,6 +733,7 @@ dimensions { device } =
             , buttonImageWidth = scaled 6 |> round |> px |> width
             , buttonHeight = scaled 6 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled 2), right = 0, bottom = 0, left = 0 }
+            , panelHeight = 180
             }
 
 
