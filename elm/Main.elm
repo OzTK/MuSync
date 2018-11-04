@@ -309,10 +309,10 @@ view model =
 
         panelPushing =
             if model.flow |> Flow.selectedPlaylist |> Maybe.isDefined |> not then
-                [ moveDown 375 ]
+                [ moveDown 0 ]
 
             else
-                [ moveDown 0 ]
+                [ moveUp 170 ]
     in
     Element.layoutWith
         { options =
@@ -331,7 +331,17 @@ view model =
         , width fill
         ]
     <|
-        column [ height fill, width fill ]
+        column
+            [ height fill
+            , width fill
+            , Element.below <|
+                el ([ width fill, height (px 170), Bg.color palette.white, transition "transform" ] ++ panelPushing)
+                    (model.flow
+                        |> Flow.selectedPlaylist
+                        |> Maybe.map (importConfigView model)
+                        |> Maybe.withDefault (Element.el [] Element.none)
+                    )
+            ]
             [ row
                 [ Region.navigation
                 , width fill
@@ -349,12 +359,6 @@ view model =
                 , hack_forceClip
                 ]
                 [ routeMainView model ]
-            , el ([ width fill, transition "transform" ] ++ panelPushing)
-                (model.flow
-                    |> Flow.selectedPlaylist
-                    |> Maybe.map (importConfigView model)
-                    |> Maybe.withDefault (Element.el [] Element.none)
-                )
             ]
 
 
@@ -365,7 +369,7 @@ importConfigView model { name } =
             dimensions model
     in
     column
-        [ width fill, d.mediumSpacing, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ width fill, height fill, d.mediumSpacing, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
         [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transferring playlist"
         , paragraph [ d.smallPaddingAll ] [ text name ]
         , button (primaryButtonStyle model) { onPress = Nothing, label = text "Next" }
@@ -702,7 +706,7 @@ dimensions { device } =
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 2 |> round |> padding
             , buttonImageWidth = scaled 4 |> round |> px |> width
-            , buttonHeight = scaled 4 |> round |> px |> height
+            , buttonHeight = scaled 5 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
             }
 
