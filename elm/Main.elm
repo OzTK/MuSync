@@ -410,10 +410,14 @@ panel ({ device, flow } as model) =
 
 overlay : { m | flow : Flow } -> Element.Attribute Msg
 overlay { flow } =
+    let
+        attrs =
+            [ height fill, width fill, transition "background-color" ]
+    in
     flow
         |> Flow.selectedPlaylist
-        |> Maybe.map (\_ -> el [ height fill, width fill, Bg.color palette.textFaded, onClick PlaylistSelectionCleared ] Element.none)
-        |> Maybe.withDefault Element.none
+        |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
+        |> Maybe.withDefault (el (attrs ++ [ Bg.color palette.transparent, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
         |> Element.inFront
 
 
