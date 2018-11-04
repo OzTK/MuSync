@@ -35,6 +35,8 @@ import Element
         , mouseDown
         , mouseOver
         , moveDown
+        , moveLeft
+        , moveRight
         , moveUp
         , padding
         , paddingEach
@@ -301,16 +303,6 @@ view model =
     let
         d =
             dimensions model
-
-        isSelected =
-            model.flow |> Flow.selectedPlaylist |> Maybe.isDefined
-
-        panelPushing =
-            if not isSelected then
-                [ moveDown 0 ]
-
-            else
-                [ moveUp <| toFloat d.panelHeight ]
     in
     Element.layoutWith
         { options =
@@ -332,19 +324,8 @@ view model =
         column
             [ height fill
             , width fill
-            , Element.inFront <|
-                if isSelected then
-                    el [ height fill, width fill, Bg.color palette.textFaded, onClick PlaylistSelectionCleared ] Element.none
-
-                else
-                    Element.none
-            , Element.below <|
-                el ([ width fill, height (px d.panelHeight), Bg.color palette.white, transition "transform" ] ++ panelPushing)
-                    (model.flow
-                        |> Flow.selectedPlaylist
-                        |> Maybe.map (importConfigView model)
-                        |> Maybe.withDefault (Element.el [ height (px d.panelHeight) ] Element.none)
-                    )
+            , overlay model
+            , panel model
             ]
             [ row
                 [ Region.navigation
@@ -366,49 +347,74 @@ view model =
             ]
 
 
-importConfigView : { m | device : Element.Device } -> Playlist -> Element Msg
-importConfigView model { name } =
+
+-- View parts
+
+
+panel : { m | device : Element.Device, flow : Flow } -> Element.Attribute msg
+panel ({ device, flow } as model) =
     let
         d =
             dimensions model
+
+        panelPositioner =
+            case device.orientation of
+                Portrait ->
+                    Element.below
+
+                Landscape ->
+                    Element.onRight
+
+        isSelected =
+            flow |> Flow.selectedPlaylist |> Maybe.isDefined
+
+        panelStyle =
+            case device.orientation of
+                Portrait ->
+                    [ width fill
+                    , height (px d.panelHeight)
+                    , if not isSelected then
+                        moveDown 0
+
+                      else
+                        moveUp <| toFloat d.panelHeight
+                    ]
+
+                Landscape ->
+                    [ width (px d.panelHeight)
+                    , height fill
+                    , if not isSelected then
+                        moveLeft 0
+
+                      else
+                        moveLeft <| toFloat d.panelHeight
+                    ]
+
+        placeholderStyle =
+            [ case device.orientation of
+                Portrait ->
+                    height (px d.panelHeight)
+
+                Landscape ->
+                    width (px d.panelHeight)
+            ]
     in
-    column
-        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
-        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
-        , button (primaryButtonStyle model) { onPress = Nothing, label = text "Next" }
-        ]
+    panelPositioner <|
+        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ])
+            (flow
+                |> Flow.selectedPlaylist
+                |> Maybe.map (importConfigView model)
+                |> Maybe.withDefault (Element.el placeholderStyle Element.none)
+            )
 
 
-
--- Reusable
-
-
-progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
-progressBar attrs message =
-    column ([ htmlAttribute <| Html.style "width" "calc(50vw)" ] ++ attrs)
-        [ Element.html <|
-            Html.div
-                [ Html.class "progress progress-sm progress-indeterminate" ]
-                [ Html.div [ Html.class "progress-bar" ] [] ]
-        , message
-            |> Maybe.map (paragraph [ width shrink, centerX, centerY, Font.center ] << List.singleton << text)
-            |> Maybe.withDefault Element.none
-        ]
-
-
-logo : List (Element.Attribute msg) -> Element msg
-logo attrs =
-    image attrs { src = "assets/img/Logo.svg", description = "MuSync logo" }
-
-
-note : List (Element.Attribute msg) -> Element msg
-note attrs =
-    image attrs { src = "assets/img/Note.svg", description = "" }
-
-
-
--- View parts
+overlay : { m | flow : Flow } -> Element.Attribute Msg
+overlay { flow } =
+    flow
+        |> Flow.selectedPlaylist
+        |> Maybe.map (\_ -> el [ height fill, width fill, Bg.color palette.textFaded, onClick PlaylistSelectionCleared ] Element.none)
+        |> Maybe.withDefault Element.none
+        |> Element.inFront
 
 
 header : { m | device : Element.Device } -> Element msg
@@ -439,6 +445,20 @@ routeMainView model =
 
         Sync _ _ _ _ ->
             progressBar [ centerX, centerY ] (Just "Syncing your playlists")
+
+
+importConfigView : { m | device : Element.Device } -> Playlist -> Element msg
+importConfigView model { name } =
+    let
+        d =
+            dimensions model
+    in
+    column
+        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
+        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Nothing, label = text "Next" }
+        ]
 
 
 playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> Playlist -> Element msg
@@ -482,31 +502,33 @@ playlistsList model playlists =
     let
         d =
             dimensions model
-    in
-    Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing ] <|
-        [ paragraph [ d.largeText, Font.center ] [ text "Pick a playlist you want to transfer" ]
-        , Element.column [ width fill, height fill, scrollbarY ]
-            (playlists
+
+        withGroupedPlaylists f =
+            playlists
                 |> Dict.keys
                 |> List.foldl
                     (\( c, id ) grouped ->
                         Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped
                     )
                     (Dict.empty MusicService.connectionToString)
-                |> Dict.map
-                    (\connection playlistIds ->
-                        Element.column [ width fill ] <|
-                            (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
-                                text <|
-                                    MusicService.connectionToString connection
-                            )
-                                :: (playlistIds
-                                        |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
-                                        |> List.map (playlistRow model <| TogglePlaylistSelected connection)
-                                        |> List.withDefault [ text "No tracks" ]
-                                   )
-                    )
+                |> Dict.map f
                 |> Dict.values
+    in
+    Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing ] <|
+        [ paragraph [ d.largeText, Font.center ] [ text "Pick a playlist you want to transfer" ]
+        , Element.column [ width fill, height fill, scrollbarY ]
+            (withGroupedPlaylists <|
+                \connection playlistIds ->
+                    Element.column [ width fill ] <|
+                        (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
+                            text <|
+                                MusicService.connectionToString connection
+                        )
+                            :: (playlistIds
+                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+                                    |> List.map (playlistRow model <| TogglePlaylistSelected connection)
+                                    |> List.withDefault [ text "No tracks" ]
+                               )
             )
         ]
 
@@ -529,6 +551,31 @@ connectionStatus isConnected =
         }
 
 
+nextButton : { m | device : Element.Device } -> Bool -> Element Msg
+nextButton model canClick =
+    let
+        d =
+            dimensions model
+
+        containerPadding =
+            case model.device.orientation of
+                Portrait ->
+                    []
+
+                Landscape ->
+                    [ d.smallPaddingAll ]
+    in
+    if canClick then
+        el ([ width fill ] ++ containerPadding) <|
+            button (primaryButtonStyle model ++ [ centerX ])
+                { label = text "Next"
+                , onPress = Just StepFlow
+                }
+
+    else
+        el (d.buttonHeight :: containerPadding) Element.none
+
+
 connectView : { m | device : Element.Device } -> List ProviderConnection -> Bool -> Element Msg
 connectView model connections canStep =
     let
@@ -538,51 +585,69 @@ connectView model connections canStep =
     column [ width fill, height fill, d.largeSpacing ]
         [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
         , row [ d.smallSpacing, centerX, centerY ]
-            (connections
-                |> List.map
-                    (\connection ->
-                        button
-                            ([ d.largePadding
-                             , Bg.color palette.white
-                             , Border.rounded 3
-                             , transition "box-shadow"
-                             , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
-                             , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
-                             ]
-                                ++ (if Connection.isConnected connection then
-                                        [ Border.innerGlow palette.text 1 ]
-
-                                    else
-                                        [ mouseDown [ Border.glow palette.text 1 ]
-                                        , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
-                                        ]
-                                   )
-                            )
-                            { onPress =
-                                if Connection.isConnected connection then
-                                    Nothing
+            (List.map
+                (\connection ->
+                    button
+                        ([ d.largePadding
+                         , Bg.color palette.white
+                         , Border.rounded 3
+                         , transition "box-shadow"
+                         , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
+                         , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+                         ]
+                            ++ (if Connection.isConnected connection then
+                                    [ Border.innerGlow palette.text 1 ]
 
                                 else
-                                    Just <| ToggleConnect connection
-                            , label =
-                                column [ d.smallSpacing, d.smallHPadding ]
-                                    [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
-                                    , connectionStatus <| Connection.isConnected connection
+                                    [ mouseDown [ Border.glow palette.text 1 ]
+                                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
                                     ]
-                            }
-                    )
-            )
-        , Maybe.fromBool canStep
-            |> Maybe.map
-                (const <|
-                    el [ width fill ] <|
-                        button (primaryButtonStyle model ++ [ centerX ])
-                            { label = text "Next"
-                            , onPress = Just StepFlow
-                            }
+                               )
+                        )
+                        { onPress =
+                            if Connection.isConnected connection then
+                                Nothing
+
+                            else
+                                Just <| ToggleConnect connection
+                        , label =
+                            column [ d.smallSpacing, d.smallHPadding ]
+                                [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
+                                , connectionStatus <| Connection.isConnected connection
+                                ]
+                        }
                 )
-            |> Maybe.withDefault (el [ d.buttonHeight ] Element.none)
+                connections
+            )
+        , nextButton model canStep
         ]
+
+
+
+-- Reusable
+
+
+progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
+progressBar attrs message =
+    column ([ htmlAttribute <| Html.style "width" "calc(50vw)" ] ++ attrs)
+        [ Element.html <|
+            Html.div
+                [ Html.class "progress progress-sm progress-indeterminate" ]
+                [ Html.div [ Html.class "progress-bar" ] [] ]
+        , message
+            |> Maybe.map (paragraph [ width shrink, centerX, centerY, Font.center ] << List.singleton << text)
+            |> Maybe.withDefault Element.none
+        ]
+
+
+logo : List (Element.Attribute msg) -> Element msg
+logo attrs =
+    image attrs { src = "assets/img/Logo.svg", description = "MuSync logo" }
+
+
+note : List (Element.Attribute msg) -> Element msg
+note attrs =
+    image attrs { src = "assets/img/Note.svg", description = "" }
 
 
 providerName : MusicService -> String
@@ -733,7 +798,7 @@ dimensions { device } =
             , buttonImageWidth = scaled 6 |> round |> px |> width
             , buttonHeight = scaled 6 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled 2), right = 0, bottom = 0, left = 0 }
-            , panelHeight = 180
+            , panelHeight = 350
             }
 
 
@@ -838,46 +903,13 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
         ++ deviceDependent
 
 
-disabledButtonStyle whatever =
-    case whatever of
-        Just _ ->
-            [ alpha 0.5, mouseOver [] ]
-
-        Nothing ->
-            []
-
-
-selectedButtonStyle ( bgSelectedColor, textSelectedColor ) =
-    [ Bg.color bgSelectedColor, Font.color textSelectedColor ]
-
-
-iconButtonStyle =
-    [ paddingXY 10 8 ]
-
-
 primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 primaryButtonStyle { device } =
     baseButtonStyle device ( palette.secondary, palette.white ) ( palette.secondary, palette.white )
 
 
-primarySelectedButtonStyle =
-    selectedButtonStyle ( palette.secondary, palette.white )
-
-
-linkButtonStyle : List (Element.Attribute msg)
-linkButtonStyle =
-    [ Font.color palette.secondary
-    , Font.underline
-    , mouseOver [ Font.color palette.quaternary ]
-    ]
-
-
 songsListStyle { device } =
     [ spacing 8, height fill, scrollbarY ]
-
-
-playlistsListStyle { device } =
-    [ spacing 5, width fill, height fill, scrollbarY ]
 
 
 
