@@ -170,6 +170,7 @@ type Msg
     | BrowserResized Dimensions
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
+    | ToggleOtherProviderSelected ConnectedProvider
     | NoOp
 
 
@@ -280,6 +281,9 @@ update msg model =
 
         TogglePlaylistSelected connection playlist ->
             ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
+
+        ToggleOtherProviderSelected connection ->
+            ( { model | flow = Flow.pickService connection model.flow }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -438,8 +442,8 @@ routeMainView model =
         PickOtherConnection { playlists } ->
             playlistsList model playlists
 
-        Sync _ _ _ _ ->
-            progressBar [ centerX, centerY ] (Just "Syncing your playlists")
+        Sync { playlists } ->
+            playlistsList model playlists
 
 
 routePanel : { m | flow : Flow, device : Element.Device } -> Element Msg
@@ -470,15 +474,25 @@ routePanel model =
                     Element.el placeholderStyle Element.none
 
         PickOtherConnection { playlists, playlist, selection, connections } ->
-            case selection of
-                NoConnection ->
-                    playlists
-                        |> Dict.get playlist
-                        |> Maybe.map (importConfigView2 model (Tuple.first playlist) (SelectableList.fromList connections))
-                        |> Maybe.withDefault Element.none
+            let
+                connectionsSelection =
+                    case selection of
+                        NoConnection ->
+                            SelectableList.fromList connections
 
-                _ ->
-                    Element.el placeholderStyle Element.none
+                        ConnectionSelected con ->
+                            connections |> SelectableList.fromList |> SelectableList.select con
+            in
+            playlists
+                |> Dict.get playlist
+                |> Maybe.map (importConfigView2 model (Tuple.first playlist) connectionsSelection)
+                |> Maybe.withDefault Element.none
+
+        Sync { playlist, playlists, connections } ->
+            playlists
+                |> Dict.get playlist
+                |> Maybe.map (importConfigView3 model)
+                |> Maybe.withDefault Element.none
 
         _ ->
             Element.el placeholderStyle Element.none
@@ -498,7 +512,7 @@ importConfigView1 model { name } =
         ]
 
 
-importConfigView2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Playlist -> Element msg
+importConfigView2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Playlist -> Element Msg
 importConfigView2 model unavailable services { name } =
     let
         d =
@@ -513,20 +527,64 @@ importConfigView2 model unavailable services { name } =
 
             else
                 Untoggled
+
+        goButtonStyle =
+            (if SelectableList.hasSelection services then
+                primaryButtonStyle model
+
+             else
+                disabledButtonStyle model
+            )
+                ++ [ width fill ]
     in
     column
-        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer to"
+        [ width fill
+        , height fill
+        , clip
+        , hack_forceClip
+        , spaceEvenly
+        , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
+        ]
+        [ el
+            [ Region.heading 2
+            , width fill
+            , d.smallPaddingAll
+            , Border.color palette.textFaded
+            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
+            ]
+          <|
+            text "Transfer to"
         , wrappedRow [ d.smallPaddingAll, d.smallSpacing, centerX ]
             (services
                 |> SelectableList.mapWithStatus
                     (\connection isSelected ->
                         button (squareToggleButtonStyle model <| buttonState connection)
-                            { onPress = Nothing, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
+                            { onPress = Just <| ToggleOtherProviderSelected connection, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
                     )
                 |> SelectableList.toList
             )
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Nothing, label = text "Next" }
+        , button goButtonStyle
+            { onPress =
+                if SelectableList.hasSelection services then
+                    Just StepFlow
+
+                else
+                    Nothing
+            , label = text "Go!"
+            }
+        ]
+
+
+importConfigView3 : { m | device : Element.Device } -> Playlist -> Element Msg
+importConfigView3 model { name } =
+    let
+        d =
+            dimensions model
+    in
+    column
+        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
+        , progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
         ]
 
 
@@ -1002,6 +1060,11 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
 primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 primaryButtonStyle { device } =
     baseButtonStyle device ( palette.secondary, palette.white ) ( palette.secondary, palette.white )
+
+
+disabledButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
+disabledButtonStyle { device } =
+    baseButtonStyle device ( palette.textFaded, palette.white ) ( palette.textFaded, palette.white )
 
 
 songsListStyle { device } =

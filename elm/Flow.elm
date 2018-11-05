@@ -62,12 +62,20 @@ type alias OtherConnectionSelection =
     }
 
 
+type alias SyncData =
+    { playlists : PlaylistsDict
+    , connections : List ConnectedProvider
+    , playlist : ( ConnectedProvider, PlaylistId )
+    , otherConnection : ConnectedProvider
+    }
+
+
 type Flow
     = Connect (List ProviderConnection)
     | LoadPlaylists ConnectionsWithLoadingPlaylists
     | PickPlaylist PlaylistSelection
     | PickOtherConnection OtherConnectionSelection
-    | Sync PlaylistsDict ConnectedProvider PlaylistId ConnectedProvider
+    | Sync SyncData
 
 
 start : List ProviderConnection -> Flow
@@ -89,13 +97,18 @@ canStep flow =
                 PlaylistSelected _ _ ->
                     True
 
-                _ ->
+                NoPlaylist ->
                     False
 
-        PickOtherConnection _ ->
-            False
+        PickOtherConnection { selection } ->
+            case selection of
+                ConnectionSelected _ ->
+                    True
 
-        Sync _ _ _ _ ->
+                NoConnection ->
+                    False
+
+        Sync _ ->
             False
 
 
@@ -137,7 +150,15 @@ next flow =
                 PlaylistSelected con id ->
                     PickOtherConnection { selection = NoConnection, playlist = ( con, id ), playlists = playlists, connections = connections }
 
-                _ ->
+                NoPlaylist ->
+                    flow
+
+        PickOtherConnection { playlists, playlist, selection, connections } ->
+            case selection of
+                ConnectionSelected connection ->
+                    Sync { playlist = playlist, playlists = playlists, connections = connections, otherConnection = connection }
+
+                NoConnection ->
                     flow
 
         _ ->
@@ -258,6 +279,9 @@ selectedPlaylist flow =
                     Dict.get ( connection, id ) playlists
 
         PickOtherConnection { playlists, playlist } ->
+            Dict.get playlist playlists
+
+        Sync { playlist, playlists } ->
             Dict.get playlist playlists
 
         _ ->
