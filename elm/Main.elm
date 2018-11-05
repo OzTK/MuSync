@@ -59,7 +59,7 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
-import Flow exposing (ConnectionsWithLoadingPlaylists, Flow(..), PlaylistsDict)
+import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..), PlaylistsDict)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -326,6 +326,7 @@ view model =
             , width fill
             , overlay model
             , panel model
+            , clip
             ]
             [ row
                 [ Region.navigation
@@ -351,7 +352,7 @@ view model =
 -- View parts
 
 
-panel : { m | device : Element.Device, flow : Flow } -> Element.Attribute msg
+panel : { m | device : Element.Device, flow : Flow } -> Element.Attribute Msg
 panel ({ device, flow } as model) =
     let
         d =
@@ -389,23 +390,10 @@ panel ({ device, flow } as model) =
                       else
                         moveLeft <| toFloat d.panelHeight
                     ]
-
-        placeholderStyle =
-            [ case device.orientation of
-                Portrait ->
-                    height (px d.panelHeight)
-
-                Landscape ->
-                    width (px d.panelHeight)
-            ]
     in
     panelPositioner <|
-        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ])
-            (flow
-                |> Flow.selectedPlaylist
-                |> Maybe.map (importConfigView model)
-                |> Maybe.withDefault (Element.el placeholderStyle Element.none)
-            )
+        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ]) <|
+            routePanel model
 
 
 overlay : { m | flow : Flow } -> Element.Attribute Msg
@@ -417,7 +405,7 @@ overlay { flow } =
     flow
         |> Flow.selectedPlaylist
         |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
-        |> Maybe.withDefault (el (attrs ++ [ Bg.color palette.transparent, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
+        |> Maybe.withDefault (el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
         |> Element.inFront
 
 
@@ -444,15 +432,60 @@ routeMainView model =
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
-        PickPlaylists { playlists } ->
+        PickPlaylist { playlists } ->
+            playlistsList model playlists
+
+        PickOtherConnection { playlists } ->
             playlistsList model playlists
 
         Sync _ _ _ _ ->
             progressBar [ centerX, centerY ] (Just "Syncing your playlists")
 
 
-importConfigView : { m | device : Element.Device } -> Playlist -> Element msg
-importConfigView model { name } =
+routePanel : { m | flow : Flow, device : Element.Device } -> Element Msg
+routePanel model =
+    let
+        d =
+            dimensions model
+
+        placeholderStyle =
+            [ case model.device.orientation of
+                Portrait ->
+                    height (px d.panelHeight)
+
+                Landscape ->
+                    width (px d.panelHeight)
+            ]
+    in
+    case model.flow of
+        PickPlaylist { playlists, selection, connections } ->
+            case selection of
+                PlaylistSelected con id ->
+                    playlists
+                        |> Dict.get ( con, id )
+                        |> Maybe.map (importConfigView1 model)
+                        |> Maybe.withDefault Element.none
+
+                _ ->
+                    Element.el placeholderStyle Element.none
+
+        PickOtherConnection { playlists, playlist, selection, connections } ->
+            case selection of
+                NoConnection ->
+                    playlists
+                        |> Dict.get playlist
+                        |> Maybe.map (importConfigView2 model (Tuple.first playlist) (SelectableList.fromList connections))
+                        |> Maybe.withDefault Element.none
+
+                _ ->
+                    Element.el placeholderStyle Element.none
+
+        _ ->
+            Element.el placeholderStyle Element.none
+
+
+importConfigView1 : { m | device : Element.Device } -> Playlist -> Element Msg
+importConfigView1 model { name } =
     let
         d =
             dimensions model
@@ -461,6 +494,38 @@ importConfigView model { name } =
         [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
         [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
         , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Next" }
+        ]
+
+
+importConfigView2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Playlist -> Element msg
+importConfigView2 model unavailable services { name } =
+    let
+        d =
+            dimensions model
+
+        buttonState con =
+            if con == unavailable then
+                Disabled
+
+            else if services |> SelectableList.selected |> Maybe.map ((==) con) |> Maybe.withDefault False then
+                Toggled
+
+            else
+                Untoggled
+    in
+    column
+        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
+        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer to"
+        , wrappedRow [ d.smallPaddingAll, d.smallSpacing, centerX ]
+            (services
+                |> SelectableList.mapWithStatus
+                    (\connection isSelected ->
+                        button (squareToggleButtonStyle model <| buttonState connection)
+                            { onPress = Nothing, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
+                    )
+                |> SelectableList.toList
+            )
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Nothing, label = text "Next" }
         ]
 
@@ -580,6 +645,67 @@ nextButton model canClick =
         el (d.buttonHeight :: containerPadding) Element.none
 
 
+type SquareToggleState
+    = Untoggled
+    | Toggled
+    | Disabled
+
+
+squareToggleButtonStyle : { m | device : Element.Device } -> SquareToggleState -> List (Element.Attribute msg)
+squareToggleButtonStyle model state =
+    let
+        d =
+            dimensions model
+    in
+    [ d.largePadding
+    , Bg.color palette.white
+    , Border.rounded 3
+    , transition "box-shadow"
+    , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+    ]
+        ++ (case state of
+                Toggled ->
+                    [ Border.innerGlow palette.text 1 ]
+
+                Untoggled ->
+                    [ mouseDown [ Border.glow palette.text 1 ]
+                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
+                    ]
+
+                Disabled ->
+                    [ Element.alpha 0.5, mouseOver [], focused [], mouseDown [], Border.glow palette.textFaded 1 ]
+           )
+
+
+serviceConnectButton : { m | device : Element.Device } -> (ProviderConnection -> msg) -> ProviderConnection -> Element msg
+serviceConnectButton model tagger connection =
+    let
+        d =
+            dimensions model
+
+        buttonState =
+            if Connection.isConnected connection then
+                Toggled
+
+            else
+                Untoggled
+    in
+    button
+        (htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection) :: squareToggleButtonStyle model buttonState)
+        { onPress =
+            if Connection.isConnected connection then
+                Nothing
+
+            else
+                Just <| tagger connection
+        , label =
+            column [ d.smallSpacing, d.smallHPadding ]
+                [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
+                , connectionStatus <| Connection.isConnected connection
+                ]
+        }
+
+
 connectView : { m | device : Element.Device } -> List ProviderConnection -> Bool -> Element Msg
 connectView model connections canStep =
     let
@@ -588,41 +714,7 @@ connectView model connections canStep =
     in
     column [ width fill, height fill, d.largeSpacing ]
         [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , row [ d.smallSpacing, centerX, centerY ]
-            (List.map
-                (\connection ->
-                    button
-                        ([ d.largePadding
-                         , Bg.color palette.white
-                         , Border.rounded 3
-                         , transition "box-shadow"
-                         , htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
-                         , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
-                         ]
-                            ++ (if Connection.isConnected connection then
-                                    [ Border.innerGlow palette.text 1 ]
-
-                                else
-                                    [ mouseDown [ Border.glow palette.text 1 ]
-                                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
-                                    ]
-                               )
-                        )
-                        { onPress =
-                            if Connection.isConnected connection then
-                                Nothing
-
-                            else
-                                Just <| ToggleConnect connection
-                        , label =
-                            column [ d.smallSpacing, d.smallHPadding ]
-                                [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
-                                , connectionStatus <| Connection.isConnected connection
-                                ]
-                        }
-                )
-                connections
-            )
+        , row [ d.smallSpacing, centerX, centerY ] <| List.map (serviceConnectButton model ToggleConnect) connections
         , nextButton model canStep
         ]
 
