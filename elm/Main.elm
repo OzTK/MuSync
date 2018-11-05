@@ -872,7 +872,7 @@ dimensions { device } =
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 2 |> round |> padding
             , buttonImageWidth = scaled 4 |> round |> px |> width
-            , buttonHeight = scaled 5 |> round |> px |> height
+            , buttonHeight = scaled 6 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
             , panelHeight = 180
             }
