@@ -508,7 +508,7 @@ importConfigView1 model { name } =
         [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
         [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
         , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Next" }
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
         ]
 
 
@@ -570,7 +570,7 @@ importConfigView2 model unavailable services { name } =
 
                 else
                     Nothing
-            , label = text "Go!"
+            , label = text "GO!"
             }
         ]
 
@@ -695,7 +695,7 @@ nextButton model canClick =
     if canClick then
         el ([ width fill ] ++ containerPadding) <|
             button (primaryButtonStyle model ++ [ centerX ])
-                { label = text "Next"
+                { label = text "NEXT"
                 , onPress = Just StepFlow
                 }
 
@@ -1040,6 +1040,7 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
                     [ width (shrink |> minimum 120) ]
     in
     [ Font.color textColor
+    , d.mediumText
     , Bg.color bgColor
     , Border.color bgHoverColor
     , Border.solid
