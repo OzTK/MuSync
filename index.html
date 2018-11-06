@@ -13,7 +13,9 @@
   <link rel="stylesheet" href="assets/css/shoelace.css">
   <link rel="stylesheet" href="assets/css/font-awesome.css">
   <!-- <link rel="stylesheet" href="assets/css/clinica-pro.css"> -->
-  <link rel="stylesheet" href="assets/css/fira_code.css">
+  <link rel="stylesheet" href="assets/css/fira_code.css"><script async src="https://cdn.jsdelivr.net/npm/pwacompat@2.0.7/pwacompat.min.js"
+    integrity="sha384-ptgwb3/v69WGur7IwSnWOowVxE7hcRB3DG/EiHdejrw2sFNwUHynFbiRMPxc4hdS"
+    crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -107,7 +109,7 @@
         return onSpotifyLogin("1234567890febiubfurhgoi");
       }
 
-      var w = window.top.open('https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
+      var w = window.open('https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
         '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain +
         '/spotify-callback.html&scope=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false',
         'Spotify Login', 'top=' + (screen.availHeight / 2 - 300) + ',left=' + (screen.availWidth / 2 - 400) +
