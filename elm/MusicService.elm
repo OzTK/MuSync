@@ -4,10 +4,12 @@ module MusicService exposing
     , DisconnectedProvider(..)
     , MusicService(..)
     , OAuthToken
+    , connect
     , connected
     , connectedWithToken
     , connecting
     , connectionToString
+    , createToken
     , disconnect
     , disconnected
     , fromString
@@ -15,6 +17,7 @@ module MusicService exposing
     , searchMatchingSong
     , setUserInfo
     , toString
+    , token
     , type_
     )
 
@@ -36,8 +39,26 @@ type MusicService
     | Amazon
 
 
-type alias OAuthToken =
-    String
+type OAuthToken
+    = OAuthToken String
+
+
+type OAuthTokenFormatError
+    = EmptyTokenError
+
+
+createToken : String -> Result OAuthTokenFormatError OAuthToken
+createToken rawValue =
+    if rawValue == "" then
+        Err EmptyTokenError
+
+    else
+        Ok (OAuthToken rawValue)
+
+
+rawToken : OAuthToken -> String
+rawToken (OAuthToken value) =
+    value
 
 
 type ConnectedProvider
@@ -48,6 +69,11 @@ type ConnectedProvider
 connectionToString : ConnectedProvider -> String
 connectionToString =
     type_ >> toString
+
+
+connect : DisconnectedProvider -> OAuthToken -> ConnectedProvider
+connect (DisconnectedProvider service) tok =
+    ConnectedProviderWithToken service tok NotAsked
 
 
 connected : MusicService -> WebData UserInfo -> ConnectedProvider
@@ -165,7 +191,7 @@ imporPlaylist : (WebData Playlist -> msg) -> ConnectedProvider -> Playlist -> Li
 imporPlaylist tagger con { name } tracks =
     case ( type_ con, token con, user con ) of
         ( Spotify, Just tok, Just { id } ) ->
-            Spotify.importPlaylist tok id tagger tracks name
+            Spotify.importPlaylist (rawToken tok) id tagger tracks name
 
         ( Deezer, _, _ ) ->
             tracks
@@ -186,7 +212,7 @@ loadPlaylists tagger connection =
             Deezer.loadAllPlaylists ()
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylists tok (tagger connection)
+            Spotify.getPlaylists (rawToken tok) (tagger connection)
 
         _ ->
             Cmd.none
@@ -199,7 +225,7 @@ loadPlaylistSongs tagger connection { id, link } =
             Deezer.loadPlaylistSongs id
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylistTracksFromLink tok tagger link
+            Spotify.getPlaylistTracksFromLink (rawToken tok) tagger link
 
         _ ->
             Cmd.none
@@ -215,7 +241,7 @@ searchSongFromProvider : (WebData (List Track) -> msg) -> Track -> ConnectedProv
 searchSongFromProvider tagger track provider =
     case provider of
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.searchTrack tok tagger track
+            Spotify.searchTrack (rawToken tok) tagger track
 
         ConnectedProvider Deezer _ ->
             Deezer.searchSong { id = track.id, artist = track.artist, title = track.title }

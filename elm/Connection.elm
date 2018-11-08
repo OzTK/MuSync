@@ -5,6 +5,8 @@ module Connection exposing
     , connectedWithToken
     , connecting
     , disconnected
+    , fromConnected
+    , fromDisconnected
     , isConnected
     , isConnecting
     , map
@@ -35,6 +37,16 @@ type ProviderConnection
     = Disconnected DisconnectedProvider
     | Connecting ConnectingProvider
     | Connected ConnectedProvider
+
+
+fromConnected : ConnectedProvider -> ProviderConnection
+fromConnected connectedProvider =
+    Connected connectedProvider
+
+
+fromDisconnected : DisconnectedProvider -> ProviderConnection
+fromDisconnected connection =
+    Disconnected connection
 
 
 connected : MusicService -> WebData UserInfo -> ProviderConnection

@@ -106,7 +106,7 @@ type alias MatchingTrackKey =
 
 
 type alias Flags =
-    Dimensions
+    { window : Dimensions, rawTokens : List ( String, String ) }
 
 
 type MatchingTracksKeySerializationError
@@ -133,21 +133,39 @@ deserializeMatchingTracksKey key =
             Err (WrongKeysFormatError key)
 
 
+deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, OAuthToken )
+deserializeTokenPair ( serviceName, token ) =
+    token |> MusicService.createToken |> Result.toMaybe |> Maybe.map2 Tuple.pair (MusicService.fromString serviceName)
+
+
 init : Flags -> ( Model, Cmd Msg )
-init =
-    \flags ->
-        ( { flow = Flow.start [ Connection.disconnected Spotify, Connection.disconnected Deezer ]
-          , availableConnections =
-                SelectableList.fromList
-                    [ Connection.disconnected Spotify
-                    , Connection.disconnected Deezer
-                    ]
-          , songs = Dict.empty serializeMatchingTracksKey
-          , alternativeTitles = Dict.empty serializeMatchingTracksKey
-          , device = Element.classifyDevice flags
-          }
-        , Cmd.none
-        )
+init { window, rawTokens } =
+    let
+        tokens =
+            rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList MusicService.toString
+
+        connections =
+            [ MusicService.disconnected Spotify, MusicService.disconnected Deezer ]
+                |> List.map
+                    (\con ->
+                        tokens
+                            |> Dict.get ((Connection.type_ << Connection.fromDisconnected) con)
+                            |> Maybe.map (Connection.fromConnected << MusicService.connect con)
+                            |> Maybe.withDefault (Connection.fromDisconnected con)
+                    )
+    in
+    ( { flow = Flow.start connections
+      , availableConnections =
+            SelectableList.fromList
+                [ Connection.disconnected Spotify
+                , Connection.disconnected Deezer
+                ]
+      , songs = Dict.empty serializeMatchingTracksKey
+      , alternativeTitles = Dict.empty serializeMatchingTracksKey
+      , device = Element.classifyDevice window
+      }
+    , Cmd.none
+    )
 
 
 
@@ -783,7 +801,7 @@ connectView model connections canStep =
 
 progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
 progressBar attrs message =
-    column ([ htmlAttribute <| Html.style "width" "calc(50vw)" ] ++ attrs)
+    column attrs
         [ Element.html <|
             Html.div
                 [ Html.class "progress progress-sm progress-indeterminate" ]
@@ -1113,10 +1131,20 @@ handleDeezerMatchingTracksFetched ( rawKey, json ) =
         |> Result.unwrap
 
 
-handleSpotifyStatusUpdate ( maybeErr, token ) =
-    maybeErr
-        |> Maybe.map (\_ -> NoOp)
-        |> Maybe.withDefault (ProviderConnected <| MusicService.connectedWithToken Spotify token NotAsked)
+handleSpotifyStatusUpdate ( maybeErr, rawTok ) =
+    let
+        tok =
+            MusicService.createToken rawTok
+    in
+    if Maybe.isDefined maybeErr then
+        NoOp
+
+    else
+        rawTok
+            |> MusicService.createToken
+            |> Result.map
+                (\t -> ProviderConnected (MusicService.connectedWithToken Spotify t NotAsked))
+            |> Result.withDefault NoOp
 
 
 handleDeezerPlaylistTracksFetched ( pid, json ) =
