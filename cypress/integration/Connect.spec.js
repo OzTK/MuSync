@@ -1,19 +1,37 @@
 describe('Visiting the website and connecting music providers', () => {
-  it('successfully connects providers and updates the view', () => {
-    cy.visit('/')
-    let providerPickerLength = 2
+  let serviceCount = 2
 
+  before(() => {
+    cy.visit('/')
+  })
+
+  beforeEach(() => {
     cy.contains('Connect your favorite music providers')
       .parent()
       .next()
       .find('[role="button"]')
       .as('providers')
-      .should('have.length', providerPickerLength)
+  })
 
-    cy.get('@providers').each((b) => {
-      const button = cy.wrap(b)
+  it(`has ${serviceCount} services`, () => {
+    cy.get('@providers').should('have.length', serviceCount)
+  })
 
-      button.click().find('img').last().should('have.attr', 'alt', 'Connected')
-    })
+  it('successfully connects Deezer when clicking', () => {
+    cy.get('@providers')
+      .get('[aria-label="Deezer"]')
+      .click()
+      .find('img')
+      .last()
+      .should('have.attr', 'alt', 'Connected')
+  })
+
+  it('successfully connects Spotify if navigating to the page with a token', () => {
+    cy.visit('/#access_token=123456789&token_type=Bearer&expires_in=3600')
+    cy.get('@providers')
+      .get(`[aria-label="Spotify"]`)
+      .find('img')
+      .last()
+      .should('have.attr', 'alt', 'Connected')
   })
 })

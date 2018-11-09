@@ -21,10 +21,13 @@
   <script>
     var rawTokens = []
 
-    if (window.location.hash) {
-      rawTokens.push(['Spotify', window.location.hash.split('&')[0].split('=')[1]])
-      history.replaceState("", document.title, window.location.pathname + window.location.search)
+    function gatherToken() {
+      if (window.location.hash) {
+        rawTokens.push(['Spotify', window.location.hash.split('&')[0].split('=')[1]])
+        history.replaceState("", document.title, window.location.pathname + window.location.search)
+      }
     }
+    gatherToken()
   </script>
 </head>
 
@@ -44,7 +47,7 @@
   <script src="js/deezer.js"></script>
 
   <!-- Layout -->
-  <div id="app"></div>
+  <div class="app"></div>
   <script>
     if (navigator.serviceWorker.controller) {
       console.log('Active service worker found, no need to register')
@@ -61,16 +64,19 @@
   <!-- Elm (ports, init, ...) -->
   <script src="js/elm.js"></script>
   <script>
-    var elmApp = Elm.Main.init({
-      node: document.getElementById('app'),
-      flags: {
-        window: {
-          height: window.innerHeight,
-          width: window.innerWidth
-        },
-        rawTokens
-      }
-    });
+    function elmInit(node) {
+      return Elm.Main.init({
+        node: document.getElementsByClassName(node)[0],
+        flags: {
+          window: {
+            height: window.innerHeight,
+            width: window.innerWidth
+          },
+          rawTokens
+        }
+      });
+    }
+    var elmApp = elmInit('app')
 
     elmApp.ports.loadAllPlaylists.subscribe(function () {
       if (!isDzConnected) {
@@ -118,22 +124,13 @@
     // })
 
     elmApp.ports.connectS.subscribe(function () {
-      if (config.local) {
-        window.location.href = config.scheme + '://' + config.domain + '/index.html' + '#access_token=123456789&token_type=Bearer&expires_in=3600'
-      }
-
       window.location.href = 'https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
         '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain +
         '/index.html&scope=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false';
     });
 
-    if (typeof (dzInitialized) != undefined && dzInitialized) {
+    if (typeof (dzInitialized) !== undefined && dzInitialized) {
       getDeezerStatus(elmApp.ports.updateStatus.send);
-    }
-
-    function onSpotifyLoginError(err) {
-      window.spotifyLoginCompleted = true;
-      elmApp.ports.onConnected.send([err, '']);
     }
   </script>
 </body>

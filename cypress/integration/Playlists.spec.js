@@ -1,6 +1,6 @@
 describe('Connecting a music provider and displaying its playlists', () => {
   before(() => {
-    cy.visit('/').connectProvider('Spotify').connectProvider('Deezer')
+    cy.visit('/#access_token=123456789&token_type=Bearer&expires_in=3600').connectProvider('Deezer')
     cy.contains('Next').click()
   })
 
