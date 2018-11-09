@@ -19,6 +19,10 @@
 
   <!-- Handle OAuth returns -->
   <script>
+    var iOS = !!navigator.platform && /iPhone/.test(navigator.platform);
+    if(iOS) {
+      document.querySelector('link[rel="manifest"]').setAttribute("rel", "no-on-ios");
+    }
     var rawTokens = []
 
     function gatherToken() {
