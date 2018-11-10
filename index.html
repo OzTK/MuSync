@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="dzn" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="manifest" href="manifest.json">
+  <link id="pwa-manifest" rel="manifest" href="manifest.json">
   <title>MuSync</title>
   <!-- Using local css for now
   <link rel="stylesheet" href="https://cdn.shoelace.style/1.0.0-beta22/shoelace.css">
@@ -19,10 +19,6 @@
 
   <!-- Handle OAuth returns -->
   <script>
-    var iOS = !!navigator.platform && /iPhone/.test(navigator.platform);
-    if(iOS) {
-      document.querySelector('link[rel="manifest"]').setAttribute("rel", "no-on-ios");
-    }
     var rawTokens = []
 
     function gatherToken() {
@@ -41,6 +37,11 @@
   <script src="js/config.dev.js"></script>
   <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script>
   <script>
+    // Remove manifest on IOS to work around bug
+    if (/iP(?:hone|ad|od)/.test(navigator.userAgent)) {
+      document.head.removeChild(document.getElementById('pwa-manifest'))
+    }
+
     if (config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
       window.location = 'offline.html';
     }
