@@ -422,7 +422,7 @@ overlay : { m | flow : Flow } -> Element.Attribute Msg
 overlay { flow } =
     let
         attrs =
-            [ height fill, width fill, transition "background-color" ]
+            [ height fill, width fill, transition "background-color", mouseDown [] ]
     in
     flow
         |> Flow.selectedPlaylist
@@ -521,11 +521,22 @@ importConfigView1 model { name } =
     let
         d =
             dimensions model
+
+        containersPadding =
+            paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
     in
     column
         [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
-        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, d.smallPaddingAll ] [ text name ]
+        [ el
+            [ Region.heading 2
+            , width fill
+            , containersPadding
+            , Border.color palette.textFaded
+            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
+            ]
+          <|
+            text "Transfer playlist"
+        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, containersPadding ] [ text name ]
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
         ]
 
@@ -911,6 +922,7 @@ type alias DimensionPalette msg =
     , smallPaddingAll : Element.Attribute msg
     , smallHPadding : Element.Attribute msg
     , smallVPadding : Element.Attribute msg
+    , mediumPadding : Int
     , mediumPaddingAll : Element.Attribute msg
     , mediumPaddingTop : Element.Attribute msg
     , largePadding : Element.Attribute msg
@@ -944,13 +956,14 @@ dimensions { device } =
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
             , smallVPadding = paddingXY 0 smallPadding
+            , mediumPadding = mediumPadding
             , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 2 |> round |> padding
             , buttonImageWidth = scaled 4 |> round |> px |> width
-            , buttonHeight = scaled 6 |> round |> px |> height
+            , buttonHeight = scaled 7 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
-            , panelHeight = 180
+            , panelHeight = 220
             }
 
         _ ->
@@ -964,6 +977,7 @@ dimensions { device } =
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
             , smallVPadding = paddingXY 0 smallPadding
+            , mediumPadding = mediumPadding
             , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
             , largePadding = scaled 5 |> round |> padding
