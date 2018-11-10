@@ -547,6 +547,9 @@ importConfigView2 model unavailable services { name } =
         d =
             dimensions model
 
+        containersPadding =
+            paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
+
         buttonState con =
             if con == unavailable then
                 Disabled
@@ -577,13 +580,13 @@ importConfigView2 model unavailable services { name } =
         [ el
             [ Region.heading 2
             , width fill
-            , d.smallPaddingAll
+            , containersPadding
             , Border.color palette.textFaded
             , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
             ]
           <|
             text "Transfer to"
-        , wrappedRow [ d.smallPaddingAll, d.smallSpacing, centerX ]
+        , wrappedRow [ containersPadding, d.smallSpacing, centerX, centerY ]
             (services
                 |> SelectableList.mapWithStatus
                     (\connection isSelected ->
@@ -609,10 +612,13 @@ importConfigView3 model { name } =
     let
         d =
             dimensions model
+
+        containersPadding =
+            paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
     in
     column
         [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, d.smallPaddingAll, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
+        [ el [ Region.heading 2, width fill, containersPadding, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
         , progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
         ]
 
