@@ -161,8 +161,8 @@ next flow =
                 NoConnection ->
                     flow
 
-        _ ->
-            flow
+        Sync { playlists, connections } ->
+            PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
 
 
 

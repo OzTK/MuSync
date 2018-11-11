@@ -189,6 +189,7 @@ type Msg
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
+    | TransferInBackground
     | NoOp
 
 
@@ -302,6 +303,9 @@ update msg model =
 
         ToggleOtherProviderSelected connection ->
             ( { model | flow = Flow.pickService connection model.flow }, Cmd.none )
+
+        TransferInBackground ->
+            ( { model | flow = Flow.next model.flow }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -516,8 +520,8 @@ routePanel model =
             Element.el placeholderStyle Element.none
 
 
-importConfigView1 : { m | device : Element.Device } -> Playlist -> Element Msg
-importConfigView1 model { name } =
+panelContainer : { m | device : Element.Device } -> Maybe String -> (List (Element.Attribute msg) -> List (Element msg)) -> Element msg
+panelContainer model maybeTitle renderEls =
     let
         d =
             dimensions model
@@ -526,19 +530,42 @@ importConfigView1 model { name } =
             paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
     in
     column
-        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el
-            [ Region.heading 2
-            , width fill
-            , containersPadding
-            , Border.color palette.textFaded
-            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
-            ]
-          <|
-            text "Transfer playlist"
-        , paragraph [ height fill, clip, hack_forceClip, scrollbarY, containersPadding ] [ text name ]
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
+        [ width fill
+        , height fill
+        , clip
+        , hack_forceClip
+        , spaceEvenly
+        , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
         ]
+    <|
+        (maybeTitle
+            |> Maybe.map
+                (\title ->
+                    [ el
+                        [ Region.heading 2
+                        , width fill
+                        , containersPadding
+                        , Border.color palette.textFaded
+                        , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
+                        ]
+                      <|
+                        text title
+                    ]
+                )
+            |> Maybe.withDefault []
+        )
+            ++ renderEls [ containersPadding ]
+
+
+importConfigView1 : { m | device : Element.Device } -> Playlist -> Element Msg
+importConfigView1 model { name } =
+    panelContainer model
+        (Just "Transfer playlist")
+        (\styles ->
+            [ paragraph ([ height fill, clip, hack_forceClip, scrollbarY ] ++ styles) [ text name ]
+            , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
+            ]
+        )
 
 
 importConfigView2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Playlist -> Element Msg
@@ -546,9 +573,6 @@ importConfigView2 model unavailable services { name } =
     let
         d =
             dimensions model
-
-        containersPadding =
-            paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
 
         buttonState con =
             if con == unavailable then
@@ -569,42 +593,29 @@ importConfigView2 model unavailable services { name } =
             )
                 ++ [ width fill ]
     in
-    column
-        [ width fill
-        , height fill
-        , clip
-        , hack_forceClip
-        , spaceEvenly
-        , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
-        ]
-        [ el
-            [ Region.heading 2
-            , width fill
-            , containersPadding
-            , Border.color palette.textFaded
-            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
-            ]
-          <|
-            text "Transfer to"
-        , wrappedRow [ containersPadding, d.smallSpacing, centerX, centerY ]
-            (services
-                |> SelectableList.mapWithStatus
-                    (\connection isSelected ->
-                        button (squareToggleButtonStyle model <| buttonState connection)
-                            { onPress = Just <| ToggleOtherProviderSelected connection, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
-                    )
-                |> SelectableList.toList
-            )
-        , button goButtonStyle
-            { onPress =
-                if SelectableList.hasSelection services then
-                    Just StepFlow
+    panelContainer model
+        (Just "Transfer to")
+        (\styles ->
+            [ wrappedRow ([ d.smallSpacing, centerX, centerY ] ++ styles)
+                (services
+                    |> SelectableList.mapWithStatus
+                        (\connection isSelected ->
+                            button (squareToggleButtonStyle model <| buttonState connection)
+                                { onPress = Just <| ToggleOtherProviderSelected connection, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
+                        )
+                    |> SelectableList.toList
+                )
+            , button goButtonStyle
+                { onPress =
+                    if SelectableList.hasSelection services then
+                        Just StepFlow
 
-                else
-                    Nothing
-            , label = text "GO!"
-            }
-        ]
+                    else
+                        Nothing
+                , label = text "GO!"
+                }
+            ]
+        )
 
 
 importConfigView3 : { m | device : Element.Device } -> Playlist -> Element Msg
@@ -612,15 +623,14 @@ importConfigView3 model { name } =
     let
         d =
             dimensions model
-
-        containersPadding =
-            paddingEach { top = d.mediumPadding, right = d.smallPadding, bottom = d.mediumPadding, left = d.smallPadding }
     in
-    column
-        [ width fill, height fill, clip, hack_forceClip, spaceEvenly, Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded } ]
-        [ el [ Region.heading 2, width fill, containersPadding, Border.color palette.textFaded, Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 } ] <| text "Transfer playlist"
-        , progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
-        ]
+    panelContainer model
+        Nothing
+        (\_ ->
+            [ progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
+            , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just TransferInBackground, label = text "Do in background" }
+            ]
+        )
 
 
 playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> Playlist -> Element msg
