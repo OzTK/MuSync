@@ -489,7 +489,14 @@ routePanel model =
                 PlaylistSelected con id ->
                     playlists
                         |> Dict.get ( con, id )
-                        |> Maybe.map (importConfigView1 model)
+                        |> Maybe.map
+                            (\( p, state ) ->
+                                if Flow.isPlaylistTransferring state then
+                                    importConfigView3 model p
+
+                                else
+                                    importConfigView1 model p
+                            )
                         |> Maybe.withDefault Element.none
 
                 _ ->
@@ -507,12 +514,14 @@ routePanel model =
             in
             playlists
                 |> Dict.get playlist
+                |> Maybe.map Tuple.first
                 |> Maybe.map (importConfigView2 model (Tuple.first playlist) connectionsSelection)
                 |> Maybe.withDefault Element.none
 
         Sync { playlist, playlists, connections } ->
             playlists
                 |> Dict.get playlist
+                |> Maybe.map Tuple.first
                 |> Maybe.map (importConfigView3 model)
                 |> Maybe.withDefault Element.none
 
@@ -640,7 +649,7 @@ playlistRow model tagger playlist =
             dimensions model
 
         isSelected =
-            model.flow |> Flow.selectedPlaylist |> Maybe.map (.id >> (==) playlist.id) |> Maybe.withDefault False
+            model.flow |> Flow.selectedPlaylist |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
     in
     button
         ([ width fill
@@ -697,7 +706,7 @@ playlistsList model playlists =
                                 MusicService.connectionToString connection
                         )
                             :: (playlistIds
-                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists |> Maybe.map Tuple.first)
                                     |> List.map (playlistRow model <| TogglePlaylistSelected connection)
                                     |> List.withDefault [ text "No tracks" ]
                                )

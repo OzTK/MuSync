@@ -3,10 +3,12 @@ module Flow exposing
     , ConnectionsWithLoadingPlaylists
     , Flow(..)
     , PlaylistSelectionState(..)
+    , PlaylistState
     , PlaylistsDict
     , allServices
     , canStep
     , clearSelection
+    , isPlaylistTransferring
     , next
     , pickPlaylist
     , pickService
@@ -33,8 +35,29 @@ type alias ConnectionsWithLoadingPlaylists =
     List ( ConnectedProvider, WebData (List Playlist) )
 
 
+type PlaylistState
+    = Untransferred
+    | Transferring
+    | Transferred
+
+
+isPlaylistTransferring : PlaylistState -> Bool
+isPlaylistTransferring state =
+    case state of
+        Transferring ->
+            True
+
+        _ ->
+            False
+
+
+setPlaylistTransferring : ( Playlist, PlaylistState ) -> ( Playlist, PlaylistState )
+setPlaylistTransferring ( playlist, playlistState ) =
+    ( playlist, Transferring )
+
+
 type alias PlaylistsDict =
-    AnyDict String ( ConnectedProvider, PlaylistId ) Playlist
+    AnyDict String ( ConnectedProvider, PlaylistId ) ( Playlist, PlaylistState )
 
 
 type PlaylistSelectionState
@@ -92,10 +115,10 @@ canStep flow =
         LoadPlaylists data ->
             data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
 
-        PickPlaylist { selection } ->
+        PickPlaylist { selection, playlists } ->
             case selection of
-                PlaylistSelected _ _ ->
-                    True
+                PlaylistSelected con id ->
+                    Dict.get ( con, id ) playlists |> Maybe.map (Tuple.second >> isPlaylistTransferring >> not) |> Maybe.withDefault False
 
                 NoPlaylist ->
                     False
@@ -136,7 +159,7 @@ next flow =
                     (\( con, d ) ->
                         d
                             |> RemoteData.toMaybe
-                            |> Maybe.map (List.map (\p -> ( ( con, p.id ), p )))
+                            |> Maybe.map (List.map (\p -> ( ( con, p.id ), ( p, Untransferred ) )))
                     )
                 |> Maybe.fromList
                 |> Maybe.map List.concat
@@ -145,10 +168,18 @@ next flow =
                 |> Maybe.map PickPlaylist
                 |> Maybe.withDefault flow
 
-        PickPlaylist { playlists, selection, connections } ->
+        PickPlaylist ({ playlists, selection, connections } as payload) ->
             case selection of
                 PlaylistSelected con id ->
-                    PickOtherConnection { selection = NoConnection, playlist = ( con, id ), playlists = playlists, connections = connections }
+                    let
+                        isAlreadyTransferring =
+                            Dict.get ( con, id ) playlists |> Maybe.map Tuple.second |> Maybe.map isPlaylistTransferring |> Maybe.withDefault True
+                    in
+                    if not isAlreadyTransferring then
+                        PickOtherConnection { selection = NoConnection, playlist = ( con, id ), playlists = playlists, connections = connections }
+
+                    else
+                        PickPlaylist { payload | selection = NoPlaylist }
 
                 NoPlaylist ->
                     flow
@@ -156,12 +187,12 @@ next flow =
         PickOtherConnection { playlists, playlist, selection, connections } ->
             case selection of
                 ConnectionSelected connection ->
-                    Sync { playlist = playlist, playlists = playlists, connections = connections, otherConnection = connection }
+                    Sync { playlist = playlist, playlists = Dict.update playlist (Maybe.map setPlaylistTransferring) playlists, connections = connections, otherConnection = connection }
 
                 NoConnection ->
                     flow
 
-        Sync { playlists, connections } ->
+        Sync { playlists, connections, playlist, otherConnection } ->
             PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
 
 
@@ -267,7 +298,7 @@ pickService otherConnection flow =
             flow
 
 
-selectedPlaylist : Flow -> Maybe Playlist
+selectedPlaylist : Flow -> Maybe ( Playlist, PlaylistState )
 selectedPlaylist flow =
     case flow of
         PickPlaylist { selection, playlists } ->
