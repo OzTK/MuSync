@@ -59,7 +59,7 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
-import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..), PlaylistsDict)
+import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..), PlaylistState, PlaylistsDict)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -642,14 +642,17 @@ importConfigView3 model { name } =
         )
 
 
-playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> Playlist -> Element msg
-playlistRow model tagger playlist =
+playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> ( Playlist, PlaylistState ) -> Element msg
+playlistRow model tagger ( playlist, state ) =
     let
         d =
             dimensions model
 
         isSelected =
             model.flow |> Flow.selectedPlaylist |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
+
+        isTransferring =
+            Flow.isPlaylistTransferring state
     in
     button
         ([ width fill
@@ -674,6 +677,11 @@ playlistRow model tagger playlist =
                         Html.text <|
                             Playlist.summary playlist
                 , text <| String.fromInt playlist.tracksCount ++ " tracks"
+                , if isTransferring then
+                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| Element.html <| Html.i [ Html.class "fa fa-refresh spinning" ] []
+
+                  else
+                    Element.none
                 ]
         }
 
@@ -706,7 +714,7 @@ playlistsList model playlists =
                                 MusicService.connectionToString connection
                         )
                             :: (playlistIds
-                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists |> Maybe.map Tuple.first)
+                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
                                     |> List.map (playlistRow model <| TogglePlaylistSelected connection)
                                     |> List.withDefault [ text "No tracks" ]
                                )
