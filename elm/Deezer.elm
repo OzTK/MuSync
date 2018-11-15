@@ -1,39 +1,44 @@
 port module Deezer exposing
-    ( connectD
-    , createPlaylistWithTracks
+    ( connectDeezer
     , decodePlaylist
     , decodePlaylists
-    , decodeTracks
-    , disconnect
+    , disconnectDeezer
+    , getPlaylistTracksFromLink
+    , getPlaylists
     , httpBadPayloadError
-    , loadAllPlaylists
-    , loadPlaylistSongs
+    , importPlaylist
     , playlist
-    , playlistCreated
-    , receiveMatchingTracks
-    , receivePlaylistSongs
-    , receivePlaylists
-    , searchSong
+    , searchTrack
     , track
-    , updateStatus
     )
 
 import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip)
 import Dict
 import Http exposing (Error(..), Response)
-import Json.Decode as JD exposing (Decoder, int, map, string)
-import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
+import Json.Decode as Decode exposing (Decoder, bool, int, list, map, string, succeed)
+import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, required, requiredAt)
 import Json.Encode as JE
+import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
+import Process
 import RemoteData exposing (RemoteData(..), WebData)
+import RemoteData.Http as Http exposing (Config, defaultConfig)
+import Task exposing (Task)
 import Track exposing (Track)
 import Tuple exposing (pair)
 
 
+userInfo : Decoder UserInfo
+userInfo =
+    succeed UserInfo
+        |> Decode.required "id" string
+        |> Decode.required "name" string
+
+
 playlist : Decoder Playlist
 playlist =
-    JD.succeed Playlist
+    succeed Playlist
         |> required "id" (map String.fromInt int)
         |> required "title" string
         |> hardcoded NotAsked
@@ -43,77 +48,178 @@ playlist =
 
 track : Decoder Track
 track =
-    JD.succeed Track
+    succeed Track
         |> required "id" (map String.fromInt int)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
 
 
-httpBadPayloadError : String -> JD.Value -> Either JD.Error String -> Error
+httpBadPayloadError : String -> Decode.Value -> Either Decode.Error String -> Error
 httpBadPayloadError url json err =
     { url = url
     , status = { code = 200, message = "OK" }
     , headers = Dict.empty
     , body = JE.encode 0 json
     }
-        |> BadPayload (Either.unwrap JD.errorToString identity err)
+        |> BadPayload (Either.unwrap Decode.errorToString identity err)
 
 
 decodeData decoder url json =
     json
-        |> JD.decodeValue decoder
+        |> Decode.decodeValue decoder
         |> Result.mapError Left
         |> Result.mapError (httpBadPayloadError url json)
         |> RemoteData.fromResult
 
 
-decodePlaylists : JD.Value -> WebData (List Playlist)
+decodePlaylists : Decoder (List Playlist)
 decodePlaylists =
-    decodeData (JD.list playlist) "/deezer/playlists"
+    succeed succeed
+        |> Decode.required "data" (list playlist)
+        |> Decode.resolve
 
 
-decodePlaylist : JD.Value -> WebData Playlist
+decodePlaylist : Decode.Value -> WebData Playlist
 decodePlaylist =
     decodeData playlist "/deezer/playlist"
 
 
-decodeTracks : JD.Value -> WebData (List Track)
-decodeTracks =
-    decodeData (JD.list track) "/deezer/tracks"
+tracksResult : Decoder (List Track)
+tracksResult =
+    succeed succeed
+        |> Decode.required "data" (list track)
+        |> Decode.resolve
 
 
 
--- Ports
+-- Values
 
 
-port updateStatus : (Bool -> msg) -> Sub msg
+endpoint : String -> String -> String
+endpoint token resource =
+    let
+        prefix =
+            if String.contains "?" resource then
+                "&"
+
+            else
+                "?"
+    in
+    "https://cors-anywhere.herokuapp.com/https://api.deezer.com/" ++ resource ++ prefix ++ "access_token=" ++ token
 
 
-port connectD : () -> Cmd msg
+
+-- Http
 
 
-port disconnect : () -> Cmd msg
+delayAndRetry : Task Never (WebData a) -> Float -> Task Never (WebData a)
+delayAndRetry task =
+    (+) 1000
+        >> Process.sleep
+        >> Task.andThen (\_ -> withRateLimitTask task)
 
 
-port loadAllPlaylists : () -> Cmd msg
+withRateLimitTask : Task Never (WebData a) -> Task Never (WebData a)
+withRateLimitTask task =
+    task
+        |> Task.andThen
+            (\result ->
+                case result of
+                    Failure (Http.BadStatus response) ->
+                        if response.status.code == 429 then
+                            response.headers
+                                |> Dict.get "retry-after"
+                                |> Maybe.andThen String.toFloat
+                                |> Maybe.map (delayAndRetry task)
+                                |> Maybe.withDefault (Task.succeed result)
+
+                        else
+                            Task.succeed result
+
+                    _ ->
+                        Task.succeed result
+            )
 
 
-port receivePlaylists : (JD.Value -> msg) -> Sub msg
+withRateLimit : (WebData a -> msg) -> Task Never (WebData a) -> Cmd msg
+withRateLimit tagger task =
+    withRateLimitTask task |> Task.perform tagger
 
 
-port searchSong : { id : String, title : String, artist : String } -> Cmd msg
+getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
+getUserInfo token tagger =
+    Http.getWithConfig defaultConfig (endpoint token "/user/me") tagger userInfo
 
 
-port receiveMatchingTracks : (( String, JD.Value ) -> msg) -> Sub msg
+searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
+searchTrack token tagger t =
+    Http.getTaskWithConfig defaultConfig
+        (endpoint token <|
+            "search/track?q="
+                ++ ("artist:\""
+                        ++ t.artist
+                        ++ "\" track:\""
+                        ++ t.title
+                        ++ "\""
+                   )
+        )
+        tracksResult
+        |> withRateLimit tagger
 
 
-port loadPlaylistSongs : PlaylistId -> Cmd msg
+getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
+getPlaylists token tagger =
+    Http.getTaskWithConfig defaultConfig
+        (endpoint token "user/me/playlists")
+        decodePlaylists
+        |> withRateLimit tagger
 
 
-port receivePlaylistSongs : (( PlaylistId, JD.Value ) -> msg) -> Sub msg
+getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
+getPlaylistTracksFromLink token tagger link =
+    Http.getTaskWithConfig defaultConfig (link ++ "/tracks" ++ "?access_token=" ++ token) tracksResult |> withRateLimit tagger
 
 
-port createPlaylistWithTracks : ( String, List Int ) -> Cmd msg
+createPlaylistTask : String -> String -> String -> Task Never (WebData Playlist)
+createPlaylistTask token user name =
+    Http.postTaskWithConfig
+        defaultConfig
+        (endpoint token <| "users/" ++ user ++ "/playlists")
+        playlist
+        (JE.object [ ( "name", JE.string name ) ])
 
 
-port playlistCreated : (JD.Value -> msg) -> Sub msg
+addSongsToPlaylistTask : String -> List Track -> WebData Playlist -> Task Never (WebData Playlist)
+addSongsToPlaylistTask token songs playlistData =
+    case playlistData of
+        Success { link } ->
+            Http.postTaskWithConfig
+                defaultConfig
+                (link ++ "/tracks" ++ "?access_token=" ++ token)
+                bool
+                (JE.object
+                    [ ( "uris"
+                      , songs
+                            |> List.map .id
+                            |> List.map ((++) "spotify:track:")
+                            |> JE.list JE.string
+                      )
+                    ]
+                )
+                |> Task.map (\_ -> playlistData)
+
+        _ ->
+            Task.succeed playlistData
+
+
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
+importPlaylist token user tagger songs name =
+    createPlaylistTask token user name
+        |> Task.andThen (addSongsToPlaylistTask token songs)
+        |> Task.perform tagger
+
+
+port connectDeezer : () -> Cmd msg
+
+
+port disconnectDeezer : () -> Cmd msg

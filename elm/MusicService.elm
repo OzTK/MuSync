@@ -193,13 +193,8 @@ imporPlaylist tagger con { name } tracks =
         ( Spotify, Just tok, Just { id } ) ->
             Spotify.importPlaylist (rawToken tok) id tagger tracks name
 
-        ( Deezer, _, _ ) ->
-            tracks
-                |> List.map .id
-                |> List.andThenMaybe String.toInt
-                |> Maybe.map (pair name)
-                |> Maybe.map Deezer.createPlaylistWithTracks
-                |> Maybe.withDefault Cmd.none
+        ( Deezer, Just tok, Just { id } ) ->
+            Deezer.importPlaylist (rawToken tok) id tagger tracks name
 
         _ ->
             Cmd.none
@@ -208,8 +203,8 @@ imporPlaylist tagger con { name } tracks =
 loadPlaylists : (ConnectedProvider -> WebData (List Playlist) -> msg) -> ConnectedProvider -> Cmd msg
 loadPlaylists tagger connection =
     case connection of
-        ConnectedProvider Deezer _ ->
-            Deezer.loadAllPlaylists ()
+        ConnectedProviderWithToken Deezer tok _ ->
+            Deezer.getPlaylists (rawToken tok) (tagger connection)
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylists (rawToken tok) (tagger connection)
@@ -221,8 +216,8 @@ loadPlaylists tagger connection =
 loadPlaylistSongs : (WebData (List Track) -> msg) -> ConnectedProvider -> Playlist -> Cmd msg
 loadPlaylistSongs tagger connection { id, link } =
     case connection of
-        ConnectedProvider Deezer _ ->
-            Deezer.loadPlaylistSongs id
+        ConnectedProviderWithToken Deezer tok _ ->
+            Deezer.getPlaylistTracksFromLink (rawToken tok) tagger link
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylistTracksFromLink (rawToken tok) tagger link
@@ -243,8 +238,8 @@ searchSongFromProvider tagger track provider =
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.searchTrack (rawToken tok) tagger track
 
-        ConnectedProvider Deezer _ ->
-            Deezer.searchSong { id = track.id, artist = track.artist, title = track.title }
+        ConnectedProviderWithToken Deezer tok _ ->
+            Deezer.searchTrack (rawToken tok) tagger track
 
         _ ->
             Cmd.none

@@ -140,10 +140,10 @@ toggleProviderConnect : (DisconnectedProvider -> msg) -> ProviderConnection -> C
 toggleProviderConnect tagger connection =
     case ( type_ connection, connection ) of
         ( Deezer, Connected con ) ->
-            Cmd.batch [ Deezer.disconnect (), notifyProviderDisconnected tagger <| P.disconnect con ]
+            Cmd.batch [ Deezer.disconnectDeezer (), notifyProviderDisconnected tagger <| P.disconnect con ]
 
         ( Deezer, Disconnected _ ) ->
-            Deezer.connectD ()
+            Deezer.connectDeezer ()
 
         ( Spotify, Connected con ) ->
             notifyProviderDisconnected tagger <| P.disconnect con

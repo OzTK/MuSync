@@ -316,6 +316,9 @@ getFlowStepCmd flow =
         LoadPlaylists byProvider ->
             byProvider |> List.map (Tuple.first >> MusicService.loadPlaylists PlaylistsFetched) |> Cmd.batch
 
+        Sync { playlists, playlist, otherConnection } ->
+            Cmd.none
+
         _ ->
             Cmd.none
 
@@ -637,7 +640,7 @@ importConfigView3 model { name } =
         Nothing
         (\_ ->
             [ progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
-            , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just TransferInBackground, label = text "Do in background" }
+            , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just TransferInBackground, label = text "Run in background" }
             ]
         )
 
@@ -1169,15 +1172,6 @@ main =
 -- Subscriptions
 
 
-handleDeezerMatchingTracksFetched : ( String, JD.Value ) -> Msg
-handleDeezerMatchingTracksFetched ( rawKey, json ) =
-    rawKey
-        |> deserializeMatchingTracksKey
-        |> Result.map (\key -> MatchingSongResult key (Deezer.decodeTracks json))
-        |> Result.mapError (MatchingSongResultError rawKey)
-        |> Result.unwrap
-
-
 handleSpotifyStatusUpdate ( maybeErr, rawTok ) =
     let
         tok =
@@ -1194,27 +1188,9 @@ handleSpotifyStatusUpdate ( maybeErr, rawTok ) =
             |> Result.withDefault NoOp
 
 
-handleDeezerPlaylistTracksFetched ( pid, json ) =
-    PlaylistTracksFetched pid (Deezer.decodeTracks json)
-
-
-handleDeezerStatusUpdate : Bool -> Msg
-handleDeezerStatusUpdate isConnected =
-    if isConnected then
-        ProviderConnected <| MusicService.connected Deezer NotAsked
-
-    else
-        ProviderDisconnected <| MusicService.disconnected Deezer
-
-
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Deezer.updateStatus handleDeezerStatusUpdate
-        , Deezer.receivePlaylists (PlaylistsFetched (MusicService.connected Deezer NotAsked) << Deezer.decodePlaylists)
-        , Deezer.receivePlaylistSongs handleDeezerPlaylistTracksFetched
-        , Deezer.receiveMatchingTracks handleDeezerMatchingTracksFetched
-        , Deezer.playlistCreated (PlaylistImported << Deezer.decodePlaylist)
-        , Spotify.onConnected handleSpotifyStatusUpdate
+        [ Spotify.onConnected handleSpotifyStatusUpdate
         , Browser.onResize (\w h -> BrowserResized <| Dimensions h w)
         ]
