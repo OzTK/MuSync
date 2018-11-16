@@ -1,27 +1,29 @@
 describe('Connecting a music provider and displaying its playlists', () => {
   before(() => {
-    cy.visit('/#access_token=123456789&token_type=Bearer&expires_in=3600').connectProvider('Deezer')
-    cy.contains('Next').click()
+    cy.visit('/')
+      .connectProvider('Deezer')
+      .connectProvider('Spotify')
+    cy.contains('NEXT').click()
   })
 
-  // it('displays playlists from a connected provider', () => {
-  //   cy.contains('Pick the playlists you want to transfer').should('exist')
-  //   cy.contains('Spotify')
-  //     .should('exist')
-  //     .parent()
-  //     .parent()
-  //     .children('label')
-  //     .should('have.length', 4)
-  // })
+  it('displays playlists from a connected provider', () => {
+    cy.contains('Pick a playlist you want to transfer').should('exist')
+    cy.contains('Spotify')
+      .should('exist')
+      .parent()
+      .nextAll('div')
+      .should('have.length', 4)
+  })
 
-  // it('selects playlists when clicking on them', () => {
-  //   cy.contains('Spotify').parent().parent().children('label').as('playlists')
-  //
-  //   cy.get('@playlists').each((p) => {
-  //     cy.wrap(p)
-  //       .click()
-  //       .find('[role="checkbox"]')
-  //       .should('contain', '[X]')
-  //   })
-  // })
+  it('selects a playlist when clicking on it', () => {
+    cy.contains('Spotify').parent().nextAll('div').as('playlists')
+
+    cy.get('@playlists').first().click()
+    cy.contains('Transfer playlist').parent().parent().find('p').should('contain', 'Chouchou')
+  })
+
+  it('deselect the playlist when clicking in the overlay', () => {
+    cy.get('.fr > .hf').click()
+    cy.contains('Transfer playlist').should('not.exist')
+  })
 })

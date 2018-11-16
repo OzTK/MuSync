@@ -1,0 +1,82 @@
+port module Deezer exposing
+    ( connectDeezer
+    , disconnectDeezer
+    , getPlaylistTracksFromLink
+    , getPlaylists
+    , importPlaylist
+    , searchTrack
+    )
+
+import Basics.Either as Either exposing (Either(..))
+import Basics.Extra exposing (flip)
+import Dict
+import Http exposing (Error(..), Response)
+import Json.Decode as Decode exposing (Decoder, bool, int, list, map, string, succeed)
+import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, required, requiredAt)
+import Json.Encode as JE
+import Model exposing (UserInfo)
+import Playlist exposing (Playlist, PlaylistId)
+import Process
+import RemoteData exposing (RemoteData(..), WebData)
+import RemoteData.Http as Http exposing (Config, defaultConfig)
+import Task exposing (Task)
+import Track exposing (Track)
+import Tuple exposing (pair)
+
+
+getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
+getUserInfo token tagger =
+    UserInfo "1" "Test User"
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
+searchTrack token tagger ({ id, artist, title } as track) =
+    [ Track id title artist ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
+getPlaylists _ tagger =
+    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
+getPlaylistTracksFromLink _ tagger _ =
+    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu" }
+    , { id = "2", artist = "Serge Gainsbourg", title = "Petit" }
+    , { id = "3", artist = "The Beatles", title = "Yellow Submarine" }
+    , { id = "4", artist = "Iron Maiden", title = "666" }
+    , { id = "5", artist = "Mickael Jackson", title = "Beat it" }
+    , { id = "6", artist = "RHCP", title = "Californication" }
+    , { id = "7", artist = "The Clash", title = "London Calling" }
+    , { id = "8", artist = "The Tiger Lillies", title = "Terrible" }
+    ]
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
+importPlaylist _ _ tagger songs name =
+    Playlist "1" name NotAsked "http://myplaylist" 5
+        |> Task.succeed
+        |> RemoteData.asCmd
+        |> Cmd.map tagger
+
+
+port connectDeezer : () -> Cmd msg
+
+
+port disconnectDeezer : () -> Cmd msg

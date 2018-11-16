@@ -79,12 +79,22 @@
     })
 
     elmApp.ports.connectS.subscribe(function () {
+      if (config.local) {
+        window.location.href = '/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600';
+        return;
+      }
+
       window.location.href = 'https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
         '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Spotify' +
         '&scope=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false';
     });
 
     elmApp.ports.connectDeezer.subscribe(function () {
+      if (config.local) {
+        window.location.href = '/?service=Deezer#access_token=987654321&token_type=Bearer&expires_in=3600';
+        return;
+      }
+
       window.location.href = 'https://connect.deezer.com/oauth/auth.php?app_id=' + config.deezerAppId +
         '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Deezer' +
         '&perms=manage_library,basic_access';
