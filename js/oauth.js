@@ -10,7 +10,7 @@ function retrieveTokens() {
   try {
     const json = localStorage.getItem('tokens') || '{}';
     return JSON.parse(json);
-  } catch {
+  } catch(e) {
     return {};
   }
 }
