@@ -1,8 +1,9 @@
-module ApiClient exposing (delayAndRetry)
+module ApiClient exposing (Base, Endpoint, Full, actionEndpoint, appendPath, asAny, baseEndpoint, endpointFromLink, get, getWithRateLimit, post, queryEndpoint)
 
 import Dict exposing (Dict)
 import Http
 import Json.Decode exposing (Decoder)
+import Json.Encode as Json
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import Process
@@ -10,6 +11,8 @@ import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config)
 import Task exposing (Task)
 import Track exposing (Track)
+import Url
+import Url.Builder as Url exposing (QueryParameter)
 
 
 
@@ -61,6 +64,11 @@ type Base
     = Base
 
 
+type AnyFullEndpoint
+    = FullNoQuery (Endpoint Full)
+    | FullWithQuery (Endpoint FullAndQuery)
+
+
 type Full
     = Full
 
@@ -74,34 +82,62 @@ baseEndpoint =
     Endpoint
 
 
-actionEndpoint : Endpoint Base -> String -> Endpoint Full
-actionEndpoint (Endpoint base) resource =
-    Endpoint (base ++ "/" ++ resource)
+actionEndpoint : Endpoint Base -> List String -> Endpoint Full
+actionEndpoint (Endpoint base) path =
+    Endpoint <| Url.crossOrigin base path []
 
 
-type Query
-    = Query (Dict String String)
+queryEndpoint : Endpoint Base -> List String -> List QueryParameter -> AnyFullEndpoint
+queryEndpoint (Endpoint base) path query =
+    FullWithQuery <| Endpoint <| Url.crossOrigin base path query
 
 
-serializeQuery : Query -> String
-serializeQuery (Query map) =
-    Dict.foldl (\name value qString -> qString ++ "&" ++ name ++ "=" ++ value) "?" map
+endpointFromLink : Endpoint Base -> String -> Maybe (Endpoint Full)
+endpointFromLink (Endpoint domain) link =
+    Url.fromString link
+        |> Maybe.andThen
+            (\{ host } ->
+                if String.contains domain link then
+                    Just (Endpoint link)
+
+                else
+                    Nothing
+            )
 
 
-queryEndpoint : Endpoint Base -> String -> Query -> Endpoint Full
-queryEndpoint (Endpoint base) resource query =
-    Endpoint (base ++ "/" ++ resource)
+asAny : Endpoint Full -> AnyFullEndpoint
+asAny =
+    FullNoQuery
+
+
+appendPath : String -> Endpoint Full -> Endpoint Full
+appendPath segment (Endpoint url) =
+    Endpoint (url ++ "/" ++ Url.percentEncode segment)
 
 
 
 -- Public Api
 
 
-get : Config -> Endpoint Full -> Decoder m -> Task Never (WebData m)
-get config (Endpoint url) =
+get : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)
+get config endpoint =
+    let
+        url =
+            case endpoint of
+                FullNoQuery (Endpoint u) ->
+                    u
+
+                FullWithQuery (Endpoint u) ->
+                    u
+    in
     Http.getTaskWithConfig config url
 
 
-getWithRateLimit : Config -> Endpoint Full -> Decoder m -> Task Never (WebData m)
+post : Config -> Endpoint Full -> Decoder m -> Json.Value -> Task Never (WebData m)
+post config (Endpoint url) =
+    Http.postTaskWithConfig config url
+
+
+getWithRateLimit : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)
 getWithRateLimit config endpoint decoder =
     get config endpoint decoder |> withRateLimit

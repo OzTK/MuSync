@@ -28,6 +28,7 @@ import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Spotify
+import Task
 import Track exposing (Track, TrackId)
 import Tuple exposing (pair)
 
@@ -191,7 +192,7 @@ imporPlaylist : (WebData Playlist -> msg) -> ConnectedProvider -> Playlist -> Li
 imporPlaylist tagger con { name } tracks =
     case ( type_ con, token con, user con ) of
         ( Spotify, Just tok, Just { id } ) ->
-            Spotify.importPlaylist (rawToken tok) id tagger tracks name
+            Spotify.importPlaylist (rawToken tok) id tracks name |> Task.perform tagger
 
         ( Deezer, Just tok, Just { id } ) ->
             Deezer.importPlaylist (rawToken tok) id tagger tracks name
@@ -207,7 +208,7 @@ loadPlaylists tagger connection =
             Deezer.getPlaylists (rawToken tok) (tagger connection)
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylists (rawToken tok) (tagger connection)
+            Spotify.getPlaylists (rawToken tok) |> Task.perform (tagger connection)
 
         _ ->
             Cmd.none
@@ -220,7 +221,7 @@ loadPlaylistSongs tagger connection { id, link } =
             Deezer.getPlaylistTracksFromLink (rawToken tok) tagger link
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylistTracksFromLink (rawToken tok) tagger link
+            Spotify.getPlaylistTracksFromLink (rawToken tok) link |> Task.perform tagger
 
         _ ->
             Cmd.none
@@ -236,7 +237,7 @@ searchSongFromProvider : (WebData (List Track) -> msg) -> Track -> ConnectedProv
 searchSongFromProvider tagger track provider =
     case provider of
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.searchTrack (rawToken tok) tagger track
+            Spotify.searchTrack (rawToken tok) track |> Task.perform tagger
 
         ConnectedProviderWithToken Deezer tok _ ->
             Deezer.searchTrack (rawToken tok) tagger track

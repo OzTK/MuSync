@@ -8,6 +8,7 @@ port module Spotify exposing
     , searchTrack
     )
 
+import ApiClient as Api exposing (Base, Endpoint, Full)
 import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -18,9 +19,10 @@ import Playlist exposing (Playlist)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
-import Task
+import Task exposing (Task)
 import Track exposing (Track)
 import Tuple exposing (pair)
+import Url.Builder as Url
 
 
 
@@ -114,9 +116,9 @@ addToPlaylistResponse =
 -- Values
 
 
-endpoint : String
+endpoint : Endpoint Base
 endpoint =
-    "https://api.spotify.com" ++ "/" ++ version ++ "/"
+    Api.baseEndpoint <| Url.crossOrigin "https://api.spotify.com" [ version ] []
 
 
 version : String
@@ -128,111 +130,103 @@ version =
 -- Http
 
 
-delayAndRetry : Task.Task Never (WebData a) -> Float -> Task.Task Never (WebData a)
-delayAndRetry task =
-    (+) 1000
-        >> Process.sleep
-        >> Task.andThen (\_ -> withRateLimitTask task)
+getUserInfo : String -> Task Never (WebData UserInfo)
+getUserInfo token =
+    Api.get (config token) (Api.actionEndpoint endpoint [ "me" ] |> Api.asAny) userInfo
 
 
-withRateLimitTask : Task.Task Never (WebData a) -> Task.Task Never (WebData a)
-withRateLimitTask task =
-    task
-        |> Task.andThen
-            (\result ->
-                case result of
-                    Failure (Http.BadStatus response) ->
-                        if response.status.code == 429 then
-                            response.headers
-                                |> Dict.get "retry-after"
-                                |> Maybe.andThen String.toFloat
-                                |> Maybe.map (delayAndRetry task)
-                                |> Maybe.withDefault (Task.succeed result)
-
-                        else
-                            Task.succeed result
-
-                    _ ->
-                        Task.succeed result
-            )
-
-
-withRateLimit : (WebData a -> msg) -> Task.Task Never (WebData a) -> Cmd msg
-withRateLimit tagger task =
-    withRateLimitTask task |> Task.perform tagger
-
-
-getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
-getUserInfo token tagger =
-    Http.getWithConfig (config token) (endpoint ++ "me") tagger userInfo
-
-
-searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
-searchTrack token tagger t =
-    Http.getTaskWithConfig (config token)
-        (endpoint
-            ++ "search?type=track&limit=1&q="
-            ++ ("artist:\""
+searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack token t =
+    Api.getWithRateLimit (config token)
+        (Api.queryEndpoint endpoint
+            [ "search" ]
+            [ Url.string "type" "track"
+            , Url.int "limit" 1
+            , Url.string
+                "q"
+                ("artist:\""
                     ++ t.artist
                     ++ "\" track:\""
                     ++ t.title
                     ++ "\""
-               )
+                )
+            ]
         )
         searchResponse
-        |> withRateLimit tagger
 
 
-getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
-getPlaylists token tagger =
-    Http.getTaskWithConfig (config token)
-        (endpoint ++ "me/playlists")
+getPlaylists : String -> Task Never (WebData (List Playlist))
+getPlaylists token =
+    Api.getWithRateLimit (config token)
+        (Api.actionEndpoint endpoint [ "me", "playlists" ] |> Api.asAny)
         playlistsResponse
-        |> withRateLimit tagger
 
 
-getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
-getPlaylistTracksFromLink token tagger link =
-    Http.getTaskWithConfig (config token) (link ++ "/tracks") playlistTracks |> withRateLimit tagger
+playlistsTracksFromLink : String -> Maybe (Endpoint Full)
+playlistsTracksFromLink link =
+    link
+        |> Api.endpointFromLink endpoint
+        |> Maybe.map (Api.appendPath "tracks")
 
 
-createPlaylistTask : String -> String -> String -> Task.Task Never (WebData Playlist)
-createPlaylistTask token user name =
-    Http.postTaskWithConfig
-        (config token)
-        (endpoint ++ "users/" ++ user ++ "/playlists")
+getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink token link =
+    link
+        |> playlistsTracksFromLink
+        |> Maybe.map Api.asAny
+        |> Maybe.map (\l -> Api.getWithRateLimit (config token) l playlistTracks)
+        |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
+
+
+createPlaylist : Config -> String -> String -> Task.Task Never (WebData Playlist)
+createPlaylist cfg user name =
+    Api.post
+        cfg
+        (Api.actionEndpoint endpoint [ "users", user, "playlists" ])
         playlist
         (JE.object [ ( "name", JE.string name ) ])
 
 
-addSongsToPlaylistTask : String -> List Track -> WebData Playlist -> Task.Task Never (WebData Playlist)
-addSongsToPlaylistTask token songs playlistData =
+addPlaylistTracksEncoder : List Track -> JE.Value
+addPlaylistTracksEncoder songs =
+    JE.object
+        [ ( "uris"
+          , songs
+                |> List.map .id
+                |> List.map ((++) "spotify:track:")
+                |> JE.list JE.string
+          )
+        ]
+
+
+addSongsToPlaylist : Config -> List Track -> WebData Playlist -> Task.Task String (WebData Playlist)
+addSongsToPlaylist cfg songs playlistData =
     case playlistData of
         Success { link } ->
-            Http.postTaskWithConfig
-                (config token)
-                (link ++ "/tracks")
-                addToPlaylistResponse
-                (JE.object
-                    [ ( "uris"
-                      , songs
-                            |> List.map .id
-                            |> List.map ((++) "spotify:track:")
-                            |> JE.list JE.string
-                      )
-                    ]
-                )
-                |> Task.map (\_ -> playlistData)
+            link
+                |> playlistsTracksFromLink
+                |> Maybe.map
+                    (\l ->
+                        Api.post cfg l addToPlaylistResponse (addPlaylistTracksEncoder songs)
+                            |> Task.map (\_ -> playlistData)
+                    )
+                |> Maybe.map (Task.mapError (\_ -> ""))
+                |> Maybe.withDefault (Task.fail link)
 
         _ ->
             Task.succeed playlistData
 
 
-importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
-importPlaylist token user tagger songs name =
-    createPlaylistTask token user name
-        |> Task.andThen (addSongsToPlaylistTask token songs)
-        |> Task.perform tagger
+importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
+importPlaylist token user songs name =
+    let
+        cfg =
+            config token
+    in
+    createPlaylist cfg user name
+        |> Task.mapError (\_ -> "")
+        |> Task.andThen (addSongsToPlaylist cfg songs)
+        |> Task.onError (Http.BadUrl >> Failure >> Task.succeed)
 
 
 config : String -> Config
