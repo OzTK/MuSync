@@ -1172,25 +1172,8 @@ main =
 -- Subscriptions
 
 
-handleSpotifyStatusUpdate ( maybeErr, rawTok ) =
-    let
-        tok =
-            MusicService.createToken rawTok
-    in
-    if Maybe.isDefined maybeErr then
-        NoOp
-
-    else
-        rawTok
-            |> MusicService.createToken
-            |> Result.map
-                (\t -> ProviderConnected (MusicService.connectedWithToken Spotify t NotAsked))
-            |> Result.withDefault NoOp
-
-
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Spotify.onConnected handleSpotifyStatusUpdate
-        , Browser.onResize (\w h -> BrowserResized <| Dimensions h w)
+        [ Browser.onResize (\w h -> BrowserResized <| Dimensions h w)
         ]
