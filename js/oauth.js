@@ -19,6 +19,7 @@ function saveToken(service, tokenData) {
   const tokens = retrieveTokens();
 
   if (tokenData) {
+    tokenData.expiration = new Date().getTime() + (Number(tokenData.expires || tokenData.expires_in))
     tokens[service] = tokenData;
   } else if (tokens[service]) {
     delete tokens[service];
@@ -53,4 +54,5 @@ function collectUrlToken() {
 }
 
 var tokens = collectUrlToken();
-var rawTokens = Object.keys(tokens).map((k) => [k, tokens[k].access_token]);
+var currTime = new Date().getTime();
+var rawTokens = Object.keys(tokens).filter((k) => tokens[k].expiration < currTime).map((k) => [k, tokens[k].access_token]);
