@@ -11,40 +11,37 @@ port module Spotify exposing
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
-import Task
+import Task exposing (Task)
 import Track exposing (Track)
 
 
-getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
-getUserInfo token tagger =
+getUserInfo : String -> Task Never (WebData UserInfo)
+getUserInfo token =
     UserInfo "1" "Test User"
+        |> RemoteData.succeed
         |> Task.succeed
-        |> RemoteData.asCmd
-        |> Cmd.map tagger
 
 
-searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
-searchTrack token tagger ({ id, artist, title } as track) =
+searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack token ({ id, artist, title } as track) =
     [ Track id title artist ]
+        |> RemoteData.succeed
         |> Task.succeed
-        |> RemoteData.asCmd
-        |> Cmd.map tagger
 
 
-getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
-getPlaylists _ tagger =
+getPlaylists : String -> Task Never (WebData (List Playlist))
+getPlaylists _ =
     [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
     , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
     , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
     , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
     ]
+        |> RemoteData.succeed
         |> Task.succeed
-        |> RemoteData.asCmd
-        |> Cmd.map tagger
 
 
-getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
-getPlaylistTracksFromLink _ tagger _ =
+getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink _ _ =
     [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu" }
     , { id = "2", artist = "Serge Gainsbourg", title = "Petit" }
     , { id = "3", artist = "The Beatles", title = "Yellow Submarine" }
@@ -54,17 +51,15 @@ getPlaylistTracksFromLink _ tagger _ =
     , { id = "7", artist = "The Clash", title = "London Calling" }
     , { id = "8", artist = "The Tiger Lillies", title = "Terrible" }
     ]
+        |> RemoteData.succeed
         |> Task.succeed
-        |> RemoteData.asCmd
-        |> Cmd.map tagger
 
 
-importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
-importPlaylist _ _ tagger songs name =
+importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
+importPlaylist _ _ songs name =
     Playlist "1" name NotAsked "http://myplaylist" 5
+        |> RemoteData.succeed
         |> Task.succeed
-        |> RemoteData.asCmd
-        |> Cmd.map tagger
 
 
 
