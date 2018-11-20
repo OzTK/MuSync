@@ -11,7 +11,7 @@ var preLoad = function () {
 }
 
 self.addEventListener('fetch', function (event) {
-  console.log('The service worker is serving the asset.');
+  console.log(`The service worker is serving the asset: ${event.request.url}`);
   if (!event.request.url) {
     return Promise.resolve()
   }
