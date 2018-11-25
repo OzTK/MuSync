@@ -12,6 +12,7 @@ port module Deezer exposing
     , track
     )
 
+import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full, FullAndQuery)
 import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip)
 import Dict
@@ -27,6 +28,7 @@ import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task exposing (Task)
 import Track exposing (Track)
 import Tuple exposing (pair)
+import Url.Builder as Url
 
 
 userInfo : Decoder UserInfo
@@ -95,102 +97,72 @@ tracksResult =
 -- Values
 
 
-endpoint : String -> String -> String
-endpoint token resource =
-    let
-        prefix =
-            if String.contains "?" resource then
-                "&"
+endpoint : Endpoint Base
+endpoint =
+    Api.baseEndpoint "https://cors-anywhere.herokuapp.com/https://api.deezer.com/"
 
-            else
-                "?"
-    in
-    "https://cors-anywhere.herokuapp.com/https://api.deezer.com/" ++ resource ++ prefix ++ "access_token=" ++ token
+
+withToken : String -> AnyFullEndpoint -> AnyFullEndpoint
+withToken token =
+    Api.appendQueryParam (Url.string "access_token" token) >> Api.fullQueryAsAny
 
 
 
 -- Http
 
 
-delayAndRetry : Task Never (WebData a) -> Float -> Task Never (WebData a)
-delayAndRetry task =
-    (+) 1000
-        >> Process.sleep
-        >> Task.andThen (\_ -> withRateLimitTask task)
+getUserInfo : String -> Task Never (WebData UserInfo)
+getUserInfo token =
+    Api.get defaultConfig (Api.actionEndpoint endpoint [ "user", "me" ] |> Api.fullAsAny |> withToken token) userInfo
 
 
-withRateLimitTask : Task Never (WebData a) -> Task Never (WebData a)
-withRateLimitTask task =
-    task
-        |> Task.andThen
-            (\result ->
-                case result of
-                    Failure (Http.BadStatus response) ->
-                        if response.status.code == 429 then
-                            response.headers
-                                |> Dict.get "retry-after"
-                                |> Maybe.andThen String.toFloat
-                                |> Maybe.map (delayAndRetry task)
-                                |> Maybe.withDefault (Task.succeed result)
-
-                        else
-                            Task.succeed result
-
-                    _ ->
-                        Task.succeed result
-            )
-
-
-withRateLimit : (WebData a -> msg) -> Task Never (WebData a) -> Cmd msg
-withRateLimit tagger task =
-    withRateLimitTask task |> Task.perform tagger
-
-
-getUserInfo : String -> (WebData UserInfo -> msg) -> Cmd msg
-getUserInfo token tagger =
-    Http.getWithConfig defaultConfig (endpoint token "/user/me") tagger userInfo
-
-
-searchTrack : String -> (WebData (List Track) -> msg) -> Track -> Cmd msg
-searchTrack token tagger t =
-    Http.getTaskWithConfig defaultConfig
-        (endpoint token <|
-            "search/track?q="
-                ++ ("artist:\""
-                        ++ t.artist
-                        ++ "\" track:\""
-                        ++ t.title
-                        ++ "\""
-                   )
+searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack token t =
+    Api.getWithRateLimit defaultConfig
+        (Api.queryEndpoint endpoint
+            [ "search", "track" ]
+            [ Url.string
+                "q"
+                ("artist:\""
+                    ++ t.artist
+                    ++ "\" track:\""
+                    ++ t.title
+                    ++ "\""
+                )
+            ]
         )
         tracksResult
-        |> withRateLimit tagger
 
 
-getPlaylists : String -> (WebData (List Playlist) -> msg) -> Cmd msg
-getPlaylists token tagger =
-    Http.getTaskWithConfig defaultConfig
-        (endpoint token "user/me/playlists")
+getPlaylists : String -> Task Never (WebData (List Playlist))
+getPlaylists token =
+    Api.getWithRateLimit defaultConfig
+        (Api.actionEndpoint endpoint [ "user", "me", "playlists" ] |> Api.fullAsAny |> withToken token)
         decodePlaylists
-        |> withRateLimit tagger
 
 
-getPlaylistTracksFromLink : String -> (WebData (List Track) -> msg) -> String -> Cmd msg
-getPlaylistTracksFromLink token tagger link =
-    Http.getTaskWithConfig defaultConfig (link ++ "/tracks" ++ "?access_token=" ++ token) tracksResult |> withRateLimit tagger
+getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink token link =
+    link
+        |> Api.endpointFromLink endpoint
+        |> Maybe.map (Api.appendPath "tracks")
+        |> Maybe.map Api.fullAsAny
+        |> Maybe.map (withToken token)
+        |> Maybe.map (\url -> Api.getWithRateLimit defaultConfig url tracksResult)
+        |> Maybe.withDefault (Task.succeed (Failure <| BadUrl link))
 
 
-createPlaylistTask : String -> String -> String -> Task Never (WebData Playlist)
-createPlaylistTask token user name =
-    Http.postTaskWithConfig
+createPlaylist : String -> String -> String -> Task Never (WebData Playlist)
+createPlaylist token user name =
+    Api.post
         defaultConfig
-        (endpoint token <| "users/" ++ user ++ "/playlists")
+        (Api.actionEndpoint endpoint [ "users", user, "playlists" ] |> Api.fullAsAny |> withToken token)
         playlist
         (JE.object [ ( "name", JE.string name ) ])
 
 
-addSongsToPlaylistTask : String -> List Track -> WebData Playlist -> Task Never (WebData Playlist)
-addSongsToPlaylistTask token songs playlistData =
+addSongsToPlaylist : String -> List Track -> WebData Playlist -> Task Never (WebData Playlist)
+addSongsToPlaylist token songs playlistData =
     case playlistData of
         Success { link } ->
             Http.postTaskWithConfig
@@ -212,11 +184,10 @@ addSongsToPlaylistTask token songs playlistData =
             Task.succeed playlistData
 
 
-importPlaylist : String -> String -> (WebData Playlist -> msg) -> List Track -> String -> Cmd msg
-importPlaylist token user tagger songs name =
-    createPlaylistTask token user name
-        |> Task.andThen (addSongsToPlaylistTask token songs)
-        |> Task.perform tagger
+importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
+importPlaylist token user songs name =
+    createPlaylist token user name
+        |> Task.andThen (addSongsToPlaylist token songs)
 
 
 port connectDeezer : () -> Cmd msg

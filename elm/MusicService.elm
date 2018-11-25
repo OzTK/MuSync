@@ -28,7 +28,7 @@ import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Spotify
-import Task
+import Task exposing (Task)
 import Track exposing (Track, TrackId)
 import Tuple exposing (pair)
 
@@ -38,6 +38,10 @@ type MusicService
     | Deezer
     | Google
     | Amazon
+
+
+type MusicServiceError
+    = InvalidServiceConnectionError
 
 
 type OAuthToken
@@ -188,6 +192,11 @@ toString t =
             "Amazon"
 
 
+asErrorTask : Task Never a -> Task MusicServiceError a
+asErrorTask =
+    Task.mapError (\_ -> InvalidServiceConnectionError)
+
+
 imporPlaylist : (WebData Playlist -> msg) -> ConnectedProvider -> Playlist -> List Track -> Cmd msg
 imporPlaylist tagger con { name } tracks =
     case ( type_ con, token con, user con ) of
@@ -195,7 +204,7 @@ imporPlaylist tagger con { name } tracks =
             Spotify.importPlaylist (rawToken tok) id tracks name |> Task.perform tagger
 
         ( Deezer, Just tok, Just { id } ) ->
-            Deezer.importPlaylist (rawToken tok) id tagger tracks name
+            Deezer.importPlaylist (rawToken tok) id tracks name |> Task.perform tagger
 
         _ ->
             Cmd.none
@@ -205,7 +214,7 @@ loadPlaylists : (ConnectedProvider -> WebData (List Playlist) -> msg) -> Connect
 loadPlaylists tagger connection =
     case connection of
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylists (rawToken tok) (tagger connection)
+            Deezer.getPlaylists (rawToken tok) |> Task.perform (tagger connection)
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylists (rawToken tok) |> Task.perform (tagger connection)
@@ -218,7 +227,7 @@ loadPlaylistSongs : (WebData (List Track) -> msg) -> ConnectedProvider -> Playli
 loadPlaylistSongs tagger connection { id, link } =
     case connection of
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylistTracksFromLink (rawToken tok) tagger link
+            Deezer.getPlaylistTracksFromLink (rawToken tok) link |> Task.perform tagger
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylistTracksFromLink (rawToken tok) link |> Task.perform tagger
@@ -227,20 +236,19 @@ loadPlaylistSongs tagger connection { id, link } =
             Cmd.none
 
 
-searchMatchingSong : (WebData (List Track) -> msg) -> ConnectedProvider -> Track -> Cmd msg
-searchMatchingSong tagger comparedProvider track =
-    comparedProvider
-        |> searchSongFromProvider tagger track
+searchMatchingSong : ConnectedProvider -> Track -> Task MusicServiceError (WebData (List Track))
+searchMatchingSong comparedProvider track =
+    searchSongFromProvider track comparedProvider
 
 
-searchSongFromProvider : (WebData (List Track) -> msg) -> Track -> ConnectedProvider -> Cmd msg
-searchSongFromProvider tagger track provider =
+searchSongFromProvider : Track -> ConnectedProvider -> Task MusicServiceError (WebData (List Track))
+searchSongFromProvider track provider =
     case provider of
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.searchTrack (rawToken tok) track |> Task.perform tagger
+            Spotify.searchTrack (rawToken tok) track |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.searchTrack (rawToken tok) tagger track
+            Deezer.searchTrack (rawToken tok) track |> asErrorTask
 
         _ ->
-            Cmd.none
+            Task.fail InvalidServiceConnectionError

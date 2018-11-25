@@ -8,7 +8,7 @@ port module Spotify exposing
     , searchTrack
     )
 
-import ApiClient as Api exposing (Base, Endpoint, Full)
+import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full)
 import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -132,7 +132,7 @@ version =
 
 getUserInfo : String -> Task Never (WebData UserInfo)
 getUserInfo token =
-    Api.get (config token) (Api.actionEndpoint endpoint [ "me" ] |> Api.asAny) userInfo
+    Api.get (config token) (Api.actionEndpoint endpoint [ "me" ] |> Api.fullAsAny) userInfo
 
 
 searchTrack : String -> Track -> Task Never (WebData (List Track))
@@ -158,22 +158,22 @@ searchTrack token t =
 getPlaylists : String -> Task Never (WebData (List Playlist))
 getPlaylists token =
     Api.getWithRateLimit (config token)
-        (Api.actionEndpoint endpoint [ "me", "playlists" ] |> Api.asAny)
+        (Api.actionEndpoint endpoint [ "me", "playlists" ] |> Api.fullAsAny)
         playlistsResponse
 
 
-playlistsTracksFromLink : String -> Maybe (Endpoint Full)
+playlistsTracksFromLink : String -> Maybe AnyFullEndpoint
 playlistsTracksFromLink link =
     link
         |> Api.endpointFromLink endpoint
         |> Maybe.map (Api.appendPath "tracks")
+        |> Maybe.map Api.fullAsAny
 
 
 getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
 getPlaylistTracksFromLink token link =
     link
         |> playlistsTracksFromLink
-        |> Maybe.map Api.asAny
         |> Maybe.map (\l -> Api.getWithRateLimit (config token) l playlistTracks)
         |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
 
@@ -182,7 +182,7 @@ createPlaylist : Config -> String -> String -> Task.Task Never (WebData Playlist
 createPlaylist cfg user name =
     Api.post
         cfg
-        (Api.actionEndpoint endpoint [ "users", user, "playlists" ])
+        (Api.actionEndpoint endpoint [ "users", user, "playlists" ] |> Api.fullAsAny)
         playlist
         (JE.object [ ( "name", JE.string name ) ])
 

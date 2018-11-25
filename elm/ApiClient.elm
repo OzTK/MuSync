@@ -1,4 +1,4 @@
-module ApiClient exposing (Base, Endpoint, Full, actionEndpoint, appendPath, asAny, baseEndpoint, endpointFromLink, get, getWithRateLimit, post, queryEndpoint)
+module ApiClient exposing (AnyFullEndpoint, Base, Endpoint, Full, FullAndQuery, actionEndpoint, appendPath, appendQueryParam, baseEndpoint, endpointFromLink, fullAsAny, fullQueryAsAny, get, getWithRateLimit, post, queryEndpoint)
 
 import Dict exposing (Dict)
 import Http
@@ -11,7 +11,7 @@ import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config)
 import Task exposing (Task)
 import Track exposing (Track)
-import Url
+import Url exposing (Url)
 import Url.Builder as Url exposing (QueryParameter)
 
 
@@ -69,6 +69,16 @@ type AnyFullEndpoint
     | FullWithQuery (Endpoint FullAndQuery)
 
 
+fullEndpointUrl : AnyFullEndpoint -> String
+fullEndpointUrl endpoint =
+    case endpoint of
+        FullNoQuery (Endpoint u) ->
+            u
+
+        FullWithQuery (Endpoint u) ->
+            u
+
+
 type Full
     = Full
 
@@ -105,14 +115,52 @@ endpointFromLink (Endpoint domain) link =
             )
 
 
-asAny : Endpoint Full -> AnyFullEndpoint
-asAny =
+fullAsAny : Endpoint Full -> AnyFullEndpoint
+fullAsAny =
     FullNoQuery
+
+
+fullQueryAsAny : Endpoint FullAndQuery -> AnyFullEndpoint
+fullQueryAsAny =
+    FullWithQuery
 
 
 appendPath : String -> Endpoint Full -> Endpoint Full
 appendPath segment (Endpoint url) =
     Endpoint (url ++ "/" ++ Url.percentEncode segment)
+
+
+appendQueryParamToUrl : QueryParameter -> Url -> Url
+appendQueryParamToUrl param url =
+    { url | query = url.query |> Maybe.map ((++) (Url.toQuery [ param ])) }
+
+
+appendQueryParam : QueryParameter -> AnyFullEndpoint -> Endpoint FullAndQuery
+appendQueryParam param endpoint =
+    let
+        encodedParam =
+            Url.toQuery [ param ] |> String.dropLeft 1
+    in
+    case endpoint of
+        FullNoQuery (Endpoint actionUrl) ->
+            actionUrl
+                |> Url.fromString
+                |> Maybe.map
+                    (\url ->
+                        { url | query = Just encodedParam }
+                    )
+                |> Maybe.map (Endpoint << Url.toString)
+                |> Maybe.withDefault (Endpoint actionUrl)
+
+        FullWithQuery (Endpoint queryUrl) ->
+            queryUrl
+                |> Url.fromString
+                |> Maybe.map
+                    (\url ->
+                        { url | query = url.query |> Maybe.map ((++) ("&" ++ encodedParam)) }
+                    )
+                |> Maybe.map (Endpoint << Url.toString)
+                |> Maybe.withDefault (Endpoint queryUrl)
 
 
 
@@ -121,21 +169,12 @@ appendPath segment (Endpoint url) =
 
 get : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)
 get config endpoint =
-    let
-        url =
-            case endpoint of
-                FullNoQuery (Endpoint u) ->
-                    u
-
-                FullWithQuery (Endpoint u) ->
-                    u
-    in
-    Http.getTaskWithConfig config url
+    Http.getTaskWithConfig config (fullEndpointUrl endpoint)
 
 
-post : Config -> Endpoint Full -> Decoder m -> Json.Value -> Task Never (WebData m)
-post config (Endpoint url) =
-    Http.postTaskWithConfig config url
+post : Config -> AnyFullEndpoint -> Decoder m -> Json.Value -> Task Never (WebData m)
+post config endpoint =
+    Http.postTaskWithConfig config (fullEndpointUrl endpoint)
 
 
 getWithRateLimit : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)

@@ -177,11 +177,9 @@ type Msg
     | PlaylistsFetched ConnectedProvider (WebData (List Playlist))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelectionCleared
-    | ComparedProviderChanged (Maybe ConnectedProvider)
     | UserInfoReceived MusicService (WebData UserInfo)
     | ProviderConnected ConnectedProvider
     | ProviderDisconnected DisconnectedProvider
-    | SearchMatchingSongs ConnectedProvider Playlist ConnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
     | MatchingSongResultError String MatchingTracksKeySerializationError
     | PlaylistImported (WebData Playlist)
@@ -257,32 +255,6 @@ update msg model =
             ( { model
                 | flow = model.flow |> Flow.udpateLoadingPlaylists connection playlistsData |> Flow.next
               }
-            , Cmd.none
-            )
-
-        ComparedProviderChanged (Just p) ->
-            ( model
-            , Cmd.none
-            )
-
-        ComparedProviderChanged Nothing ->
-            ( model
-            , Cmd.none
-            )
-
-        SearchMatchingSongs from p to ->
-            let
-                cmds =
-                    p.songs
-                        |> RemoteData.map
-                            (List.map
-                                (\t ->
-                                    MusicService.searchMatchingSong (MatchingSongResult ( t.id, MusicService.type_ from )) from t
-                                )
-                            )
-                        |> RemoteData.withDefault []
-            in
-            ( model
             , Cmd.none
             )
 
