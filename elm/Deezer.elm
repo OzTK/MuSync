@@ -1,12 +1,12 @@
 port module Deezer exposing
     ( connectDeezer
+    , createPlaylist
     , decodePlaylist
     , decodePlaylists
     , disconnectDeezer
     , getPlaylistTracksFromLink
     , getPlaylists
     , httpBadPayloadError
-    , importPlaylist
     , playlist
     , searchTrack
     , track
@@ -158,7 +158,7 @@ createPlaylist token user name =
         defaultConfig
         (Api.actionEndpoint endpoint [ "users", user, "playlists" ] |> Api.fullAsAny |> withToken token)
         playlist
-        (JE.object [ ( "name", JE.string name ) ])
+        (JE.object [ ( "title", JE.string name ) ])
 
 
 addSongsToPlaylist : String -> List Track -> WebData Playlist -> Task Never (WebData Playlist)
@@ -182,12 +182,6 @@ addSongsToPlaylist token songs playlistData =
 
         _ ->
             Task.succeed playlistData
-
-
-importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
-importPlaylist token user songs name =
-    createPlaylist token user name
-        |> Task.andThen (addSongsToPlaylist token songs)
 
 
 port connectDeezer : () -> Cmd msg

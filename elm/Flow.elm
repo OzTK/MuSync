@@ -187,7 +187,12 @@ next flow =
         PickOtherConnection { playlists, playlist, selection, connections } ->
             case selection of
                 ConnectionSelected connection ->
-                    Sync { playlist = playlist, playlists = Dict.update playlist (Maybe.map setPlaylistTransferring) playlists, connections = connections, otherConnection = connection }
+                    Sync
+                        { playlist = playlist
+                        , playlists = Dict.update playlist (Maybe.map setPlaylistTransferring) playlists
+                        , connections = connections
+                        , otherConnection = connection
+                        }
 
                 NoConnection ->
                     flow

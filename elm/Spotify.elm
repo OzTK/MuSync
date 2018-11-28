@@ -1,9 +1,9 @@
 port module Spotify exposing
     ( connectS
+    , createPlaylist
     , getPlaylistTracksFromLink
     , getPlaylists
     , getUserInfo
-    , importPlaylist
     , onConnected
     , searchTrack
     )
@@ -178,10 +178,10 @@ getPlaylistTracksFromLink token link =
         |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
 
 
-createPlaylist : Config -> String -> String -> Task.Task Never (WebData Playlist)
-createPlaylist cfg user name =
+createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
+createPlaylist token user name =
     Api.post
-        cfg
+        (config token)
         (Api.actionEndpoint endpoint [ "users", user, "playlists" ] |> Api.fullAsAny)
         playlist
         (JE.object [ ( "name", JE.string name ) ])
@@ -215,18 +215,6 @@ addSongsToPlaylist cfg songs playlistData =
 
         _ ->
             Task.succeed playlistData
-
-
-importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
-importPlaylist token user songs name =
-    let
-        cfg =
-            config token
-    in
-    createPlaylist cfg user name
-        |> Task.mapError (\_ -> "")
-        |> Task.andThen (addSongsToPlaylist cfg songs)
-        |> Task.onError (Http.BadUrl >> Failure >> Task.succeed)
 
 
 config : String -> Config
