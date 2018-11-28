@@ -1,5 +1,6 @@
 port module Deezer exposing
     ( connectDeezer
+    , createPlaylist
     , disconnectDeezer
     , getPlaylistTracksFromLink
     , getPlaylists
@@ -36,6 +37,11 @@ searchTrack token ({ id, artist, title } as track) =
     [ Track id title artist ]
         |> Success
         |> Task.succeed
+
+
+createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
+createPlaylist _ _ _ =
+    Task.succeed <| Success { id = "5", name = "New Playlist", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))

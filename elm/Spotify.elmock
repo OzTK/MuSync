@@ -1,5 +1,6 @@
 port module Spotify exposing
     ( connectS
+    , createPlaylist
     , getPlaylistTracksFromLink
     , getPlaylists
     , getUserInfo
@@ -38,6 +39,11 @@ getPlaylists _ =
     ]
         |> RemoteData.succeed
         |> Task.succeed
+
+
+createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
+createPlaylist _ _ _ =
+    Task.succeed <| Success { id = "5", name = "New Playlist", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
 
 
 getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
