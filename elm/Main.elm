@@ -71,7 +71,7 @@ import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
-import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), OAuthToken)
+import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
@@ -174,7 +174,7 @@ init { window, rawTokens } =
 
 type Msg
     = ToggleConnect ProviderConnection
-    | PlaylistsFetched ConnectedProvider (WebData (List Playlist))
+    | PlaylistsFetched ConnectedProvider (Result MusicServiceError (WebData (List Playlist)))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelectionCleared
     | UserInfoReceived MusicService (WebData UserInfo)
@@ -182,7 +182,7 @@ type Msg
     | ProviderDisconnected DisconnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
     | MatchingSongResultError String MatchingTracksKeySerializationError
-    | PlaylistImported (WebData Playlist)
+    | PlaylistImported ( ConnectedProvider, PlaylistId ) ConnectedProvider (Result MusicServiceError (WebData Playlist))
     | BrowserResized Dimensions
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
@@ -247,7 +247,7 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistsFetched connection playlistsData ->
+        PlaylistsFetched connection (Ok playlistsData) ->
             let
                 data =
                     playlistsData |> RemoteData.map SelectableList.fromList
@@ -258,7 +258,12 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistImported _ ->
+        PlaylistsFetched _ (Err _) ->
+            ( model
+            , Cmd.none
+            )
+
+        PlaylistImported _ _ _ ->
             ( model
             , Cmd.none
             )
@@ -286,10 +291,21 @@ update msg model =
 getFlowStepCmd flow =
     case flow of
         LoadPlaylists byProvider ->
-            byProvider |> List.map (Tuple.first >> MusicService.loadPlaylists PlaylistsFetched) |> Cmd.batch
+            byProvider
+                |> List.map
+                    (\( con, _ ) ->
+                        con |> MusicService.loadPlaylists |> Task.attempt (PlaylistsFetched con)
+                    )
+                |> Cmd.batch
 
         Sync { playlists, playlist, otherConnection } ->
-            Cmd.none
+            Dict.get playlist playlists
+                |> Maybe.map
+                    (\( p, _ ) ->
+                        MusicService.importPlaylist (Tuple.first playlist) p otherConnection
+                    )
+                |> Maybe.map (Task.attempt <| PlaylistImported playlist otherConnection)
+                |> Maybe.withDefault Cmd.none
 
         _ ->
             Cmd.none

@@ -3,6 +3,7 @@ module MusicService exposing
     , ConnectingProvider(..)
     , DisconnectedProvider(..)
     , MusicService(..)
+    , MusicServiceError
     , OAuthToken
     , connect
     , connected
@@ -13,6 +14,7 @@ module MusicService exposing
     , disconnect
     , disconnected
     , fromString
+    , importPlaylist
     , loadPlaylists
     , searchMatchingSong
     , setUserInfo
@@ -244,8 +246,8 @@ searchAllTracks connectedProvider trackList =
     Debug.todo "Search all the tracks"
 
 
-imporPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError (WebData Playlist)
-imporPlaylist con ({ name, link } as playlist) otherConnection =
+importPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError (WebData Playlist)
+importPlaylist con ({ name, link } as playlist) otherConnection =
     let
         tracksTask =
             playlist
