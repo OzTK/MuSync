@@ -2,6 +2,7 @@ module MusicService exposing
     ( ConnectedProvider(..)
     , ConnectingProvider(..)
     , DisconnectedProvider(..)
+    , ImportPlaylistResult
     , MusicService(..)
     , MusicServiceError
     , OAuthToken
@@ -16,22 +17,24 @@ module MusicService exposing
     , fromString
     , importPlaylist
     , loadPlaylists
-    , searchMatchingSong
     , setUserInfo
     , toString
     , token
     , type_
     )
 
+import Basics.Extra exposing (iif)
 import Deezer
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import List.Extra as List
+import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Spotify
 import Task exposing (Task)
+import Task.Extra as Task
 import Track exposing (Track, TrackId)
 import Tuple exposing (pair)
 
@@ -198,11 +201,6 @@ toString t =
             "Amazon"
 
 
-asErrorTask : Task x a -> Task MusicServiceError a
-asErrorTask =
-    Task.mapError (\_ -> NeverError)
-
-
 createPlaylist : ConnectedProvider -> String -> Task MusicServiceError (WebData Playlist)
 createPlaylist connection name =
     case connection of
@@ -224,29 +222,28 @@ addSongsToPlaylist connection playlist tracks =
     Debug.todo <| "Adding all the tracks from " ++ connectionToString connection ++ " to " ++ playlist.name
 
 
-liftError : Task MusicServiceError (WebData a) -> Task MusicServiceError a
-liftError task =
-    task
-        |> Task.andThen
-            (\data ->
-                case data of
-                    Success d ->
-                        Task.succeed d
-
-                    Failure err ->
-                        Task.fail <| IntermediateRequestFailed (Just err)
-
-                    _ ->
-                        Task.fail <| IntermediateRequestFailed Nothing
-            )
+type alias TrackAndSearchResult =
+    ( Track, Maybe Track )
 
 
-searchAllTracks : ConnectedProvider -> List Track -> Task MusicServiceError (WebData (List Track))
-searchAllTracks connectedProvider trackList =
-    Debug.todo "Search all the tracks"
+searchAllTracks : ConnectedProvider -> List Track -> Task MusicServiceError (List TrackAndSearchResult)
+searchAllTracks connection trackList =
+    trackList
+        |> List.map (\t -> searchSongFromProvider connection t |> Task.map (Tuple.pair t))
+        |> Task.sequence
+        |> Task.map List.unzip
+        |> Task.map (Tuple.mapSecond RemoteData.fromList)
+        |> Task.map (\( tracks, result ) -> RemoteData.map (Tuple.pair tracks) result)
+        |> liftError
+        |> Task.map List.zip
 
 
-importPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError (WebData Playlist)
+type ImportPlaylistResult
+    = ImportIsSuccess Playlist
+    | ImportHasWarnings (List TrackAndSearchResult) Playlist
+
+
+importPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError ImportPlaylistResult
 importPlaylist con ({ name, link } as playlist) otherConnection =
     let
         tracksTask =
@@ -254,16 +251,24 @@ importPlaylist con ({ name, link } as playlist) otherConnection =
                 |> loadPlaylistSongs con
                 |> liftError
                 |> Task.andThen (searchAllTracks otherConnection)
-                |> liftError
 
         newPlaylistTask =
             createPlaylist con name |> liftError
+
+        hasMissingTracks =
+            \tracksResult p -> p.tracksCount > List.length tracksResult
     in
-    Task.map2
-        (\tracks newPlaylist -> addSongsToPlaylist con newPlaylist tracks |> asErrorTask)
+    Task.andThen2
+        (\tracksResult newPlaylist ->
+            tracksResult
+                |> List.filterMap Tuple.second
+                |> addSongsToPlaylist con newPlaylist
+                |> asErrorTask
+                |> liftError
+                |> Task.map (iif (hasMissingTracks tracksResult) (ImportHasWarnings tracksResult) ImportIsSuccess)
+        )
         tracksTask
         newPlaylistTask
-        |> Task.andThen identity
 
 
 loadPlaylists : ConnectedProvider -> Task MusicServiceError (WebData (List Playlist))
@@ -283,7 +288,7 @@ loadPlaylistSongs : ConnectedProvider -> Playlist -> Task MusicServiceError (Web
 loadPlaylistSongs connection { id, link } =
     case connection of
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylistTracksFromLink (rawToken tok) link |> asErrorTask
+            Deezer.getPlaylistTracks (rawToken tok) id |> asErrorTask
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylistTracksFromLink (rawToken tok) link |> asErrorTask
@@ -292,13 +297,8 @@ loadPlaylistSongs connection { id, link } =
             Task.fail (InvalidServiceConnectionError connection)
 
 
-searchMatchingSong : ConnectedProvider -> Track -> Task MusicServiceError (WebData (List Track))
-searchMatchingSong comparedProvider track =
-    searchSongFromProvider track comparedProvider
-
-
-searchSongFromProvider : Track -> ConnectedProvider -> Task MusicServiceError (WebData (List Track))
-searchSongFromProvider track provider =
+searchSongFromProvider : ConnectedProvider -> Track -> Task MusicServiceError (WebData (Maybe Track))
+searchSongFromProvider provider track =
     case provider of
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.searchTrack (rawToken tok) track |> asErrorTask
@@ -308,3 +308,29 @@ searchSongFromProvider track provider =
 
         _ ->
             Task.fail (InvalidServiceConnectionError provider)
+
+
+
+-- Internal utils
+
+
+asErrorTask : Task x a -> Task MusicServiceError a
+asErrorTask =
+    Task.mapError (\_ -> NeverError)
+
+
+liftError : Task MusicServiceError (WebData a) -> Task MusicServiceError a
+liftError task =
+    task
+        |> Task.andThen
+            (\data ->
+                case data of
+                    Success d ->
+                        Task.succeed d
+
+                    Failure err ->
+                        Task.fail <| IntermediateRequestFailed (Just err)
+
+                    _ ->
+                        Task.fail <| IntermediateRequestFailed Nothing
+            )

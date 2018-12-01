@@ -135,7 +135,7 @@ getUserInfo token =
     Api.get (config token) (Api.actionEndpoint endpoint [ "me" ] |> Api.fullAsAny) userInfo
 
 
-searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token t =
     Api.getWithRateLimit (config token)
         (Api.queryEndpoint endpoint
@@ -153,6 +153,7 @@ searchTrack token t =
             ]
         )
         searchResponse
+        |> Task.map (RemoteData.map List.head)
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))

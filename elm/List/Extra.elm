@@ -1,4 +1,6 @@
-module List.Extra exposing (andThenMaybe, find, ifNonEmpty, update, withDefault)
+module List.Extra exposing (andThenMaybe, find, ifNonEmpty, update, withDefault, zip)
+
+import Basics.Extra exposing (uncurry)
 
 
 withDefault : List a -> List a -> List a
@@ -53,3 +55,8 @@ find f list =
 
         [] ->
             Nothing
+
+
+zip : ( List a, List b ) -> List ( a, b )
+zip =
+    uncurry (List.map2 Tuple.pair)

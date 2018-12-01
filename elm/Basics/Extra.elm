@@ -1,4 +1,4 @@
-module Basics.Extra exposing (flip, const)
+module Basics.Extra exposing (const, flip, iif, uncurry)
 
 
 flip : (a -> b -> c) -> b -> a -> c
@@ -9,3 +9,17 @@ flip f a =
 const : a -> (b -> a)
 const value =
     \_ -> value
+
+
+uncurry : (a -> b -> c) -> ( a, b ) -> c
+uncurry f ( a, b ) =
+    f a b
+
+
+iif : (a -> Bool) -> (a -> result) -> (a -> result) -> a -> result
+iif predicate whenTrue whenFalse value =
+    if predicate value then
+        whenTrue value
+
+    else
+        whenFalse value

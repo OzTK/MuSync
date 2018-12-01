@@ -4,7 +4,7 @@ port module Deezer exposing
     , decodePlaylist
     , decodePlaylists
     , disconnectDeezer
-    , getPlaylistTracksFromLink
+    , getPlaylistTracks
     , getPlaylists
     , httpBadPayloadError
     , playlist
@@ -116,7 +116,7 @@ getUserInfo token =
     Api.get defaultConfig (Api.actionEndpoint endpoint [ "user", "me" ] |> Api.fullAsAny |> withToken token) userInfo
 
 
-searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token t =
     Api.getWithRateLimit defaultConfig
         (Api.queryEndpoint endpoint
@@ -132,6 +132,7 @@ searchTrack token t =
             ]
         )
         tracksResult
+        |> Task.map (RemoteData.map List.head)
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
@@ -141,15 +142,11 @@ getPlaylists token =
         decodePlaylists
 
 
-getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
-getPlaylistTracksFromLink token link =
-    link
-        |> Api.endpointFromLink endpoint
-        |> Maybe.map (Api.appendPath "tracks")
-        |> Maybe.map Api.fullAsAny
-        |> Maybe.map (withToken token)
-        |> Maybe.map (\url -> Api.getWithRateLimit defaultConfig url tracksResult)
-        |> Maybe.withDefault (Task.succeed (Failure <| BadUrl link))
+getPlaylistTracks : String -> PlaylistId -> Task Never (WebData (List Track))
+getPlaylistTracks token id =
+    Api.getWithRateLimit defaultConfig
+        (Api.actionEndpoint endpoint [ "playlist", id, "tracks" ] |> Api.fullAsAny |> withToken token)
+        tracksResult
 
 
 createPlaylist : String -> String -> String -> Task Never (WebData Playlist)
