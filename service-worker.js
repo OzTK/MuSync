@@ -35,6 +35,8 @@ var checkResponse = function (request) {
 
 var addToCache = function (request) {
   if (request.url.startsWith('chrome-extension://') ||
+      request.url.indexOf('api.spotify.com') >= 0 ||
+      request.url.indexOf('api.deezer.com') >= 0 ||
       request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
     console.log("ignoring extension: " + request.url)
     return Promise.resolve()

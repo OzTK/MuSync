@@ -191,13 +191,12 @@ type Msg
     | ProviderDisconnected DisconnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
     | MatchingSongResultError String MatchingTracksKeySerializationError
-    | PlaylistImported ( ConnectedProvider, PlaylistId ) ConnectedProvider ImportPlaylistResult
+    | PlaylistImported ( ConnectedProvider, PlaylistId ) ImportPlaylistResult
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
-    | TransferInBackground
     | NoOp
 
 
@@ -277,8 +276,8 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistImported _ _ _ ->
-            ( model
+        PlaylistImported playlist result ->
+            ( { model | flow = Flow.playlistTransferFinished playlist result model.flow }
             , Cmd.none
             )
 
@@ -299,9 +298,6 @@ update msg model =
 
         ToggleOtherProviderSelected connection ->
             ( { model | flow = Flow.pickService connection model.flow }, Cmd.none )
-
-        TransferInBackground ->
-            ( { model | flow = Flow.next model.flow }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -325,15 +321,12 @@ getFlowStepCmd flow =
                     )
                 |> Cmd.batch
 
-        Sync { playlists, playlist, otherConnection } ->
+        Transfer { playlists, playlist, otherConnection } ->
             Dict.get playlist playlists
-                |> Maybe.map
-                    (\( p, _ ) ->
-                        MusicService.importPlaylist (Tuple.first playlist) p otherConnection
-                    )
+                |> Maybe.map (MusicService.importPlaylist (Tuple.first playlist) otherConnection << Tuple.first)
                 |> Maybe.map
                     (Task.attempt <|
-                        Result.map (PlaylistImported playlist otherConnection)
+                        Result.map (PlaylistImported playlist)
                             >> Result.mapError (PlaylistImportFailed playlist otherConnection)
                             >> Result.unwrap
                     )
@@ -416,7 +409,7 @@ routeMainView model =
         PickOtherConnection { playlists } ->
             playlistsList model playlists
 
-        Sync { playlists } ->
+        Transfer { playlists } ->
             playlistsList model playlists
 
 
@@ -446,6 +439,9 @@ routePanel model =
                                 if Flow.isPlaylistTransferring state then
                                     transferConfigStep3 model p
 
+                                else if Flow.isPlaylistTransferred state then
+                                    transferConfigStep4 model
+
                                 else
                                     transferConfigStep1 model p
                             )
@@ -470,11 +466,17 @@ routePanel model =
                 |> Maybe.map (transferConfigStep2 model (Tuple.first playlist) connectionsSelection)
                 |> Maybe.withDefault Element.none
 
-        Sync { playlist, playlists, connections } ->
+        Transfer { playlist, playlists, connections } ->
             playlists
                 |> Dict.get playlist
-                |> Maybe.map Tuple.first
-                |> Maybe.map (transferConfigStep3 model)
+                |> Maybe.map
+                    (\( p, state ) ->
+                        if Flow.isPlaylistTransferred state then
+                            transferConfigStep4 model
+
+                        else
+                            transferConfigStep3 model p
+                    )
                 |> Maybe.withDefault Element.none
 
         _ ->
@@ -661,7 +663,23 @@ transferConfigStep3 model { name } =
     panelContainer model
         Nothing
         [ progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just TransferInBackground, label = text "Run in background" }
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Run in background" }
+        ]
+
+
+transferConfigStep4 : { m | device : Element.Device } -> Element Msg
+transferConfigStep4 model =
+    let
+        d =
+            dimensions model
+    in
+    panelContainer model
+        Nothing
+        [ column ([ centerY, d.smallSpacing ] ++ panelDefaultStyle model)
+            [ el [ centerX, Font.color palette.secondary ] <| icon "far fa-check-circle fa-7x"
+            , paragraph [ Font.center ] [ text "Your playlist was transferred successfully!" ]
+            ]
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Back to playlists" }
         ]
 
 
@@ -673,9 +691,6 @@ playlistRow model tagger ( playlist, state ) =
 
         isSelected =
             model.flow |> Flow.selectedPlaylist |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
-
-        isTransferring =
-            Flow.isPlaylistTransferring state
     in
     button
         ([ width fill
@@ -699,12 +714,18 @@ playlistRow model tagger ( playlist, state ) =
                     Element.html <|
                         Html.text <|
                             Playlist.summary playlist
-                , text <| String.fromInt playlist.tracksCount ++ " tracks"
-                , if isTransferring then
-                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| Element.html <| Html.i [ Html.class "fa fa-refresh spinning" ] []
+                , if Flow.isPlaylistTransferring state then
+                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
+
+                  else if Flow.isPlaylistTransferred state then
+                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle"
+
+                  else if Flow.isPlaylistNew state then
+                    Element.el [ d.xSmallText, Font.color palette.primary ] <| text "new!"
 
                   else
                     Element.none
+                , text <| String.fromInt playlist.tracksCount ++ " tracks"
                 ]
         }
 
@@ -889,6 +910,11 @@ providerLogoOrName attrs pType =
         |> Maybe.withDefault (text pName)
 
 
+icon : String -> Element msg
+icon name =
+    Element.html <| Html.i [ Html.class name ] []
+
+
 
 -- Styles
 
@@ -1009,7 +1035,8 @@ scaled =
 
 
 type alias DimensionPalette msg =
-    { smallText : Element.Attribute msg
+    { xSmallText : Element.Attribute msg
+    , smallText : Element.Attribute msg
     , mediumText : Element.Attribute msg
     , largeText : Element.Attribute msg
     , smallSpacing : Element.Attribute msg
@@ -1043,7 +1070,8 @@ dimensions { device } =
     in
     case device.class of
         Phone ->
-            { smallText = scaled -1 |> round |> Font.size
+            { xSmallText = scaled -2 |> round |> Font.size
+            , smallText = scaled -1 |> round |> Font.size
             , mediumText = scaled 1 |> round |> Font.size
             , largeText = scaled 2 |> round |> Font.size
             , smallSpacing = scaled 1 |> round |> spacing
@@ -1064,7 +1092,8 @@ dimensions { device } =
             }
 
         _ ->
-            { smallText = scaled 1 |> round |> Font.size
+            { xSmallText = scaled -1 |> round |> Font.size
+            , smallText = scaled 1 |> round |> Font.size
             , mediumText = scaled 2 |> round |> Font.size
             , largeText = scaled 3 |> round |> Font.size
             , smallSpacing = scaled 1 |> round |> spacing

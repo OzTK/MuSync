@@ -17,6 +17,8 @@ module MusicService exposing
     , fetchUserInfo
     , fromString
     , importPlaylist
+    , importedPlaylist
+    , importedPlaylistKey
     , loadPlaylists
     , setUserInfo
     , toString
@@ -266,12 +268,32 @@ searchAllTracks connection trackList =
 
 
 type ImportPlaylistResult
-    = ImportIsSuccess Playlist
-    | ImportHasWarnings (List TrackAndSearchResult) Playlist
+    = ImportIsSuccess ConnectedProvider Playlist
+    | ImportHasWarnings (List TrackAndSearchResult) ConnectedProvider Playlist
 
 
-importPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError ImportPlaylistResult
-importPlaylist con ({ name, link, tracksCount } as playlist) otherConnection =
+importedPlaylistKey : ImportPlaylistResult -> ( ConnectedProvider, PlaylistId )
+importedPlaylistKey result =
+    case result of
+        ImportIsSuccess c p ->
+            ( c, p.id )
+
+        ImportHasWarnings _ c p ->
+            ( c, p.id )
+
+
+importedPlaylist : ImportPlaylistResult -> Playlist
+importedPlaylist result =
+    case result of
+        ImportIsSuccess _ playlist ->
+            playlist
+
+        ImportHasWarnings _ _ playlist ->
+            playlist
+
+
+importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError ImportPlaylistResult
+importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
     let
         tracksTask =
             playlist
@@ -280,7 +302,7 @@ importPlaylist con ({ name, link, tracksCount } as playlist) otherConnection =
                 |> Task.andThen (searchAllTracks otherConnection)
 
         newPlaylistTask =
-            createPlaylist con name |> liftError
+            createPlaylist otherConnection name |> liftError
 
         hasMissingTracks =
             \tracksResult p -> p.tracksCount > List.length tracksResult
@@ -293,14 +315,14 @@ importPlaylist con ({ name, link, tracksCount } as playlist) otherConnection =
 
                 msg =
                     if List.length tracksResult < tracksCount then
-                        ImportHasWarnings tracksResult withTracksCount
+                        ImportHasWarnings tracksResult otherConnection withTracksCount
 
                     else
-                        ImportIsSuccess withTracksCount
+                        ImportIsSuccess otherConnection withTracksCount
             in
             tracksResult
                 |> List.filterMap Tuple.second
-                |> addSongsToPlaylist con newPlaylist
+                |> addSongsToPlaylist otherConnection newPlaylist
                 |> asErrorTask
                 |> liftError
                 |> Task.map (\_ -> msg)

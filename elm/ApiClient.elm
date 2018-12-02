@@ -1,4 +1,22 @@
-module ApiClient exposing (AnyFullEndpoint, Base, Endpoint, Full, FullAndQuery, actionEndpoint, appendPath, appendQueryParam, baseEndpoint, endpointFromLink, fullAsAny, fullQueryAsAny, get, getWithRateLimit, post, queryEndpoint)
+module ApiClient exposing
+    ( AnyFullEndpoint
+    , Base
+    , Endpoint
+    , Full
+    , FullAndQuery
+    , actionEndpoint
+    , appendPath
+    , appendQueryParam
+    , baseEndpoint
+    , endpointFromLink
+    , endpointToString
+    , fullAsAny
+    , fullQueryAsAny
+    , get
+    , getWithRateLimit
+    , post
+    , queryEndpoint
+    )
 
 import Dict exposing (Dict)
 import Http
@@ -125,6 +143,16 @@ fullQueryAsAny =
     FullWithQuery
 
 
+endpointToString : AnyFullEndpoint -> String
+endpointToString endpoint =
+    case endpoint of
+        FullNoQuery (Endpoint url) ->
+            url
+
+        FullWithQuery (Endpoint url) ->
+            url
+
+
 appendPath : String -> Endpoint Full -> Endpoint Full
 appendPath segment (Endpoint url) =
     Endpoint (url ++ "/" ++ Url.percentEncode segment)
@@ -157,7 +185,12 @@ appendQueryParam param endpoint =
                 |> Url.fromString
                 |> Maybe.map
                     (\url ->
-                        { url | query = url.query |> Maybe.map ((++) ("&" ++ encodedParam)) }
+                        { url
+                            | query =
+                                url.query
+                                    |> Maybe.map (\q -> Just <| q ++ "&" ++ encodedParam)
+                                    |> Maybe.withDefault (Just encodedParam)
+                        }
                     )
                 |> Maybe.map (Endpoint << Url.toString)
                 |> Maybe.withDefault (Endpoint queryUrl)

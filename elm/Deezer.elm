@@ -36,7 +36,7 @@ import Url.Builder as Url
 userInfo : Decoder UserInfo
 userInfo =
     succeed UserInfo
-        |> Decode.required "id" string
+        |> Decode.required "id" (int |> Decode.map String.fromInt)
         |> Decode.required "name" string
 
 
@@ -48,6 +48,16 @@ playlist =
         |> hardcoded NotAsked
         |> required "link" string
         |> required "nb_tracks" int
+
+
+createplaylistResponse : String -> Decoder Playlist
+createplaylistResponse title =
+    succeed Playlist
+        |> required "id" (map String.fromInt int)
+        |> hardcoded title
+        |> hardcoded NotAsked
+        |> hardcoded ""
+        |> hardcoded 0
 
 
 track : Decoder Track
@@ -101,7 +111,7 @@ tracksResult =
 
 endpoint : Endpoint Base
 endpoint =
-    Api.baseEndpoint "https://cors-anywhere.herokuapp.com/https://api.deezer.com/"
+    Api.baseEndpoint "https://cors-anywhere.herokuapp.com/https://api.deezer.com"
 
 
 withToken : String -> AnyFullEndpoint -> AnyFullEndpoint
@@ -156,32 +166,33 @@ getPlaylistTracks token id =
 
 createPlaylist : String -> String -> String -> Task Never (WebData Playlist)
 createPlaylist token user name =
-    Api.post
+    Api.get
         defaultConfig
-        (Api.actionEndpoint endpoint [ "users", user, "playlists" ] |> Api.fullAsAny |> withToken token)
-        playlist
-        (JE.object [ ( "title", JE.string name ) ])
+        (Api.queryEndpoint endpoint
+            [ "user", user, "playlists" ]
+            [ Url.string "request_method" "POST", Url.string "title" name ]
+            |> withToken token
+        )
+        (createplaylistResponse name)
 
 
-addSongsToPlaylistEncoder : List Track -> JE.Value
+addSongsToPlaylistEncoder : List Track -> String
 addSongsToPlaylistEncoder tracks =
-    JE.object
-        [ ( "uris"
-          , tracks
-                |> List.map .id
-                |> List.map ((++) "spotify:track:")
-                |> JE.list JE.string
-          )
-        ]
+    tracks
+        |> List.map .id
+        |> String.join ","
 
 
 addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
 addSongsToPlaylist token tracks id =
-    Api.post
+    Api.get
         defaultConfig
-        (Api.actionEndpoint endpoint [ "playlist", "tracks" ] |> Api.fullAsAny |> withToken token)
+        (Api.queryEndpoint endpoint
+            [ "playlist", id, "tracks" ]
+            [ Url.string "request_method" "POST", Url.string "songs" (addSongsToPlaylistEncoder tracks) ]
+            |> withToken token
+        )
         bool
-        (addSongsToPlaylistEncoder tracks)
         |> Task.map (RemoteData.map (\_ -> ()))
 
 
