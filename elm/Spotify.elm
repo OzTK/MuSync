@@ -1,5 +1,6 @@
 port module Spotify exposing
-    ( connectS
+    ( addSongsToPlaylist
+    , connectS
     , createPlaylist
     , getPlaylistTracksFromLink
     , getPlaylists
@@ -200,22 +201,16 @@ addPlaylistTracksEncoder songs =
         ]
 
 
-addSongsToPlaylist : Config -> List Track -> WebData Playlist -> Task.Task String (WebData Playlist)
-addSongsToPlaylist cfg songs playlistData =
-    case playlistData of
-        Success { link } ->
-            link
-                |> playlistsTracksFromLink
-                |> Maybe.map
-                    (\l ->
-                        Api.post cfg l addToPlaylistResponse (addPlaylistTracksEncoder songs)
-                            |> Task.map (\_ -> playlistData)
-                    )
-                |> Maybe.map (Task.mapError (\_ -> ""))
-                |> Maybe.withDefault (Task.fail link)
-
-        _ ->
-            Task.succeed playlistData
+addSongsToPlaylist : String -> List Track -> Playlist -> Task.Task Never (WebData ())
+addSongsToPlaylist token songs { link } =
+    link
+        |> playlistsTracksFromLink
+        |> Maybe.map
+            (\l ->
+                Api.post (config token) l addToPlaylistResponse (addPlaylistTracksEncoder songs)
+                    |> Task.map (RemoteData.map (\_ -> ()))
+            )
+        |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
 
 
 config : String -> Config

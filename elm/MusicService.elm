@@ -14,6 +14,7 @@ module MusicService exposing
     , createToken
     , disconnect
     , disconnected
+    , fetchUserInfo
     , fromString
     , importPlaylist
     , loadPlaylists
@@ -21,6 +22,7 @@ module MusicService exposing
     , toString
     , token
     , type_
+    , user
     )
 
 import Basics.Extra exposing (iif)
@@ -201,6 +203,23 @@ toString t =
             "Amazon"
 
 
+
+-- HTTP
+
+
+fetchUserInfo : ConnectedProvider -> Task MusicServiceError (WebData UserInfo)
+fetchUserInfo connection =
+    case connection of
+        ConnectedProviderWithToken Spotify tok _ ->
+            Spotify.getUserInfo (rawToken tok) |> asErrorTask
+
+        ConnectedProviderWithToken Deezer tok _ ->
+            Deezer.getUserInfo (rawToken tok) |> asErrorTask
+
+        _ ->
+            Task.fail (InvalidServiceConnectionError connection)
+
+
 createPlaylist : ConnectedProvider -> String -> Task MusicServiceError (WebData Playlist)
 createPlaylist connection name =
     case connection of
@@ -217,9 +236,17 @@ createPlaylist connection name =
             Task.fail (MissingUserInfo connection)
 
 
-addSongsToPlaylist : ConnectedProvider -> Playlist -> List Track -> Task Never (WebData Playlist)
+addSongsToPlaylist : ConnectedProvider -> Playlist -> List Track -> Task MusicServiceError (WebData ())
 addSongsToPlaylist connection playlist tracks =
-    Debug.todo <| "Adding all the tracks from " ++ connectionToString connection ++ " to " ++ playlist.name
+    case connection of
+        ConnectedProviderWithToken Spotify tok _ ->
+            Spotify.addSongsToPlaylist (rawToken tok) tracks playlist |> asErrorTask
+
+        ConnectedProviderWithToken Deezer tok _ ->
+            Deezer.addSongsToPlaylist (rawToken tok) tracks playlist.id |> asErrorTask
+
+        _ ->
+            Task.fail (InvalidServiceConnectionError connection)
 
 
 type alias TrackAndSearchResult =
@@ -244,7 +271,7 @@ type ImportPlaylistResult
 
 
 importPlaylist : ConnectedProvider -> Playlist -> ConnectedProvider -> Task MusicServiceError ImportPlaylistResult
-importPlaylist con ({ name, link } as playlist) otherConnection =
+importPlaylist con ({ name, link, tracksCount } as playlist) otherConnection =
     let
         tracksTask =
             playlist
@@ -260,12 +287,23 @@ importPlaylist con ({ name, link } as playlist) otherConnection =
     in
     Task.andThen2
         (\tracksResult newPlaylist ->
+            let
+                withTracksCount =
+                    { newPlaylist | tracksCount = List.length tracksResult }
+
+                msg =
+                    if List.length tracksResult < tracksCount then
+                        ImportHasWarnings tracksResult withTracksCount
+
+                    else
+                        ImportIsSuccess withTracksCount
+            in
             tracksResult
                 |> List.filterMap Tuple.second
                 |> addSongsToPlaylist con newPlaylist
                 |> asErrorTask
                 |> liftError
-                |> Task.map (iif (hasMissingTracks tracksResult) (ImportHasWarnings tracksResult) ImportIsSuccess)
+                |> Task.map (\_ -> msg)
         )
         tracksTask
         newPlaylistTask

@@ -1,11 +1,13 @@
 port module Deezer exposing
-    ( connectDeezer
+    ( addSongsToPlaylist
+    , connectDeezer
     , createPlaylist
     , decodePlaylist
     , decodePlaylists
     , disconnectDeezer
     , getPlaylistTracks
     , getPlaylists
+    , getUserInfo
     , httpBadPayloadError
     , playlist
     , searchTrack
@@ -113,7 +115,10 @@ withToken token =
 
 getUserInfo : String -> Task Never (WebData UserInfo)
 getUserInfo token =
-    Api.get defaultConfig (Api.actionEndpoint endpoint [ "user", "me" ] |> Api.fullAsAny |> withToken token) userInfo
+    Api.get
+        defaultConfig
+        (Api.actionEndpoint endpoint [ "user", "me" ] |> Api.fullAsAny |> withToken token)
+        userInfo
 
 
 searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
@@ -158,27 +163,26 @@ createPlaylist token user name =
         (JE.object [ ( "title", JE.string name ) ])
 
 
-addSongsToPlaylist : String -> List Track -> WebData Playlist -> Task Never (WebData Playlist)
-addSongsToPlaylist token songs playlistData =
-    case playlistData of
-        Success { link } ->
-            Http.postTaskWithConfig
-                defaultConfig
-                (link ++ "/tracks" ++ "?access_token=" ++ token)
-                bool
-                (JE.object
-                    [ ( "uris"
-                      , songs
-                            |> List.map .id
-                            |> List.map ((++) "spotify:track:")
-                            |> JE.list JE.string
-                      )
-                    ]
-                )
-                |> Task.map (\_ -> playlistData)
+addSongsToPlaylistEncoder : List Track -> JE.Value
+addSongsToPlaylistEncoder tracks =
+    JE.object
+        [ ( "uris"
+          , tracks
+                |> List.map .id
+                |> List.map ((++) "spotify:track:")
+                |> JE.list JE.string
+          )
+        ]
 
-        _ ->
-            Task.succeed playlistData
+
+addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
+addSongsToPlaylist token tracks id =
+    Api.post
+        defaultConfig
+        (Api.actionEndpoint endpoint [ "playlist", "tracks" ] |> Api.fullAsAny |> withToken token)
+        bool
+        (addSongsToPlaylistEncoder tracks)
+        |> Task.map (RemoteData.map (\_ -> ()))
 
 
 port connectDeezer : () -> Cmd msg

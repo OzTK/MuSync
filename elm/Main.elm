@@ -159,7 +159,11 @@ initConnections { window, rawTokens } =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-    ( { flow = Flow.start <| initConnections flags
+    let
+        flow =
+            Flow.start <| initConnections flags
+    in
+    ( { flow = flow
       , availableConnections =
             SelectableList.fromList
                 [ Connection.disconnected Spotify
@@ -169,7 +173,7 @@ init flags =
       , alternativeTitles = Dict.empty serializeMatchingTracksKey
       , device = Element.classifyDevice flags.window
       }
-    , Cmd.none
+    , getFlowStepCmd flow
     )
 
 
@@ -182,7 +186,7 @@ type Msg
     | PlaylistsFetched ConnectedProvider (Result MusicServiceError (WebData (List Playlist)))
     | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelectionCleared
-    | UserInfoReceived MusicService (WebData UserInfo)
+    | UserInfoReceived ConnectedProvider (WebData UserInfo)
     | ProviderConnected ConnectedProvider
     | ProviderDisconnected DisconnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
@@ -204,10 +208,14 @@ update msg model =
             ( { model | device = Element.classifyDevice dims }, Cmd.none )
 
         ProviderConnected connection ->
+            let
+                newFlow =
+                    Flow.updateConnection (\_ -> Connected connection) (MusicService.type_ connection) model.flow
+            in
             ( { model
-                | flow = Flow.updateConnection (\_ -> Connected connection) (MusicService.type_ connection) model.flow
+                | flow = newFlow
               }
-            , Cmd.none
+            , getFlowStepCmd newFlow
             )
 
         ProviderDisconnected loggedOutConnection ->
@@ -238,8 +246,8 @@ update msg model =
             , Cmd.none
             )
 
-        UserInfoReceived pType user ->
-            ( { model | availableConnections = Connections.mapOn pType (Connection.map (MusicService.setUserInfo user)) model.availableConnections }
+        UserInfoReceived con info ->
+            ( { model | flow = Flow.setUserInfo con info model.flow }
             , Cmd.none
             )
 
@@ -301,6 +309,14 @@ update msg model =
 
 getFlowStepCmd flow =
     case flow of
+        Connect connections ->
+            connections
+                |> List.filterMap Connection.asConnected
+                |> List.filter (MusicService.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
+                |> List.map (\c -> ( c, c |> MusicService.fetchUserInfo |> Task.onError (\_ -> Task.succeed NotAsked) ))
+                |> List.map (\( c, t ) -> Task.perform (UserInfoReceived c) t)
+                |> Cmd.batch
+
         LoadPlaylists byProvider ->
             byProvider
                 |> List.map

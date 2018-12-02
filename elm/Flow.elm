@@ -13,6 +13,7 @@ module Flow exposing
     , pickPlaylist
     , pickService
     , selectedPlaylist
+    , setUserInfo
     , start
     , udpateLoadingPlaylists
     , updateConnection
@@ -23,6 +24,7 @@ import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
+import Model exposing (UserInfo)
 import MusicService exposing (ConnectedProvider, MusicService)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -232,6 +234,18 @@ updateConnection updater pType flow =
 
         f ->
             f
+
+
+setUserInfo : ConnectedProvider -> WebData UserInfo -> Flow -> Flow
+setUserInfo con info flow =
+    case flow of
+        Connect services ->
+            services
+                |> List.map (Connection.map (MusicService.setUserInfo info))
+                |> Connect
+
+        _ ->
+            flow
 
 
 
