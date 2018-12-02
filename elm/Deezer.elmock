@@ -1,9 +1,11 @@
 port module Deezer exposing
-    ( connectDeezer
+    ( addSongsToPlaylist
+    , connectDeezer
     , createPlaylist
     , disconnectDeezer
-    , getPlaylistTracksFromLink
+    , getPlaylistTracks
     , getPlaylists
+    , getUserInfo
     , importPlaylist
     , searchTrack
     )
@@ -32,9 +34,10 @@ getUserInfo token =
         |> Task.succeed
 
 
-searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token ({ id, artist, title } as track) =
-    [ Track id title artist ]
+    Track id title artist
+        |> Just
         |> Success
         |> Task.succeed
 
@@ -55,8 +58,8 @@ getPlaylists _ =
         |> Task.succeed
 
 
-getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
-getPlaylistTracksFromLink _ _ =
+getPlaylistTracks : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracks _ _ =
     [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu" }
     , { id = "2", artist = "Serge Gainsbourg", title = "Petit" }
     , { id = "3", artist = "The Beatles", title = "Yellow Submarine" }
@@ -68,6 +71,11 @@ getPlaylistTracksFromLink _ _ =
     ]
         |> Success
         |> Task.succeed
+
+
+addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
+addSongsToPlaylist _ _ _ =
+    Task.succeed <| Success ()
 
 
 importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)

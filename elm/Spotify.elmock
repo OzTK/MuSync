@@ -1,5 +1,6 @@
 port module Spotify exposing
-    ( connectS
+    ( addSongsToPlaylist
+    , connectS
     , createPlaylist
     , getPlaylistTracksFromLink
     , getPlaylists
@@ -10,7 +11,7 @@ port module Spotify exposing
     )
 
 import Model exposing (UserInfo)
-import Playlist exposing (Playlist)
+import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Task exposing (Task)
 import Track exposing (Track)
@@ -23,9 +24,10 @@ getUserInfo token =
         |> Task.succeed
 
 
-searchTrack : String -> Track -> Task Never (WebData (List Track))
+searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token ({ id, artist, title } as track) =
-    [ Track id title artist ]
+    Track id title artist
+        |> Just
         |> RemoteData.succeed
         |> Task.succeed
 
@@ -59,6 +61,11 @@ getPlaylistTracksFromLink _ _ =
     ]
         |> RemoteData.succeed
         |> Task.succeed
+
+
+addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
+addSongsToPlaylist _ _ _ =
+    Task.succeed <| Success ()
 
 
 importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
