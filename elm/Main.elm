@@ -675,7 +675,7 @@ transferConfigStep4 model =
     in
     panelContainer model
         Nothing
-        [ column ([ centerY, d.smallSpacing ] ++ panelDefaultStyle model)
+        [ column ([ centerY, centerX, d.smallSpacing ] ++ panelDefaultStyle model)
             [ el [ centerX, Font.color palette.secondary ] <| icon "far fa-check-circle fa-7x"
             , paragraph [ Font.center ] [ text "Your playlist was transferred successfully!" ]
             ]
