@@ -20,4 +20,5 @@ type alias Track =
     { id : TrackId
     , title : String
     , artist : String
+    , isrc : Maybe String
     }

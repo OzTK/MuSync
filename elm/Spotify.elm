@@ -66,6 +66,7 @@ track =
                 |> Pip.requiredAt [ "artists" ] (list artist)
                 |> Pip.resolve
             )
+        |> Pip.optionalAt [ "external_ids", "isrc" ] (nullable string) Nothing
 
 
 trackEntry : Decoder Track

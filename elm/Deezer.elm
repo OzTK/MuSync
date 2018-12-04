@@ -19,8 +19,8 @@ import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip)
 import Dict
 import Http exposing (Error(..), Response)
-import Json.Decode as Decode exposing (Decoder, bool, int, list, map, string, succeed)
-import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, required, requiredAt)
+import Json.Decode as Decode exposing (Decoder, bool, int, list, map, nullable, string, succeed)
+import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, optional, required, requiredAt)
 import Json.Encode as JE
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
@@ -66,6 +66,7 @@ track =
         |> required "id" (map String.fromInt int)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
+        |> optional "isrc" (nullable string) Nothing
 
 
 httpBadPayloadError : String -> Decode.Value -> Either Decode.Error String -> Error

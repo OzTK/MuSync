@@ -310,11 +310,14 @@ importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
     Task.andThen2
         (\tracksResult newPlaylist ->
             let
+                matchedTrackCount =
+                    List.length (List.filter (Maybe.isDefined << Tuple.second) tracksResult)
+
                 withTracksCount =
-                    { newPlaylist | tracksCount = List.length tracksResult }
+                    { newPlaylist | tracksCount = matchedTrackCount }
 
                 msg =
-                    if List.length tracksResult < tracksCount then
+                    if matchedTrackCount < tracksCount then
                         ImportHasWarnings tracksResult otherConnection withTracksCount
 
                     else
