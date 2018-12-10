@@ -6,6 +6,7 @@ module MusicService exposing
     , MusicService(..)
     , MusicServiceError
     , OAuthToken
+    , TrackAndSearchResult
     , connect
     , connected
     , connectedWithToken
@@ -14,11 +15,13 @@ module MusicService exposing
     , createToken
     , disconnect
     , disconnected
+    , failedTracks
     , fetchUserInfo
     , fromString
     , importPlaylist
     , importedPlaylist
     , importedPlaylistKey
+    , importedPlaylistWarnings
     , loadPlaylists
     , setUserInfo
     , toString
@@ -290,6 +293,29 @@ importedPlaylist result =
 
         ImportHasWarnings _ _ playlist ->
             playlist
+
+
+importedPlaylistWarnings : ImportPlaylistResult -> Maybe (List TrackAndSearchResult)
+importedPlaylistWarnings result =
+    case result of
+        ImportIsSuccess _ _ ->
+            Nothing
+
+        ImportHasWarnings tracks _ _ ->
+            Just tracks
+
+
+failedTracks : List TrackAndSearchResult -> List Track
+failedTracks =
+    List.filterMap
+        (\( t, m ) ->
+            case m of
+                Just _ ->
+                    Nothing
+
+                Nothing ->
+                    Just t
+        )
 
 
 importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError ImportPlaylistResult

@@ -718,7 +718,23 @@ playlistRow model tagger ( playlist, state ) =
                     Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
 
                   else if Flow.isPlaylistTransferred state then
-                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle"
+                    Flow.importWarnings state
+                        |> Maybe.map
+                            (\w ->
+                                Element.el
+                                    [ d.smallHPadding
+                                    , Font.color palette.ternary
+                                    , Element.htmlAttribute
+                                        (Html.title <|
+                                            (MusicService.failedTracks w |> List.length |> String.fromInt)
+                                                ++ " track failed to be imported"
+                                        )
+                                    ]
+                                <|
+                                    icon "fas fa-exclamation-triangle"
+                            )
+                        |> Maybe.withDefault
+                            (Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle")
 
                   else if Flow.isPlaylistNew state then
                     Element.el [ d.xSmallText, Font.color palette.primary ] <| text "new!"

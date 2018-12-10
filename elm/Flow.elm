@@ -8,6 +8,7 @@ module Flow exposing
     , allServices
     , canStep
     , clearSelection
+    , importWarnings
     , isPlaylistNew
     , isPlaylistTransferred
     , isPlaylistTransferring
@@ -28,7 +29,7 @@ import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
-import MusicService exposing (ConnectedProvider, ImportPlaylistResult, MusicService)
+import MusicService exposing (ConnectedProvider, ImportPlaylistResult, MusicService, TrackAndSearchResult)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import SelectableList exposing (ListWithSelection)
@@ -65,6 +66,16 @@ isPlaylistTransferred playlistState =
 
         _ ->
             False
+
+
+importWarnings : PlaylistState -> Maybe (List TrackAndSearchResult)
+importWarnings playlistState =
+    case playlistState of
+        Transferred result ->
+            MusicService.importedPlaylistWarnings result
+
+        _ ->
+            Nothing
 
 
 isPlaylistNew : PlaylistState -> Bool
