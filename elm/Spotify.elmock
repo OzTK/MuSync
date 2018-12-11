@@ -26,7 +26,7 @@ getUserInfo token =
 
 searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token ({ id, artist, title } as track) =
-    Track id title artist
+    Track id title artist Nothing
         |> Just
         |> RemoteData.succeed
         |> Task.succeed
@@ -50,14 +50,14 @@ createPlaylist _ _ _ =
 
 getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
 getPlaylistTracksFromLink _ _ =
-    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu" }
-    , { id = "2", artist = "Serge Gainsbourg", title = "Petit" }
-    , { id = "3", artist = "The Beatles", title = "Yellow Submarine" }
-    , { id = "4", artist = "Iron Maiden", title = "666" }
-    , { id = "5", artist = "Mickael Jackson", title = "Beat it" }
-    , { id = "6", artist = "RHCP", title = "Californication" }
-    , { id = "7", artist = "The Clash", title = "London Calling" }
-    , { id = "8", artist = "The Tiger Lillies", title = "Terrible" }
+    [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu", isrc = Nothing }
+    , { id = "2", artist = "Serge Gainsbourg", title = "Petit", isrc = Nothing }
+    , { id = "3", artist = "The Beatles", title = "Yellow Submarine", isrc = Nothing }
+    , { id = "4", artist = "Iron Maiden", title = "666", isrc = Nothing }
+    , { id = "5", artist = "Mickael Jackson", title = "Beat it", isrc = Nothing }
+    , { id = "6", artist = "RHCP", title = "Californication", isrc = Nothing }
+    , { id = "7", artist = "The Clash", title = "London Calling", isrc = Nothing }
+    , { id = "8", artist = "The Tiger Lillies", title = "Terrible", isrc = Nothing }
     ]
         |> RemoteData.succeed
         |> Task.succeed
