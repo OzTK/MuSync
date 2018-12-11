@@ -379,13 +379,14 @@ view model =
                 ]
                 [ header model ]
             , row
-                [ Region.mainContent
-                , width fill
-                , height fill
-                , clip
-                , d.mediumPaddingTop
-                , hack_forceClip
-                ]
+                ([ Region.mainContent
+                 , width fill
+                 , height fill
+                 , clip
+                 , d.mediumPaddingTop
+                 ]
+                    ++ hack_forceClip
+                )
                 [ routeMainView model ]
             ]
 
@@ -432,20 +433,7 @@ routePanel model =
         PickPlaylist { playlists, selection, connections } ->
             case selection of
                 PlaylistSelected con id ->
-                    playlists
-                        |> Dict.get ( con, id )
-                        |> Maybe.map
-                            (\( p, state ) ->
-                                if Flow.isPlaylistTransferring state then
-                                    transferConfigStep3 model p
-
-                                else if Flow.isPlaylistTransferred state then
-                                    transferConfigStep4 model
-
-                                else
-                                    transferConfigStep1 model p
-                            )
-                        |> Maybe.withDefault Element.none
+                    playlistDetail model ( con, id ) playlists
 
                 _ ->
                     Element.el placeholderStyle Element.none
@@ -467,20 +455,35 @@ routePanel model =
                 |> Maybe.withDefault Element.none
 
         Transfer { playlist, playlists, connections } ->
-            playlists
-                |> Dict.get playlist
-                |> Maybe.map
-                    (\( p, state ) ->
-                        if Flow.isPlaylistTransferred state then
-                            transferConfigStep4 model
-
-                        else
-                            transferConfigStep3 model p
-                    )
-                |> Maybe.withDefault Element.none
+            playlistDetail model playlist playlists
 
         _ ->
             Element.el placeholderStyle Element.none
+
+
+playlistDetail :
+    { m | device : Element.Device }
+    -> ( ConnectedProvider, PlaylistId )
+    -> AnyDict String ( ConnectedProvider, PlaylistId ) ( Playlist, PlaylistState )
+    -> Element Msg
+playlistDetail model playlist playlists =
+    playlists
+        |> Dict.get playlist
+        |> Maybe.map
+            (\( p, state ) ->
+                if Flow.isPlaylistTransferring state then
+                    transferConfigStep3 model p
+
+                else if Flow.isPlaylistTransferred state then
+                    state
+                        |> Flow.importWarnings
+                        |> Maybe.map (transferConfigStep4Warnings model << MusicService.failedTracks)
+                        |> Maybe.withDefault (transferConfigStep4 model)
+
+                else
+                    transferConfigStep1 model p
+            )
+        |> Maybe.withDefault Element.none
 
 
 
@@ -527,7 +530,7 @@ panel ({ device, flow } as model) =
                     ]
     in
     panelPositioner <|
-        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ]) <|
+        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ] ++ hack_forceClip) <|
             routePanel model
 
 
@@ -570,13 +573,14 @@ panelDefaultStyle model =
 panelContainer : { m | device : Element.Device } -> Maybe String -> List (Element msg) -> Element msg
 panelContainer model maybeTitle children =
     column
-        [ width fill
-        , height fill
-        , clip
-        , hack_forceClip
-        , spaceEvenly
-        , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
-        ]
+        ([ width fill
+         , height fill
+         , clip
+         , spaceEvenly
+         , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
+         ]
+            ++ hack_forceClip
+        )
     <|
         (maybeTitle
             |> Maybe.map
@@ -601,7 +605,7 @@ transferConfigStep1 : { m | device : Element.Device } -> Playlist -> Element Msg
 transferConfigStep1 model { name } =
     panelContainer model
         (Just "Transfer playlist")
-        [ paragraph ([ height fill, clip, hack_forceClip, scrollbarY ] ++ panelDefaultStyle model) [ text name ]
+        [ paragraph ([ height fill, clip, scrollbarY ] ++ panelDefaultStyle model ++ hack_forceClip) [ text name ]
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
         ]
 
@@ -683,6 +687,37 @@ transferConfigStep4 model =
         ]
 
 
+transferConfigStep4Warnings : { m | device : Element.Device } -> List Track -> Element Msg
+transferConfigStep4Warnings model tracks =
+    let
+        d =
+            dimensions model
+    in
+    panelContainer model Nothing <|
+        [ column
+            ([ centerY
+             , centerX
+             , d.smallSpacing
+             , paddingEach { top = d.smallPadding, right = d.smallPadding, bottom = 0, left = d.smallPadding }
+             , width fill
+             , clip
+             ]
+                ++ hack_forceClip
+            )
+          <|
+            [ el [ centerX, Font.color palette.ternary ] <| icon "fas fa-exclamation-triangle fa-7x"
+            , paragraph [ Font.center ] [ text "Some tracks could not be transferred" ]
+            , column ([ height fill, width fill, d.smallSpacing, clip, scrollbarY ] ++ hack_forceClip) <|
+                List.map
+                    (\t ->
+                        el ([ width fill, clip, Font.center ] ++ hack_textEllipsis) <| text (Track.toString t)
+                    )
+                    tracks
+            ]
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Back to playlists" }
+        ]
+
+
 playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> ( Playlist, PlaylistState ) -> Element msg
 playlistRow model tagger ( playlist, state ) =
     let
@@ -727,11 +762,10 @@ playlistRow model tagger ( playlist, state ) =
                                     , Element.htmlAttribute
                                         (Html.title <|
                                             (MusicService.failedTracks w |> List.length |> String.fromInt)
-                                                ++ " track failed to be imported"
+                                                ++ " tracks failed to be imported"
                                         )
                                     ]
-                                <|
-                                    icon "fas fa-exclamation-triangle"
+                                    (icon "fas fa-exclamation-triangle")
                             )
                         |> Maybe.withDefault
                             (Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle")
@@ -763,7 +797,7 @@ playlistsList model playlists =
                 |> Dict.map f
                 |> Dict.values
     in
-    Element.column [ width fill, height fill, clip, hack_forceClip, d.mediumSpacing ] <|
+    Element.column ([ width fill, height fill, clip, d.mediumSpacing ] ++ hack_forceClip) <|
         [ paragraph [ d.largeText, Font.center ] [ text "Pick a playlist you want to transfer" ]
         , Element.column [ width fill, height fill, scrollbarY ]
             (withGroupedPlaylists <|
@@ -1031,9 +1065,9 @@ songsListStyle { device } =
 -- ElmUI HACKS
 
 
-hack_forceClip : Element.Attribute msg
+hack_forceClip : List (Element.Attribute msg)
 hack_forceClip =
-    htmlAttribute (Html.style "flex-shrink" "1")
+    [ htmlAttribute (Html.style "flex-shrink" "1"), htmlAttribute <| Html.class "hack_forceClip" ]
 
 
 hack_textEllipsis : List (Element.Attribute msg)
