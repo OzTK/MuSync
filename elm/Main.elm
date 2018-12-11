@@ -528,9 +528,10 @@ panel ({ device, flow } as model) =
                       else
                         moveLeft <| toFloat d.panelHeight
                     ]
+                        ++ hack_forceClip
     in
     panelPositioner <|
-        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ] ++ hack_forceClip) <|
+        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ]) <|
             routePanel model
 
 
@@ -676,11 +677,19 @@ transferConfigStep4 model =
     let
         d =
             dimensions model
+
+        factor =
+            case model.device.orientation of
+                Portrait ->
+                    "3"
+
+                Landscape ->
+                    "7"
     in
     panelContainer model
         Nothing
         [ column ([ centerY, centerX, d.smallSpacing ] ++ panelDefaultStyle model)
-            [ el [ centerX, Font.color palette.secondary ] <| icon "far fa-check-circle fa-7x"
+            [ el [ centerX, Font.color palette.secondary ] <| icon ("far fa-check-circle fa-" ++ factor ++ "x")
             , paragraph [ Font.center ] [ text "Your playlist was transferred successfully!" ]
             ]
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Back to playlists" }
@@ -692,6 +701,14 @@ transferConfigStep4Warnings model tracks =
     let
         d =
             dimensions model
+
+        factor =
+            case model.device.orientation of
+                Portrait ->
+                    "3"
+
+                Landscape ->
+                    "7"
     in
     panelContainer model Nothing <|
         [ column
@@ -705,7 +722,7 @@ transferConfigStep4Warnings model tracks =
                 ++ hack_forceClip
             )
           <|
-            [ el [ centerX, Font.color palette.ternary ] <| icon "fas fa-exclamation-triangle fa-7x"
+            [ el [ centerX, Font.color palette.ternary ] <| icon ("fas fa-exclamation-triangle fa-" ++ factor ++ "x")
             , paragraph [ Font.center ] [ text "Some tracks could not be transferred" ]
             , column ([ height fill, width fill, d.smallSpacing, clip, scrollbarY ] ++ hack_forceClip) <|
                 List.map
