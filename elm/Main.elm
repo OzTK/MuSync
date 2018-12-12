@@ -191,7 +191,7 @@ type Msg
     | ProviderDisconnected DisconnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
     | MatchingSongResultError String MatchingTracksKeySerializationError
-    | PlaylistImported ( ConnectedProvider, PlaylistId ) ImportPlaylistResult
+    | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData ImportPlaylistResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
     | StepFlow
@@ -276,8 +276,14 @@ update msg model =
             , Cmd.none
             )
 
-        PlaylistImported playlist result ->
+        PlaylistImported playlist (Success result) ->
             ( { model | flow = Flow.playlistTransferFinished playlist result model.flow }
+            , Cmd.none
+            )
+
+        -- TODO: Handle import error cases
+        PlaylistImported playlist _ ->
+            ( model
             , Cmd.none
             )
 

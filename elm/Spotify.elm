@@ -139,19 +139,24 @@ getUserInfo token =
 
 searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token t =
+    let
+        searchCriteria =
+            t.isrc
+                |> Maybe.map (\isrc -> "isrc:\"" ++ isrc ++ "\"")
+                |> Maybe.withDefault
+                    ("artist:\""
+                        ++ t.artist
+                        ++ "\" track:\""
+                        ++ t.title
+                        ++ "\""
+                    )
+    in
     Api.getWithRateLimit (config token)
         (Api.queryEndpoint endpoint
             [ "search" ]
             [ Url.string "type" "track"
             , Url.int "limit" 1
-            , Url.string
-                "q"
-                ("artist:\""
-                    ++ t.artist
-                    ++ "\" track:\""
-                    ++ t.title
-                    ++ "\""
-                )
+            , Url.string "q" searchCriteria
             ]
         )
         searchResponse

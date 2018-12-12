@@ -8,6 +8,8 @@ module ApiClient exposing
     , appendPath
     , appendQueryParam
     , baseEndpoint
+    , chain
+    , chain2
     , endpointFromLink
     , endpointToString
     , fullAsAny
@@ -213,3 +215,38 @@ post config endpoint =
 getWithRateLimit : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)
 getWithRateLimit config endpoint decoder =
     get config endpoint decoder |> withRateLimit
+
+
+chain : (a -> Task e (WebData b)) -> Task e (WebData a) -> Task e (WebData b)
+chain f task =
+    task
+        |> Task.map (RemoteData.map f)
+        |> Task.andThen
+            (\data ->
+                case data of
+                    Success t2 ->
+                        t2
+
+                    Failure err ->
+                        Task.succeed (Failure err)
+
+                    _ ->
+                        Task.succeed NotAsked
+            )
+
+
+chain2 : (a -> b -> Task e (WebData c)) -> Task e (WebData a) -> Task e (WebData b) -> Task e (WebData c)
+chain2 f task1 task2 =
+    Task.map2 (RemoteData.map2 f) task1 task2
+        |> Task.andThen
+            (\data ->
+                case data of
+                    Success t2 ->
+                        t2
+
+                    Failure err ->
+                        Task.succeed (Failure err)
+
+                    _ ->
+                        Task.succeed NotAsked
+            )

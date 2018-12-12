@@ -134,21 +134,27 @@ getUserInfo token =
 
 searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token t =
+    let
+        url =
+            t.isrc
+                |> Maybe.map (\isrc -> Api.actionEndpoint endpoint [ "track", "isrc:" ++ isrc ] |> Api.fullAsAny)
+                |> Maybe.withDefault
+                    (Api.queryEndpoint endpoint
+                        [ "search", "track" ]
+                        [ Url.string "q"
+                            ("artist:\""
+                                ++ t.artist
+                                ++ "\" track:\""
+                                ++ t.title
+                                ++ "\""
+                            )
+                        ]
+                    )
+    in
     Api.getWithRateLimit defaultConfig
-        (Api.queryEndpoint endpoint
-            [ "search", "track" ]
-            [ Url.string
-                "q"
-                ("artist:\""
-                    ++ t.artist
-                    ++ "\" track:\""
-                    ++ t.title
-                    ++ "\""
-                )
-            ]
-        )
-        tracksResult
-        |> Task.map (RemoteData.map List.head)
+        (url |> withToken token)
+    <|
+        Decode.oneOf [ track |> Decode.map Just, tracksResult |> Decode.map List.head ]
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
@@ -158,11 +164,20 @@ getPlaylists token =
         decodePlaylists
 
 
+loadTrack : String -> Track -> Task Never (WebData Track)
+loadTrack token t =
+    Api.getWithRateLimit
+        defaultConfig
+        (Api.actionEndpoint endpoint [ "track", t.id ] |> Api.fullAsAny |> withToken token)
+        track
+
+
 getPlaylistTracks : String -> PlaylistId -> Task Never (WebData (List Track))
 getPlaylistTracks token id =
     Api.getWithRateLimit defaultConfig
         (Api.actionEndpoint endpoint [ "playlist", id, "tracks" ] |> Api.fullAsAny |> withToken token)
         tracksResult
+        |> Api.chain (List.map (loadTrack token) >> Task.sequence >> Task.map RemoteData.fromList)
 
 
 createPlaylist : String -> String -> String -> Task Never (WebData Playlist)

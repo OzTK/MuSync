@@ -30,6 +30,7 @@ module MusicService exposing
     , user
     )
 
+import ApiClient as Api
 import Basics.Extra exposing (iif)
 import Deezer
 import Http
@@ -258,7 +259,7 @@ type alias TrackAndSearchResult =
     ( Track, Maybe Track )
 
 
-searchAllTracks : ConnectedProvider -> List Track -> Task MusicServiceError (List TrackAndSearchResult)
+searchAllTracks : ConnectedProvider -> List Track -> Task MusicServiceError (WebData (List TrackAndSearchResult))
 searchAllTracks connection trackList =
     trackList
         |> List.map (\t -> searchSongFromProvider connection t |> Task.map (Tuple.pair t))
@@ -266,8 +267,7 @@ searchAllTracks connection trackList =
         |> Task.map List.unzip
         |> Task.map (Tuple.mapSecond RemoteData.fromList)
         |> Task.map (\( tracks, result ) -> RemoteData.map (Tuple.pair tracks) result)
-        |> liftError
-        |> Task.map List.zip
+        |> Task.map (RemoteData.map List.zip)
 
 
 type ImportPlaylistResult
@@ -318,22 +318,21 @@ failedTracks =
         )
 
 
-importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError ImportPlaylistResult
+importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError (WebData ImportPlaylistResult)
 importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
     let
         tracksTask =
             playlist
                 |> loadPlaylistSongs con
-                |> liftError
-                |> Task.andThen (searchAllTracks otherConnection)
+                |> Api.chain (searchAllTracks otherConnection)
 
         newPlaylistTask =
-            createPlaylist otherConnection name |> liftError
+            createPlaylist otherConnection name
 
         hasMissingTracks =
             \tracksResult p -> p.tracksCount > List.length tracksResult
     in
-    Task.andThen2
+    Api.chain2
         (\tracksResult newPlaylist ->
             let
                 matchedTrackCount =
@@ -352,9 +351,7 @@ importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
             tracksResult
                 |> List.filterMap Tuple.second
                 |> addSongsToPlaylist otherConnection newPlaylist
-                |> asErrorTask
-                |> liftError
-                |> Task.map (\_ -> msg)
+                |> Task.map (RemoteData.map (\_ -> msg))
         )
         tracksTask
         newPlaylistTask
