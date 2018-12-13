@@ -175,7 +175,6 @@ playlistsTracksFromLink link =
     link
         |> Api.endpointFromLink endpoint
         |> Maybe.map (Api.appendPath "tracks")
-        |> Maybe.map Api.fullAsAny
 
 
 getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))

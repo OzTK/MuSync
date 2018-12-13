@@ -19,7 +19,7 @@ import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (flip)
 import Dict
 import Http exposing (Error(..), Response)
-import Json.Decode as Decode exposing (Decoder, bool, int, list, map, nullable, string, succeed)
+import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, nullable, string, succeed)
 import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, optional, required, requiredAt)
 import Json.Encode as JE
 import Model exposing (UserInfo)
@@ -66,7 +66,7 @@ track =
         |> required "id" (map String.fromInt int)
         |> required "title" string
         |> requiredAt [ "artist", "name" ] string
-        |> optional "isrc" (nullable string) Nothing
+        |> optional "isrc" (maybe string) Nothing
 
 
 httpBadPayloadError : String -> Decode.Value -> Either Decode.Error String -> Error
@@ -99,6 +99,63 @@ decodePlaylist =
     decodeData playlist "/deezer/playlist"
 
 
+type TrackBatch
+    = TrackBatch (List Track) AnyFullEndpoint
+    | TrackLastBatch (List Track)
+
+
+type TracksBuilder
+    = BuildingTrackList (List Track) AnyFullEndpoint
+    | CompleteTrackList (List Track)
+
+
+concatTracks : TracksBuilder -> TrackBatch -> TracksBuilder
+concatTracks builder batch =
+    case ( builder, batch ) of
+        ( BuildingTrackList prev _, TrackBatch next url ) ->
+            BuildingTrackList (prev ++ next) url
+
+        ( BuildingTrackList prev _, TrackLastBatch final ) ->
+            CompleteTrackList (prev ++ final)
+
+        ( CompleteTrackList _, _ ) ->
+            builder
+
+
+buildTracks : AnyFullEndpoint -> TracksBuilder
+buildTracks =
+    BuildingTrackList []
+
+
+buildingTracks : Decoder TrackBatch
+buildingTracks =
+    succeed TrackBatch
+        |> Decode.required "data" (list track)
+        |> Decode.required "next"
+            (string
+                |> Decode.andThen
+                    (String.append (corsProxy ++ "/")
+                        >> Api.endpointFromLink endpoint
+                        >> Maybe.map Decode.succeed
+                        >> Maybe.withDefault (Decode.fail "Invalid next url")
+                    )
+            )
+
+
+lastTrackBatch : Decoder TrackBatch
+lastTrackBatch =
+    succeed TrackLastBatch
+        |> Decode.required "data" (list track)
+
+
+allTracks : Decoder TrackBatch
+allTracks =
+    Decode.oneOf
+        [ buildingTracks
+        , lastTrackBatch
+        ]
+
+
 tracksResult : Decoder (List Track)
 tracksResult =
     succeed succeed
@@ -110,9 +167,13 @@ tracksResult =
 -- Values
 
 
+corsProxy =
+    "https://cors-anywhere.herokuapp.com"
+
+
 endpoint : Endpoint Base
 endpoint =
-    Api.baseEndpoint "https://cors-anywhere.herokuapp.com/https://api.deezer.com"
+    Api.baseEndpoint <| corsProxy ++ "/" ++ "https://api.deezer.com"
 
 
 withToken : String -> AnyFullEndpoint -> AnyFullEndpoint
@@ -172,11 +233,27 @@ loadTrack token t =
         track
 
 
+fetchAllTracks : TracksBuilder -> Task Never (WebData (List Track))
+fetchAllTracks builder =
+    case builder of
+        CompleteTrackList trackList ->
+            Task.succeed <| Success trackList
+
+        BuildingTrackList tracks url ->
+            Api.getWithRateLimit defaultConfig
+                url
+                allTracks
+                |> Task.map (RemoteData.map (concatTracks builder))
+                |> Api.chain fetchAllTracks
+
+
 getPlaylistTracks : String -> PlaylistId -> Task Never (WebData (List Track))
 getPlaylistTracks token id =
-    Api.getWithRateLimit defaultConfig
-        (Api.actionEndpoint endpoint [ "playlist", id, "tracks" ] |> Api.fullAsAny |> withToken token)
-        tracksResult
+    Api.actionEndpoint endpoint [ "playlist", id, "tracks" ]
+        |> Api.fullAsAny
+        |> withToken token
+        |> buildTracks
+        |> fetchAllTracks
         |> Api.chain (List.map (loadTrack token) >> Task.sequence >> Task.map RemoteData.fromList)
 
 

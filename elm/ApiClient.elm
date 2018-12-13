@@ -122,16 +122,20 @@ queryEndpoint (Endpoint base) path query =
     FullWithQuery <| Endpoint <| Url.crossOrigin base path query
 
 
-endpointFromLink : Endpoint Base -> String -> Maybe (Endpoint Full)
+endpointFromLink : Endpoint Base -> String -> Maybe AnyFullEndpoint
 endpointFromLink (Endpoint domain) link =
     Url.fromString link
         |> Maybe.andThen
-            (\{ host } ->
-                if String.contains domain link then
-                    Just (Endpoint link)
+            (\{ host, query } ->
+                case ( String.contains host domain, query ) of
+                    ( True, Nothing ) ->
+                        Just <| fullAsAny (Endpoint link)
 
-                else
-                    Nothing
+                    ( True, Just _ ) ->
+                        Just <| fullQueryAsAny (Endpoint link)
+
+                    _ ->
+                        Nothing
             )
 
 
@@ -155,9 +159,18 @@ endpointToString endpoint =
             url
 
 
-appendPath : String -> Endpoint Full -> Endpoint Full
-appendPath segment (Endpoint url) =
-    Endpoint (url ++ "/" ++ Url.percentEncode segment)
+appendPath : String -> AnyFullEndpoint -> AnyFullEndpoint
+appendPath segment endpoint =
+    case endpoint of
+        FullNoQuery (Endpoint url) ->
+            Endpoint (url ++ "/" ++ Url.percentEncode segment) |> fullAsAny
+
+        FullWithQuery (Endpoint url) ->
+            url
+                |> Url.fromString
+                |> Maybe.map (\u -> { u | path = u.path ++ "/" ++ segment })
+                |> Maybe.map (fullQueryAsAny << Endpoint << Url.toString)
+                |> Maybe.withDefault endpoint
 
 
 appendQueryParamToUrl : QueryParameter -> Url -> Url

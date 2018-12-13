@@ -3,15 +3,15 @@ self.addEventListener('install', function (event) {
 });
 
 var preLoad = function () {
-  console.log('Install Event processing');
+  // console.log('Install Event processing');
   return caches.open('offline').then(function (cache) {
-    console.log('Cached index and offline page during Install');
+    // console.log('Cached index and offline page during Install');
     return cache.addAll(['/offline.html', '/index.html']);
   });
 }
 
 self.addEventListener('fetch', function (event) {
-  console.log(`The service worker is serving the asset: ${event.request.url}`);
+  // console.log(`The service worker is serving the asset: ${event.request.url}`);
   if (!event.request.url) {
     return Promise.resolve()
   }
@@ -38,12 +38,12 @@ var addToCache = function (request) {
       request.url.indexOf('api.spotify.com') >= 0 ||
       request.url.indexOf('api.deezer.com') >= 0 ||
       request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
-    console.log("ignoring extension: " + request.url)
+    // console.log("ignoring extension: " + request.url)
     return Promise.resolve()
   }
   return caches.open('offline').then(function (cache) {
     return fetch(request).then(function (response) {
-      console.log('add page to offline ' + request.url)
+      // console.log('add page to offline ' + request.url)
       return cache.put(request, response);
     });
   });

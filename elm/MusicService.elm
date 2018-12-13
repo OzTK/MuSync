@@ -249,7 +249,7 @@ addSongsToPlaylist connection playlist tracks =
             Spotify.addSongsToPlaylist (rawToken tok) tracks playlist |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.addSongsToPlaylist (rawToken tok) tracks playlist.id |> asErrorTask
+            Deezer.addSongsToPlaylist (rawToken tok) (List.take 30 tracks) playlist.id |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
