@@ -160,7 +160,7 @@ searchTrack token t =
             ]
         )
         searchResponse
-        |> Task.map (RemoteData.map List.head)
+        |> Api.map List.head
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
@@ -213,7 +213,7 @@ addSongsToPlaylist token songs { link } =
         |> Maybe.map
             (\l ->
                 Api.post (config token) l addToPlaylistResponse (addPlaylistTracksEncoder songs)
-                    |> Task.map (RemoteData.map (\_ -> ()))
+                    |> Api.map (\_ -> ())
             )
         |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
 

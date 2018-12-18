@@ -29,7 +29,7 @@ import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
-import MusicService exposing (ConnectedProvider, ImportPlaylistResult, MusicService, TrackAndSearchResult)
+import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportReport, PlaylistImportResult, TrackAndSearchResult)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import SelectableList exposing (ListWithSelection)
@@ -45,7 +45,7 @@ type PlaylistState
     = New
     | Untransferred
     | Transferring
-    | Transferred ImportPlaylistResult
+    | Transferred PlaylistImportResult
 
 
 isPlaylistTransferring : PlaylistState -> Bool
@@ -68,11 +68,11 @@ isPlaylistTransferred playlistState =
             False
 
 
-importWarnings : PlaylistState -> Maybe (List TrackAndSearchResult)
+importWarnings : PlaylistState -> Maybe PlaylistImportReport
 importWarnings playlistState =
     case playlistState of
         Transferred result ->
-            MusicService.importedPlaylistWarnings result
+            Just result.status
 
         _ ->
             Nothing
@@ -402,7 +402,7 @@ clearSelection flow =
 -- Sync
 
 
-playlistTransferFinished : ( ConnectedProvider, PlaylistId ) -> ImportPlaylistResult -> Flow -> Flow
+playlistTransferFinished : ( ConnectedProvider, PlaylistId ) -> PlaylistImportResult -> Flow -> Flow
 playlistTransferFinished key importResult flow =
     let
         updatePlaylists data =

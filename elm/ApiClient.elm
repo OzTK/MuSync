@@ -16,6 +16,7 @@ module ApiClient exposing
     , fullQueryAsAny
     , get
     , getWithRateLimit
+    , map
     , post
     , queryEndpoint
     )
@@ -228,6 +229,11 @@ post config endpoint =
 getWithRateLimit : Config -> AnyFullEndpoint -> Decoder m -> Task Never (WebData m)
 getWithRateLimit config endpoint decoder =
     get config endpoint decoder |> withRateLimit
+
+
+map : (a -> b) -> Task e (WebData a) -> Task e (WebData b)
+map f =
+    Task.map (RemoteData.map f)
 
 
 chain : (a -> Task e (WebData b)) -> Task e (WebData a) -> Task e (WebData b)

@@ -71,7 +71,7 @@ import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
-import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), ImportPlaylistResult, MusicService(..), MusicServiceError, OAuthToken)
+import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken, PlaylistImportReport, PlaylistImportResult)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
@@ -191,7 +191,7 @@ type Msg
     | ProviderDisconnected DisconnectedProvider
     | MatchingSongResult MatchingTrackKey (WebData (List Track))
     | MatchingSongResultError String MatchingTracksKeySerializationError
-    | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData ImportPlaylistResult)
+    | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
     | StepFlow
@@ -483,7 +483,7 @@ playlistDetail model playlist playlists =
                 else if Flow.isPlaylistTransferred state then
                     state
                         |> Flow.importWarnings
-                        |> Maybe.map (transferConfigStep4Warnings model << MusicService.failedTracks)
+                        |> Maybe.map (transferConfigStep4Warnings model)
                         |> Maybe.withDefault (transferConfigStep4 model)
 
                 else
@@ -702,11 +702,17 @@ transferConfigStep4 model =
         ]
 
 
-transferConfigStep4Warnings : { m | device : Element.Device } -> List Track -> Element Msg
-transferConfigStep4Warnings model tracks =
+transferConfigStep4Warnings : { m | device : Element.Device } -> PlaylistImportReport -> Element Msg
+transferConfigStep4Warnings model report =
     let
         d =
             dimensions model
+
+        tracks =
+            MusicService.failedTracks report
+
+        dupes =
+            MusicService.importedPlaylistDuplicateCount report
 
         factor =
             case model.device.orientation of
@@ -728,15 +734,27 @@ transferConfigStep4Warnings model tracks =
                 ++ hack_forceClip
             )
           <|
-            [ el [ centerX, Font.color palette.ternary ] <| icon ("fas fa-exclamation-triangle fa-" ++ factor ++ "x")
-            , paragraph [ Font.center ] [ text "Some tracks could not be transferred" ]
-            , column ([ height fill, width fill, d.smallSpacing, clip, scrollbarY ] ++ hack_forceClip) <|
-                List.map
-                    (\t ->
-                        el ([ width fill, clip, Font.center ] ++ hack_textEllipsis) <| text (Track.toString t)
-                    )
-                    tracks
-            ]
+            (el [ centerX, Font.color palette.ternary ] <| icon ("fas fa-exclamation-triangle fa-" ++ factor ++ "x"))
+                :: (if dupes > 0 then
+                        paragraph [ Font.center ] [ text <| String.fromInt dupes ++ " duplicate tracks were removed" ]
+
+                    else
+                        Element.none
+                   )
+                :: (if List.length tracks > 0 then
+                        [ paragraph [ Font.center ] [ text "-----" ]
+                        , paragraph [ Font.center ] [ text "Some tracks could not be transferred" ]
+                        , column ([ height fill, width fill, d.smallSpacing, clip, scrollbarY ] ++ hack_forceClip) <|
+                            List.map
+                                (\t ->
+                                    el ([ width fill, clip, Font.center ] ++ hack_textEllipsis) <| text (Track.toString t)
+                                )
+                                tracks
+                        ]
+
+                    else
+                        []
+                   )
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Back to playlists" }
         ]
 
@@ -777,14 +795,15 @@ playlistRow model tagger ( playlist, state ) =
 
                   else if Flow.isPlaylistTransferred state then
                     Flow.importWarnings state
+                        |> Maybe.filter (\w -> (w |> MusicService.failedTracks |> List.length) > 0)
                         |> Maybe.map
-                            (\w ->
+                            (\report ->
                                 Element.el
                                     [ d.smallHPadding
                                     , Font.color palette.ternary
                                     , Element.htmlAttribute
                                         (Html.title <|
-                                            (MusicService.failedTracks w |> List.length |> String.fromInt)
+                                            (MusicService.failedTracks report |> List.length |> String.fromInt)
                                                 ++ " tracks failed to be imported"
                                         )
                                     ]

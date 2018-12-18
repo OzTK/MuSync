@@ -27,6 +27,7 @@ import Playlist exposing (Playlist, PlaylistId)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
+import Set
 import Task exposing (Task)
 import Track exposing (Track)
 import Tuple exposing (pair)
@@ -163,12 +164,24 @@ tracksResult =
         |> Decode.resolve
 
 
+singleTrack : Decoder (Maybe Track)
+singleTrack =
+    Decode.oneOf
+        [ track |> Decode.map Just
+        , Decode.succeed Nothing
+        ]
+
+
 
 -- Values
 
 
 corsProxy =
-    "https://cors-anywhere.herokuapp.com"
+    "https://thingproxy.freeboard.io/fetch"
+
+
+
+-- "https://cors-anywhere.herokuapp.com"
 
 
 endpoint : Endpoint Base
@@ -215,7 +228,7 @@ searchTrack token t =
     Api.getWithRateLimit defaultConfig
         (url |> withToken token)
     <|
-        Decode.oneOf [ track |> Decode.map Just, tracksResult |> Decode.map List.head ]
+        Decode.oneOf [ tracksResult |> Decode.map List.head, singleTrack ]
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
@@ -243,7 +256,7 @@ fetchAllTracks builder =
             Api.getWithRateLimit defaultConfig
                 url
                 allTracks
-                |> Task.map (RemoteData.map (concatTracks builder))
+                |> Api.map (concatTracks builder)
                 |> Api.chain fetchAllTracks
 
 
@@ -276,16 +289,37 @@ addSongsToPlaylistEncoder tracks =
         |> String.join ","
 
 
+pageSize =
+    25
+
+
+addSongsBatchToPlaylist : String -> List Track -> PlaylistId -> Int -> Task Never (WebData ())
+addSongsBatchToPlaylist token tracks id skipped =
+    if skipped == List.length tracks then
+        Task.succeed (Success ())
+
+    else
+        let
+            next =
+                min (skipped + pageSize) (List.length tracks)
+
+            batch =
+                tracks |> List.drop skipped |> List.take (next - skipped)
+        in
+        Api.getWithRateLimit
+            defaultConfig
+            (Api.queryEndpoint endpoint
+                [ "playlist", id, "tracks" ]
+                [ Url.string "request_method" "POST", Url.string "songs" (addSongsToPlaylistEncoder batch) ]
+                |> withToken token
+            )
+            bool
+            |> Api.chain (\_ -> addSongsBatchToPlaylist token tracks id next)
+
+
 addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
 addSongsToPlaylist token tracks id =
-    Api.get
-        defaultConfig
-        (Api.queryEndpoint endpoint
-            [ "playlist", id, "tracks" ]
-            [ Url.string "request_method" "POST", Url.string "songs" (addSongsToPlaylistEncoder tracks) ]
-            |> withToken token
-        )
-        bool
+    addSongsBatchToPlaylist token tracks id 0
         |> Task.map (RemoteData.map (\_ -> ()))
 
 

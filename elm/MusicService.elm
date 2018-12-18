@@ -2,10 +2,11 @@ module MusicService exposing
     ( ConnectedProvider(..)
     , ConnectingProvider(..)
     , DisconnectedProvider(..)
-    , ImportPlaylistResult
     , MusicService(..)
     , MusicServiceError
     , OAuthToken
+    , PlaylistImportReport
+    , PlaylistImportResult
     , TrackAndSearchResult
     , connect
     , connected
@@ -20,8 +21,8 @@ module MusicService exposing
     , fromString
     , importPlaylist
     , importedPlaylist
+    , importedPlaylistDuplicateCount
     , importedPlaylistKey
-    , importedPlaylistWarnings
     , loadPlaylists
     , setUserInfo
     , toString
@@ -31,6 +32,7 @@ module MusicService exposing
     )
 
 import ApiClient as Api
+import Array
 import Basics.Extra exposing (iif)
 import Deezer
 import Http
@@ -40,6 +42,7 @@ import Maybe.Extra as Maybe
 import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
+import Set
 import Spotify
 import Task exposing (Task)
 import Task.Extra as Task
@@ -249,7 +252,7 @@ addSongsToPlaylist connection playlist tracks =
             Spotify.addSongsToPlaylist (rawToken tok) tracks playlist |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.addSongsToPlaylist (rawToken tok) (List.take 30 tracks) playlist.id |> asErrorTask
+            Deezer.addSongsToPlaylist (rawToken tok) tracks playlist.id |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -257,6 +260,26 @@ addSongsToPlaylist connection playlist tracks =
 
 type alias TrackAndSearchResult =
     ( Track, Maybe Track )
+
+
+removeDuplicates : List Track -> ( List Track, Int )
+removeDuplicates trackList =
+    trackList
+        |> List.foldl
+            (\t ( tracks, ids ) ->
+                let
+                    tid =
+                        t.isrc |> Maybe.withDefault (Track.toString t)
+                in
+                if Set.member tid ids then
+                    ( tracks, ids )
+
+                else
+                    ( Array.push t tracks, Set.insert tid ids )
+            )
+            ( Array.empty, Set.empty )
+        |> Tuple.mapFirst Array.toList
+        |> Tuple.mapSecond (Set.size >> (-) (List.length trackList) >> abs)
 
 
 searchAllTracks : ConnectedProvider -> List Track -> Task MusicServiceError (WebData (List TrackAndSearchResult))
@@ -270,61 +293,78 @@ searchAllTracks connection trackList =
         |> Task.map (RemoteData.map List.zip)
 
 
-type ImportPlaylistResult
-    = ImportIsSuccess ConnectedProvider Playlist
-    | ImportHasWarnings (List TrackAndSearchResult) ConnectedProvider Playlist
+type alias PlaylistImportResult =
+    { connection : ConnectedProvider
+    , playlist : Playlist
+    , status : PlaylistImportReport
+    }
 
 
-importedPlaylistKey : ImportPlaylistResult -> ( ConnectedProvider, PlaylistId )
-importedPlaylistKey result =
-    case result of
-        ImportIsSuccess c p ->
-            ( c, p.id )
-
-        ImportHasWarnings _ c p ->
-            ( c, p.id )
+type PlaylistImportReport
+    = ImportIsSuccess
+    | ImportHasWarnings (List TrackAndSearchResult) Int
 
 
-importedPlaylist : ImportPlaylistResult -> Playlist
-importedPlaylist result =
-    case result of
-        ImportIsSuccess _ playlist ->
+importedPlaylistKey : PlaylistImportResult -> ( ConnectedProvider, PlaylistId )
+importedPlaylistKey { connection, playlist, status } =
+    case status of
+        ImportIsSuccess ->
+            ( connection, playlist.id )
+
+        ImportHasWarnings _ _ ->
+            ( connection, playlist.id )
+
+
+importedPlaylist : PlaylistImportResult -> Playlist
+importedPlaylist { status, playlist } =
+    case status of
+        ImportIsSuccess ->
             playlist
 
-        ImportHasWarnings _ _ playlist ->
+        ImportHasWarnings _ _ ->
             playlist
 
 
-importedPlaylistWarnings : ImportPlaylistResult -> Maybe (List TrackAndSearchResult)
-importedPlaylistWarnings result =
-    case result of
-        ImportIsSuccess _ _ ->
-            Nothing
+importedPlaylistDuplicateCount : PlaylistImportReport -> Int
+importedPlaylistDuplicateCount status =
+    case status of
+        ImportIsSuccess ->
+            0
 
-        ImportHasWarnings tracks _ _ ->
-            Just tracks
-
-
-failedTracks : List TrackAndSearchResult -> List Track
-failedTracks =
-    List.filterMap
-        (\( t, m ) ->
-            case m of
-                Just _ ->
-                    Nothing
-
-                Nothing ->
-                    Just t
-        )
+        ImportHasWarnings _ dupes ->
+            dupes
 
 
-importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError (WebData ImportPlaylistResult)
+failedTracks : PlaylistImportReport -> List Track
+failedTracks report =
+    case report of
+        ImportIsSuccess ->
+            []
+
+        ImportHasWarnings tracks _ ->
+            List.filterMap
+                (\( t, m ) ->
+                    case m of
+                        Just _ ->
+                            Nothing
+
+                        Nothing ->
+                            Just t
+                )
+                tracks
+
+
+importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError (WebData PlaylistImportResult)
 importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
     let
         tracksTask =
             playlist
                 |> loadPlaylistSongs con
-                |> Api.chain (searchAllTracks otherConnection)
+                |> Api.map removeDuplicates
+                |> Api.chain
+                    (\( t, dupes ) ->
+                        searchAllTracks otherConnection t |> Api.map (\d -> ( d, dupes ))
+                    )
 
         newPlaylistTask =
             createPlaylist otherConnection name
@@ -333,25 +373,27 @@ importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
             \tracksResult p -> p.tracksCount > List.length tracksResult
     in
     Api.chain2
-        (\tracksResult newPlaylist ->
+        (\( tracksResult, dupes ) newPlaylist ->
             let
+                matchedTracks =
+                    List.filterMap Tuple.second tracksResult
+
                 matchedTrackCount =
-                    List.length (List.filter (Maybe.isDefined << Tuple.second) tracksResult)
+                    List.length matchedTracks
 
                 withTracksCount =
                     { newPlaylist | tracksCount = matchedTrackCount }
 
                 msg =
                     if matchedTrackCount < tracksCount then
-                        ImportHasWarnings tracksResult otherConnection withTracksCount
+                        ImportHasWarnings tracksResult (Debug.log "DUPES: " dupes)
 
                     else
-                        ImportIsSuccess otherConnection withTracksCount
+                        ImportIsSuccess
             in
-            tracksResult
-                |> List.filterMap Tuple.second
+            matchedTracks
                 |> addSongsToPlaylist otherConnection newPlaylist
-                |> Task.map (RemoteData.map (\_ -> msg))
+                |> Api.map (\_ -> PlaylistImportResult otherConnection withTracksCount msg)
         )
         tracksTask
         newPlaylistTask
