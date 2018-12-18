@@ -386,7 +386,7 @@ importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
 
                 msg =
                     if matchedTrackCount < tracksCount then
-                        ImportHasWarnings tracksResult (Debug.log "DUPES: " dupes)
+                        ImportHasWarnings tracksResult dupes
 
                     else
                         ImportIsSuccess
