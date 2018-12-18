@@ -33,15 +33,20 @@
   <!-- Config -->
   <script src="js/config.js"></script>
   <script src="js/config.dev.js"></script>
-  <!-- <script type="text/javascript" src="https://www.l2.io/ip.js?var=ip"></script> -->
   <script>
     // Remove manifest on IOS to work around bug
     if (/iP(?:hone|ad|od)/.test(navigator.userAgent)) {
       document.head.removeChild(document.getElementById('pwa-manifest'))
     }
 
-    if (config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
+    if (!fetch) {
       window.location = 'offline.html';
+    } else {
+      fetch('https://api.ipify.org?format=json').then(({ip}) => {
+        if (config.offline && config.allowedIps.indexOf(ip) < 0 && config.allowedIps.indexOf('*') < 0) {
+          window.location = 'offline.html';
+        }
+      });
     }
   </script>
 
