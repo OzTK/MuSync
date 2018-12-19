@@ -1,7 +1,7 @@
 var config = {
   offline: false,
   local: false,
-  allowedIps: ["localhost", "86.6.108.70"],
+  allowedIps: ["*"],
   scheme: "http",
   domain: "localhost:8000",
   deezerAppId: "255142",
