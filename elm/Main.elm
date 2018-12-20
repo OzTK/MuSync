@@ -88,9 +88,6 @@ import Tuple exposing (pair)
 
 type alias Model =
     { flow : Flow
-    , availableConnections : SelectableList ProviderConnection
-    , songs : AnyDict String MatchingTrackKey (WebData (List Track))
-    , alternativeTitles : AnyDict String MatchingTrackKey ( String, Bool )
     , device : Element.Device
     }
 
@@ -101,36 +98,8 @@ type alias Dimensions =
     }
 
 
-type alias MatchingTrackKey =
-    ( TrackId, MusicService )
-
-
 type alias Flags =
     { window : Dimensions, rawTokens : List ( String, String ) }
-
-
-type MatchingTracksKeySerializationError
-    = TrackIdError Track.TrackIdSerializationError
-    | OtherProviderTypeError String
-    | WrongKeysFormatError String
-
-
-serializeMatchingTracksKey : MatchingTrackKey -> String
-serializeMatchingTracksKey ( id, pType ) =
-    id ++ Model.keysSeparator ++ MusicService.toString pType
-
-
-deserializeMatchingTracksKey : String -> Result MatchingTracksKeySerializationError MatchingTrackKey
-deserializeMatchingTracksKey key =
-    case String.split Model.keysSeparator key of
-        [ rawTrackId, rawProvider ] ->
-            rawProvider
-                |> MusicService.fromString
-                |> Result.fromMaybe (OtherProviderTypeError rawProvider)
-                |> Result.map (pair rawTrackId)
-
-        _ ->
-            Err (WrongKeysFormatError key)
 
 
 deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, OAuthToken )
@@ -164,13 +133,6 @@ init flags =
             Flow.start <| initConnections flags
     in
     ( { flow = flow
-      , availableConnections =
-            SelectableList.fromList
-                [ Connection.disconnected Spotify
-                , Connection.disconnected Deezer
-                ]
-      , songs = Dict.empty serializeMatchingTracksKey
-      , alternativeTitles = Dict.empty serializeMatchingTracksKey
       , device = Element.classifyDevice flags.window
       }
     , getFlowStepCmd flow
@@ -189,8 +151,6 @@ type Msg
     | UserInfoReceived ConnectedProvider (WebData UserInfo)
     | ProviderConnected ConnectedProvider
     | ProviderDisconnected DisconnectedProvider
-    | MatchingSongResult MatchingTrackKey (WebData (List Track))
-    | MatchingSongResultError String MatchingTracksKeySerializationError
     | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
@@ -247,16 +207,6 @@ update msg model =
 
         UserInfoReceived con info ->
             ( { model | flow = Flow.setUserInfo con info model.flow }
-            , Cmd.none
-            )
-
-        MatchingSongResult key tracksResult ->
-            ( { model | songs = Dict.insert key tracksResult model.songs }
-            , Cmd.none
-            )
-
-        MatchingSongResultError _ _ ->
-            ( model
             , Cmd.none
             )
 
