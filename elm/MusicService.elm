@@ -19,6 +19,7 @@ module MusicService exposing
     , failedTracks
     , fetchUserInfo
     , fromString
+    , hasUser
     , importIsSuccessful
     , importPlaylist
     , importedPlaylist
@@ -125,6 +126,19 @@ token con =
 
         _ ->
             Nothing
+
+
+hasUser : ConnectedProvider -> Bool
+hasUser con =
+    case con of
+        ConnectedProviderWithToken _ _ (Success _) ->
+            True
+
+        ConnectedProvider _ (Success _) ->
+            True
+
+        _ ->
+            False
 
 
 user : ConnectedProvider -> Maybe UserInfo

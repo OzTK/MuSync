@@ -146,7 +146,11 @@ canStep : Flow -> Bool
 canStep flow =
     case flow of
         Connect connections ->
-            connections |> Connections.connectedProviders |> List.length |> (<) 1
+            connections
+                |> Connections.connectedProviders
+                |> List.filter MusicService.hasUser
+                |> List.length
+                |> (<=) 2
 
         LoadPlaylists data ->
             data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
