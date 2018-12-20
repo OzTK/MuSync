@@ -15,7 +15,6 @@ import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
 import Json.Decode.Pipeline as Pip
 import Json.Encode as JE
-import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
@@ -24,6 +23,7 @@ import Task exposing (Task)
 import Track exposing (Track)
 import Tuple exposing (pair)
 import Url.Builder as Url
+import UserInfo exposing (UserInfo)
 
 
 

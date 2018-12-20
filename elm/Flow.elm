@@ -28,13 +28,13 @@ import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Model exposing (UserInfo)
 import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportReport, PlaylistImportResult, TrackAndSearchResult)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import SelectableList exposing (ListWithSelection)
 import String.Extra as String
 import Tuple exposing (pair, second)
+import UserInfo exposing (UserInfo)
 
 
 type alias ConnectionsWithLoadingPlaylists =

@@ -22,7 +22,6 @@ import Http exposing (Error(..), Response)
 import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, nullable, string, succeed)
 import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, optional, required, requiredAt)
 import Json.Encode as JE
-import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
@@ -32,6 +31,7 @@ import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
 import Tuple exposing (pair)
 import Url.Builder as Url
+import UserInfo exposing (UserInfo)
 
 
 userInfo : Decoder UserInfo

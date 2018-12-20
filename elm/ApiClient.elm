@@ -26,7 +26,6 @@ import Dict exposing (Dict)
 import Http
 import Json.Decode exposing (Decoder)
 import Json.Encode as Json
-import Model exposing (UserInfo)
 import Playlist exposing (Playlist)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
@@ -35,6 +34,7 @@ import Task exposing (Task)
 import Track exposing (Track)
 import Url exposing (Url)
 import Url.Builder as Url exposing (QueryParameter)
+import UserInfo exposing (UserInfo)
 
 
 

@@ -15,7 +15,6 @@ module Connection exposing
     )
 
 import Deezer
-import Model exposing (UserInfo)
 import MusicService as P
     exposing
         ( ConnectedProvider(..)
@@ -27,6 +26,7 @@ import MusicService as P
 import RemoteData exposing (WebData)
 import Spotify
 import Task
+import UserInfo exposing (UserInfo)
 
 
 

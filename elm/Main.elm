@@ -70,7 +70,6 @@ import Json.Encode as JE
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Model exposing (UserInfo)
 import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken, PlaylistImportReport, PlaylistImportResult)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -80,6 +79,7 @@ import Spotify
 import Task
 import Track exposing (Track, TrackId)
 import Tuple exposing (pair)
+import UserInfo exposing (UserInfo)
 
 
 

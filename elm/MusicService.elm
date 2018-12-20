@@ -40,7 +40,6 @@ import Http
 import Json.Decode as Decode exposing (Decoder)
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Model exposing (UserInfo)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Set
@@ -49,6 +48,7 @@ import Task exposing (Task)
 import Task.Extra as Task
 import Track exposing (Track, TrackId)
 import Tuple exposing (pair)
+import UserInfo exposing (UserInfo)
 
 
 type MusicService
