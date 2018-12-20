@@ -1,7 +1,9 @@
 module Track exposing
-    ( Track
+    ( IdentifiedTrack
+    , Track
     , TrackId
     , TrackIdSerializationError
+    , identified
     , toString
     )
 
@@ -23,6 +25,24 @@ type alias Track =
     , artist : String
     , isrc : Maybe String
     }
+
+
+type alias IdentifiedTrack =
+    { id : TrackId
+    , title : String
+    , artist : String
+    , isrc : String
+    }
+
+
+identified : Track -> Maybe IdentifiedTrack
+identified track =
+    case track.isrc of
+        Just isrc ->
+            Just <| IdentifiedTrack track.id track.title track.artist isrc
+
+        Nothing ->
+            Nothing
 
 
 toString : Track -> String

@@ -16,7 +16,7 @@ port module Deezer exposing
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full, FullAndQuery)
 import Basics.Either as Either exposing (Either(..))
-import Basics.Extra exposing (flip)
+import Basics.Extra exposing (apply, flip)
 import Dict
 import Http exposing (Error(..), Response)
 import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, nullable, string, succeed)
@@ -29,7 +29,7 @@ import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Set
 import Task exposing (Task)
-import Track exposing (Track)
+import Track exposing (IdentifiedTrack, Track)
 import Tuple exposing (pair)
 import Url.Builder as Url
 
@@ -203,29 +203,49 @@ getUserInfo token =
         userInfo
 
 
+searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
+searchTrackByName token t =
+    Api.queryEndpoint endpoint
+        [ "search", "track" ]
+        [ Url.string "q"
+            ("artist:\""
+                ++ t.artist
+                ++ "\" track:\""
+                ++ t.title
+                ++ "\""
+            )
+        ]
+        |> withToken token
+        |> Api.getWithRateLimit defaultConfig
+        |> apply (tracksResult |> Decode.map List.head)
+
+
+searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
+searchTrackByISRC token { isrc } =
+    Api.actionEndpoint endpoint [ "track", "isrc:" ++ isrc ]
+        |> Api.fullAsAny
+        |> withToken token
+        |> Api.getWithRateLimit defaultConfig
+        |> apply singleTrack
+
+
 searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrack token t =
-    let
-        url =
-            t.isrc
-                |> Maybe.map (\isrc -> Api.actionEndpoint endpoint [ "track", "isrc:" ++ isrc ] |> Api.fullAsAny)
-                |> Maybe.withDefault
-                    (Api.queryEndpoint endpoint
-                        [ "search", "track" ]
-                        [ Url.string "q"
-                            ("artist:\""
-                                ++ t.artist
-                                ++ "\" track:\""
-                                ++ t.title
-                                ++ "\""
-                            )
-                        ]
-                    )
-    in
-    Api.getWithRateLimit defaultConfig
-        (url |> withToken token)
-    <|
-        Decode.oneOf [ tracksResult |> Decode.map List.head, singleTrack ]
+    t
+        |> Track.identified
+        |> Maybe.map (searchTrackByISRC token)
+        |> Maybe.map
+            (Api.chain
+                (\data ->
+                    case data of
+                        Nothing ->
+                            searchTrackByName token t
+
+                        Just _ ->
+                            Task.succeed <| Success data
+                )
+            )
+        |> Maybe.withDefault (searchTrackByName token t)
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))

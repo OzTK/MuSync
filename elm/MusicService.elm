@@ -19,6 +19,7 @@ module MusicService exposing
     , failedTracks
     , fetchUserInfo
     , fromString
+    , importIsSuccessful
     , importPlaylist
     , importedPlaylist
     , importedPlaylistDuplicateCount
@@ -303,6 +304,16 @@ type alias PlaylistImportResult =
 type PlaylistImportReport
     = ImportIsSuccess
     | ImportHasWarnings (List TrackAndSearchResult) Int
+
+
+importIsSuccessful : PlaylistImportReport -> Bool
+importIsSuccessful report =
+    case report of
+        ImportIsSuccess ->
+            True
+
+        ImportHasWarnings _ _ ->
+            False
 
 
 importedPlaylistKey : PlaylistImportResult -> ( ConnectedProvider, PlaylistId )

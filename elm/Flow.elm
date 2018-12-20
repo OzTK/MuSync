@@ -72,7 +72,11 @@ importWarnings : PlaylistState -> Maybe PlaylistImportReport
 importWarnings playlistState =
     case playlistState of
         Transferred result ->
-            Just result.status
+            if MusicService.importIsSuccessful result.status then
+                Nothing
+
+            else
+                Just result.status
 
         _ ->
             Nothing

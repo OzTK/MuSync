@@ -19,6 +19,7 @@ module ApiClient exposing
     , map
     , post
     , queryEndpoint
+    , recover
     )
 
 import Dict exposing (Dict)
@@ -269,3 +270,19 @@ chain2 f task1 task2 =
                     _ ->
                         Task.succeed NotAsked
             )
+
+
+recover : (Http.Error -> Task e (WebData a)) -> Task e (WebData a) -> Task e (WebData a)
+recover recovFn =
+    Task.andThen
+        (\data ->
+            case data of
+                Success t2 ->
+                    Task.succeed data
+
+                Failure err ->
+                    recovFn err
+
+                _ ->
+                    Task.succeed data
+        )
