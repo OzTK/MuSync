@@ -1,11 +1,9 @@
-port module Spotify exposing
+module Spotify exposing
     ( addSongsToPlaylist
-    , connectS
     , createPlaylist
     , getPlaylistTracksFromLink
     , getPlaylists
     , getUserInfo
-    , onConnected
     , searchTrack
     )
 
@@ -220,13 +218,3 @@ addSongsToPlaylist token songs { link } =
 config : String -> Config
 config token =
     { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token, header "Content-Type" "application/json" ] }
-
-
-
--- Ports
-
-
-port connectS : () -> Cmd msg
-
-
-port onConnected : (( Maybe String, String ) -> msg) -> Sub msg

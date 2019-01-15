@@ -1,10 +1,8 @@
-port module Deezer exposing
+module Deezer exposing
     ( addSongsToPlaylist
-    , connectDeezer
     , createPlaylist
     , decodePlaylist
     , decodePlaylists
-    , disconnectDeezer
     , getPlaylistTracks
     , getPlaylists
     , getUserInfo
@@ -336,9 +334,3 @@ addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData (
 addSongsToPlaylist token tracks id =
     addSongsBatchToPlaylist token tracks id 0
         |> Task.map (RemoteData.map (\_ -> ()))
-
-
-port connectDeezer : () -> Cmd msg
-
-
-port disconnectDeezer : () -> Cmd msg
