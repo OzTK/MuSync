@@ -1,7 +1,4 @@
-module Playlist exposing (Playlist, PlaylistId, loadSongs, setSongs, songIds, summary)
-
-import RemoteData exposing (RemoteData(..), WebData)
-import Track exposing (Track, TrackId)
+module Playlist exposing (Playlist, PlaylistId, summary)
 
 
 type alias PlaylistId =
@@ -11,7 +8,6 @@ type alias PlaylistId =
 type alias Playlist =
     { id : PlaylistId
     , name : String
-    , songs : WebData (List Track)
     , link : String
     , tracksCount : Int
     }
@@ -20,18 +16,3 @@ type alias Playlist =
 summary : Playlist -> String
 summary { name, tracksCount } =
     name
-
-
-loadSongs : Playlist -> Playlist
-loadSongs playlist =
-    { playlist | songs = Loading }
-
-
-setSongs : WebData (List Track) -> Playlist -> Playlist
-setSongs songs playlist =
-    { playlist | songs = songs }
-
-
-songIds : Playlist -> Maybe (List TrackId)
-songIds { songs } =
-    songs |> RemoteData.map (List.map .id) |> RemoteData.toMaybe

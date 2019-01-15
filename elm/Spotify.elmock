@@ -34,10 +34,10 @@ searchTrack token ({ id, artist, title } as track) =
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
 getPlaylists _ =
-    [ { id = "1", name = "Favorites", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
-    , { id = "2", name = "Fiesta", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
-    , { id = "3", name = "Au calme", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
-    , { id = "4", name = "Chouchou", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    [ { id = "1", name = "Favorites", tracksCount = 5, link = "http://myplaylist" }
+    , { id = "2", name = "Fiesta", tracksCount = 5, link = "http://myplaylist" }
+    , { id = "3", name = "Au calme", tracksCount = 5, link = "http://myplaylist" }
+    , { id = "4", name = "Chouchou", tracksCount = 5, link = "http://myplaylist" }
     ]
         |> RemoteData.succeed
         |> Task.succeed
@@ -45,7 +45,7 @@ getPlaylists _ =
 
 createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
 createPlaylist _ _ _ =
-    Task.succeed <| Success { id = "5", name = "New Playlist", tracksCount = 5, songs = NotAsked, link = "http://myplaylist" }
+    Task.succeed <| Success { id = "5", name = "New Playlist", tracksCount = 5, link = "http://myplaylist" }
 
 
 getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
@@ -70,7 +70,7 @@ addSongsToPlaylist _ _ _ =
 
 importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
 importPlaylist _ _ songs name =
-    Playlist "1" name NotAsked "http://myplaylist" 5
+    Playlist "1" name "http://myplaylist" 5
         |> RemoteData.succeed
         |> Task.succeed
 

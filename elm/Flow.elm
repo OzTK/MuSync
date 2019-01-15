@@ -28,8 +28,9 @@ import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportReport, PlaylistImportResult, TrackAndSearchResult)
+import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportResult)
 import Playlist exposing (Playlist, PlaylistId)
+import Playlist.Import exposing (PlaylistImportReport)
 import RemoteData exposing (RemoteData(..), WebData)
 import SelectableList exposing (ListWithSelection)
 import String.Extra as String
@@ -72,7 +73,7 @@ importWarnings : PlaylistState -> Maybe PlaylistImportReport
 importWarnings playlistState =
     case playlistState of
         Transferred result ->
-            if MusicService.importIsSuccessful result.status then
+            if Playlist.Import.isSuccessful result.status then
                 Nothing
 
             else

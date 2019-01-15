@@ -70,8 +70,9 @@ import Json.Encode as JE
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken, PlaylistImportReport, PlaylistImportResult)
+import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken, PlaylistImportResult)
 import Playlist exposing (Playlist, PlaylistId)
+import Playlist.Import exposing (PlaylistImportReport)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
@@ -659,10 +660,10 @@ transferConfigStep4Warnings model report =
             dimensions model
 
         tracks =
-            MusicService.failedTracks report
+            Playlist.Import.failedTracks report
 
         dupes =
-            MusicService.importedPlaylistDuplicateCount report
+            Playlist.Import.duplicateCount report
 
         factor =
             case model.device.orientation of
@@ -745,7 +746,7 @@ playlistRow model tagger ( playlist, state ) =
 
                   else if Flow.isPlaylistTransferred state then
                     Flow.importWarnings state
-                        |> Maybe.filter (\w -> (w |> MusicService.failedTracks |> List.length) > 0)
+                        |> Maybe.filter (\w -> (w |> Playlist.Import.failedTracks |> List.length) > 0)
                         |> Maybe.map
                             (\report ->
                                 Element.el
@@ -753,7 +754,7 @@ playlistRow model tagger ( playlist, state ) =
                                     , Font.color palette.ternary
                                     , Element.htmlAttribute
                                         (Html.title <|
-                                            (MusicService.failedTracks report |> List.length |> String.fromInt)
+                                            (Playlist.Import.failedTracks report |> List.length |> String.fromInt)
                                                 ++ " tracks failed to be imported"
                                         )
                                     ]
