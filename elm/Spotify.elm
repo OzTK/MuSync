@@ -81,7 +81,6 @@ playlist =
     Decode.succeed Playlist
         |> Pip.required "id" string
         |> Pip.required "name" string
-        |> Pip.hardcoded NotAsked
         |> Pip.required "href" string
         |> Pip.requiredAt [ "tracks", "total" ] int
 

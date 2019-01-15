@@ -46,7 +46,6 @@ playlist =
     succeed Playlist
         |> required "id" (map String.fromInt int)
         |> required "title" string
-        |> hardcoded NotAsked
         |> required "link" string
         |> required "nb_tracks" int
 
@@ -56,7 +55,6 @@ createplaylistResponse title =
     succeed Playlist
         |> required "id" (map String.fromInt int)
         |> hardcoded title
-        |> hardcoded NotAsked
         |> hardcoded ""
         |> hardcoded 0
 
