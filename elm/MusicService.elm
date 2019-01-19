@@ -62,6 +62,10 @@ type MusicServiceError
     | NeverError
 
 
+
+-- OAuth token
+
+
 type OAuthToken
     = OAuthToken String
 
@@ -82,6 +86,10 @@ createToken rawValue =
 rawToken : OAuthToken -> String
 rawToken (OAuthToken value) =
     value
+
+
+
+-- Provider
 
 
 type ConnectedProvider
@@ -401,20 +409,3 @@ searchSongFromProvider provider track =
 asErrorTask : Task x a -> Task MusicServiceError a
 asErrorTask =
     Task.mapError (\_ -> NeverError)
-
-
-liftError : Task MusicServiceError (WebData a) -> Task MusicServiceError a
-liftError task =
-    task
-        |> Task.andThen
-            (\data ->
-                case data of
-                    Success d ->
-                        Task.succeed d
-
-                    Failure err ->
-                        Task.fail <| IntermediateRequestFailed (Just err)
-
-                    _ ->
-                        Task.fail <| IntermediateRequestFailed Nothing
-            )
