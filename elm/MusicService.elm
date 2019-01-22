@@ -30,7 +30,6 @@ module MusicService exposing
 
 import ApiClient as Api
 import Array
-import Basics.Extra exposing (iif)
 import Deezer
 import Http
 import Json.Decode as Decode exposing (Decoder)
@@ -43,7 +42,7 @@ import Set
 import Spotify
 import Task exposing (Task)
 import Task.Extra as Task
-import Track exposing (Track, TrackId)
+import Track exposing (IdentifiedTrack, Track, TrackId)
 import Tuple exposing (pair)
 import UserInfo exposing (UserInfo)
 
@@ -390,16 +389,40 @@ loadPlaylistSongs connection { id, link } =
 
 
 searchSongFromProvider : ConnectedProvider -> Track -> Task MusicServiceError (WebData (Maybe Track))
-searchSongFromProvider provider track =
-    case provider of
-        ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.searchTrack (rawToken tok) track |> asErrorTask
+searchSongFromProvider con track =
+    let
+        searchFns =
+            case con of
+                ConnectedProviderWithToken Spotify tok _ ->
+                    Just ( Spotify.searchTrackByISRC, Spotify.searchTrackByName, rawToken tok )
 
-        ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.searchTrack (rawToken tok) track |> asErrorTask
+                ConnectedProviderWithToken Deezer tok _ ->
+                    Just ( Deezer.searchTrackByISRC, Deezer.searchTrackByName, rawToken tok )
 
-        _ ->
-            Task.fail (InvalidServiceConnectionError provider)
+                _ ->
+                    Nothing
+    in
+    searchFns
+        |> Maybe.map
+            (\( searchTrackByISRC, searchTrackByName, tok ) ->
+                track
+                    |> Track.identified
+                    |> Maybe.map (searchTrackByISRC tok)
+                    |> Maybe.map
+                        (Api.chain
+                            (\data ->
+                                case data of
+                                    Nothing ->
+                                        searchTrackByName tok track
+
+                                    Just _ ->
+                                        Task.succeed <| Success data
+                            )
+                        )
+                    |> Maybe.map asErrorTask
+                    |> Maybe.withDefault (searchTrackByName tok track |> asErrorTask)
+            )
+        |> Maybe.withDefault (Task.fail (InvalidServiceConnectionError con))
 
 
 

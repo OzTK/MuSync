@@ -6,10 +6,12 @@ port module Spotify exposing
     , getPlaylists
     , getUserInfo
     , onConnected
-    , searchTrack
+    , searchTrackByISRC
+    , searchTrackByName
     )
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full)
+import Basics.Extra exposing (apply)
 import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -20,7 +22,7 @@ import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task exposing (Task)
-import Track exposing (Track)
+import Track exposing (IdentifiedTrack, Track)
 import Tuple exposing (pair)
 import Url.Builder as Url
 import UserInfo exposing (UserInfo)
@@ -136,30 +138,33 @@ getUserInfo token =
     Api.get (config token) (Api.actionEndpoint endpoint [ "me" ] |> Api.fullAsAny) userInfo
 
 
-searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
-searchTrack token t =
-    let
-        searchCriteria =
-            t.isrc
-                |> Maybe.map (\isrc -> "isrc:\"" ++ isrc ++ "\"")
-                |> Maybe.withDefault
-                    ("artist:\""
-                        ++ t.artist
-                        ++ "\" track:\""
-                        ++ t.title
-                        ++ "\""
-                    )
-    in
-    Api.getWithRateLimit (config token)
-        (Api.queryEndpoint endpoint
-            [ "search" ]
-            [ Url.string "type" "track"
-            , Url.int "limit" 1
-            , Url.string "q" searchCriteria
-            ]
-        )
-        searchResponse
+searchTrack : String -> String -> Task Never (WebData (Maybe Track))
+searchTrack token query =
+    Api.queryEndpoint endpoint
+        [ "search" ]
+        [ Url.string "type" "track"
+        , Url.int "limit" 1
+        , Url.string "q" query
+        ]
+        |> Api.getWithRateLimit (config token)
+        |> apply searchResponse
         |> Api.map List.head
+
+
+searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
+searchTrackByName token t =
+    searchTrack token
+        ("artist:\""
+            ++ t.artist
+            ++ "\" track:\""
+            ++ t.title
+            ++ "\""
+        )
+
+
+searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
+searchTrackByISRC token { isrc } =
+    searchTrack token ("isrc:" ++ isrc)
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))

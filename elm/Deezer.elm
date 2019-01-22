@@ -10,7 +10,8 @@ port module Deezer exposing
     , getUserInfo
     , httpBadPayloadError
     , playlist
-    , searchTrack
+    , searchTrackByISRC
+    , searchTrackByName
     , track
     )
 
@@ -225,25 +226,6 @@ searchTrackByISRC token { isrc } =
         |> withToken token
         |> Api.getWithRateLimit defaultConfig
         |> apply singleTrack
-
-
-searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
-searchTrack token t =
-    t
-        |> Track.identified
-        |> Maybe.map (searchTrackByISRC token)
-        |> Maybe.map
-            (Api.chain
-                (\data ->
-                    case data of
-                        Nothing ->
-                            searchTrackByName token t
-
-                        Just _ ->
-                            Task.succeed <| Success data
-                )
-            )
-        |> Maybe.withDefault (searchTrackByName token t)
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
