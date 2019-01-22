@@ -3,6 +3,7 @@ module Track exposing
     , Track
     , TrackId
     , TrackIdSerializationError
+    , asTrack
     , identified
     , toString
     )
@@ -43,6 +44,11 @@ identified track =
 
         Nothing ->
             Nothing
+
+
+asTrack : IdentifiedTrack -> Track
+asTrack { id, title, artist, isrc } =
+    Track id title artist (Just isrc)
 
 
 toString : Track -> String

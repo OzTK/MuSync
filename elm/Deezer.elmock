@@ -7,7 +7,8 @@ port module Deezer exposing
     , getPlaylists
     , getUserInfo
     , importPlaylist
-    , searchTrack
+    , searchTrackByISRC
+    , searchTrackByName
     )
 
 import Basics.Either as Either exposing (Either(..))
@@ -22,7 +23,7 @@ import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task exposing (Task)
-import Track exposing (Track)
+import Track exposing (IdentifiedTrack, Track)
 import Tuple exposing (pair)
 import UserInfo exposing (UserInfo)
 
@@ -34,12 +35,14 @@ getUserInfo token =
         |> Task.succeed
 
 
-searchTrack : String -> Track -> Task Never (WebData (Maybe Track))
-searchTrack token ({ id, artist, title } as track) =
-    Track id title artist Nothing
-        |> Just
-        |> Success
-        |> Task.succeed
+searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
+searchTrackByName token t =
+    Task.succeed (Success <| Just t)
+
+
+searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
+searchTrackByISRC token t =
+    Task.succeed (Success <| Just (Track.asTrack t))
 
 
 createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
