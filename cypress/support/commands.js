@@ -11,13 +11,13 @@ Cypress.Commands.add("withItems", (title, extraQuery) => {
 Cypress.Commands.add(
   "connectProvider",
   (providerName) =>
-  cy.get(`[role="button"][aria-label="${providerName}"]`).click()
+    cy.get(`[role="button"][aria-label="${providerName}"]`).click()
 )
 
 Cypress.Commands.add(
   "withPlaylists",
   (providerName) =>
-  cy.contains(providerName).parent().parent().children('label')
+    cy.contains(providerName).parent().nextAll()
 )
 
 Cypress.Commands.add(
@@ -32,13 +32,3 @@ Cypress.Commands.add(
     return button.click().then(() => providerName);
   })
 )
-
-Cypress.Commands.add(
-  "selectPlaylist", {
-    prevSubject: true
-  },
-  (provider, index) => {
-    cy.get(`img[alt="${provider}"]`).parent().parent().contains("Disconnect").should('exist');
-    cy.withItems("My playlists").then((items) => items[index].click());
-  }
-);
