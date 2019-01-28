@@ -3,28 +3,20 @@ module Flow exposing
     , ConnectionsWithLoadingPlaylists
     , Flow(..)
     , PlaylistSelectionState(..)
-    , PlaylistState
-    , PlaylistsDict
-    , allServices
     , canStep
     , clearSelection
-    , importWarnings
-    , isPlaylistNew
-    , isPlaylistTransferred
-    , isPlaylistTransferring
     , next
     , pickPlaylist
     , pickService
-    , playlistTransferFinished
     , selectedPlaylist
-    , setUserInfo
     , start
     , udpateLoadingPlaylists
-    , updateConnection
     )
 
+import Basics.Extra exposing (const)
 import Connection exposing (ProviderConnection)
 import Dict.Any as Dict exposing (AnyDict)
+import Flow.Context as Context exposing (Context, PlaylistState)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
@@ -42,61 +34,6 @@ type alias ConnectionsWithLoadingPlaylists =
     List ( ConnectedProvider, WebData (List Playlist) )
 
 
-type PlaylistState
-    = New
-    | Untransferred
-    | Transferring
-    | Transferred PlaylistImportResult
-
-
-isPlaylistTransferring : PlaylistState -> Bool
-isPlaylistTransferring state =
-    case state of
-        Transferring ->
-            True
-
-        _ ->
-            False
-
-
-isPlaylistTransferred : PlaylistState -> Bool
-isPlaylistTransferred playlistState =
-    case playlistState of
-        Transferred _ ->
-            True
-
-        _ ->
-            False
-
-
-importWarnings : PlaylistState -> Maybe PlaylistImportReport
-importWarnings playlistState =
-    case playlistState of
-        Transferred result ->
-            if Playlist.Import.isSuccessful result.status then
-                Nothing
-
-            else
-                Just result.status
-
-        _ ->
-            Nothing
-
-
-isPlaylistNew : PlaylistState -> Bool
-isPlaylistNew playlistState =
-    case playlistState of
-        New ->
-            True
-
-        _ ->
-            False
-
-
-type alias PlaylistsDict =
-    AnyDict String ( ConnectedProvider, PlaylistId ) ( Playlist, PlaylistState )
-
-
 type PlaylistSelectionState
     = NoPlaylist
     | PlaylistSelected ConnectedProvider PlaylistId
@@ -104,8 +41,6 @@ type PlaylistSelectionState
 
 type alias PlaylistSelection =
     { selection : PlaylistSelectionState
-    , connections : List ConnectedProvider
-    , playlists : PlaylistsDict
     }
 
 
@@ -117,36 +52,32 @@ type ConnectionSelection
 type alias OtherConnectionSelection =
     { selection : ConnectionSelection
     , playlist : ( ConnectedProvider, PlaylistId )
-    , connections : List ConnectedProvider
-    , playlists : PlaylistsDict
     }
 
 
 type alias SyncData =
-    { playlists : PlaylistsDict
-    , connections : List ConnectedProvider
-    , playlist : ( ConnectedProvider, PlaylistId )
+    { playlist : ( ConnectedProvider, PlaylistId )
     , otherConnection : ConnectedProvider
     }
 
 
 type Flow
-    = Connect (List ProviderConnection)
+    = Connect
     | LoadPlaylists ConnectionsWithLoadingPlaylists
     | PickPlaylist PlaylistSelection
     | PickOtherConnection OtherConnectionSelection
     | Transfer SyncData
 
 
-start : List ProviderConnection -> Flow
-start connections =
-    Connect connections
+start : Flow
+start =
+    Connect
 
 
-canStep : Flow -> Bool
-canStep flow =
+canStep : Context m -> Flow -> Bool
+canStep { connections, playlists } flow =
     case flow of
-        Connect connections ->
+        Connect ->
             connections
                 |> Connections.connectedProviders
                 |> List.filter MusicService.hasUser
@@ -156,10 +87,10 @@ canStep flow =
         LoadPlaylists data ->
             data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
 
-        PickPlaylist { selection, playlists } ->
+        PickPlaylist { selection } ->
             case selection of
                 PlaylistSelected con id ->
-                    Dict.get ( con, id ) playlists |> Maybe.map (Tuple.second >> isPlaylistTransferring >> not) |> Maybe.withDefault False
+                    Dict.get ( con, id ) playlists |> Maybe.map (Tuple.second >> Context.isPlaylistTransferring >> not) |> Maybe.withDefault False
 
                 NoPlaylist ->
                     False
@@ -172,136 +103,68 @@ canStep flow =
                 NoConnection ->
                     False
 
-        Transfer { playlist, playlists } ->
-            Dict.get playlist playlists |> Maybe.map (isPlaylistTransferred << Tuple.second) |> Maybe.withDefault False
+        Transfer { playlist } ->
+            Dict.get playlist playlists |> Maybe.map (Context.isPlaylistTransferred << Tuple.second) |> Maybe.withDefault False
 
 
-next : Flow -> Flow
-next flow =
+next : Context m -> Flow -> ( Flow, Context m )
+next ({ connections, playlists } as ctx) flow =
     case flow of
-        Connect connections ->
+        Connect ->
             let
                 connected =
                     Connections.connectedProviders connections
             in
             if List.length connected > 1 then
-                LoadPlaylists (List.map (\c -> ( c, Loading )) connected)
+                ( LoadPlaylists (List.map (\c -> ( c, Loading )) connected), ctx )
 
             else
-                flow
+                ( flow, ctx )
 
         LoadPlaylists data ->
-            let
-                ( connections, _ ) =
-                    List.unzip data
-            in
             data
-                |> List.map
-                    (\( con, d ) ->
+                |> List.foldl
+                    (\( con, d ) c ->
                         d
-                            |> RemoteData.toMaybe
-                            |> Maybe.map (List.map (\p -> ( ( con, p.id ), ( p, Untransferred ) )))
+                            |> RemoteData.map (Context.addPlaylists c con)
+                            |> RemoteData.withDefault c
                     )
-                |> Maybe.fromList
-                |> Maybe.map List.concat
-                |> Maybe.map (Dict.fromList (Tuple.mapFirst MusicService.connectionToString >> String.fromPair "_"))
-                |> Maybe.map (\dict -> PlaylistSelection NoPlaylist connections dict)
-                |> Maybe.map PickPlaylist
-                |> Maybe.withDefault flow
+                    ctx
+                |> pair (PickPlaylist <| PlaylistSelection NoPlaylist)
 
-        PickPlaylist ({ playlists, selection, connections } as payload) ->
+        PickPlaylist ({ selection } as payload) ->
             case selection of
                 PlaylistSelected con id ->
                     let
                         canTransfer =
                             Dict.get ( con, id ) playlists
                                 |> Maybe.map Tuple.second
-                                |> Maybe.map (not << (\s -> isPlaylistTransferring s || isPlaylistTransferred s))
+                                |> Maybe.map (not << (\s -> Context.isPlaylistTransferring s || Context.isPlaylistTransferred s))
                                 |> Maybe.withDefault False
                     in
                     if canTransfer then
-                        PickOtherConnection
-                            { selection = NoConnection
-                            , playlist = ( con, id )
-                            , playlists = playlists
-                            , connections = connections
-                            }
+                        ( PickOtherConnection { selection = NoConnection, playlist = ( con, id ) }
+                        , ctx
+                        )
 
                     else
-                        PickPlaylist { payload | selection = NoPlaylist }
+                        ( PickPlaylist { payload | selection = NoPlaylist }, ctx )
 
                 NoPlaylist ->
-                    flow
+                    ( flow, ctx )
 
-        PickOtherConnection { playlists, playlist, selection, connections } ->
+        PickOtherConnection { playlist, selection } ->
             case selection of
                 ConnectionSelected connection ->
-                    Transfer
-                        { playlist = playlist
-                        , playlists = Dict.update playlist (Maybe.map (\( p, _ ) -> ( p, Transferring ))) playlists
-                        , connections = connections
-                        , otherConnection = connection
-                        }
+                    ( Transfer { playlist = playlist, otherConnection = connection }
+                    , Context.startTransfer (Tuple.first playlist) (Tuple.second playlist) ctx
+                    )
 
                 NoConnection ->
-                    flow
+                    ( flow, ctx )
 
-        Transfer { playlists, connections, playlist, otherConnection } ->
-            PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
-
-
-
--- Connect
-
-
-allServices : Flow -> Maybe (List ProviderConnection)
-allServices flow =
-    case flow of
-        Connect services ->
-            Just services
-
-        _ ->
-            Nothing
-
-
-updateConnection : (ProviderConnection -> ProviderConnection) -> MusicService -> Flow -> Flow
-updateConnection updater pType flow =
-    case flow of
-        Connect connections ->
-            connections
-                |> List.map
-                    (\con ->
-                        if Connection.type_ con == pType then
-                            updater con
-
-                        else
-                            con
-                    )
-                |> Connect
-
-        f ->
-            f
-
-
-setUserInfo : ConnectedProvider -> WebData UserInfo -> Flow -> Flow
-setUserInfo con info flow =
-    case flow of
-        Connect services ->
-            services
-                |> List.map
-                    (Connection.map
-                        (\c ->
-                            if c == con then
-                                MusicService.setUserInfo info c
-
-                            else
-                                c
-                        )
-                    )
-                |> Connect
-
-        _ ->
-            flow
+        Transfer _ ->
+            ( PickPlaylist <| PlaylistSelection NoPlaylist, ctx )
 
 
 
@@ -331,52 +194,52 @@ udpateLoadingPlaylists connection playlists flow =
 -- PickPlaylists
 
 
-pickPlaylist : ConnectedProvider -> PlaylistId -> Flow -> Flow
-pickPlaylist connection id flow =
+pickPlaylist : ConnectedProvider -> PlaylistId -> Context m -> Flow -> Flow
+pickPlaylist connection id { playlists } flow =
     case flow of
-        PickPlaylist { playlists, selection, connections } ->
+        PickPlaylist { selection } ->
             case selection of
                 NoPlaylist ->
-                    PickPlaylist <| PlaylistSelection (PlaylistSelected connection id) connections playlists
+                    PickPlaylist <| PlaylistSelection (PlaylistSelected connection id)
 
                 PlaylistSelected con pId ->
                     if (con == connection) && pId == id then
-                        PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
+                        PickPlaylist <| PlaylistSelection NoPlaylist
 
                     else
-                        PickPlaylist <| PlaylistSelection (PlaylistSelected connection id) connections playlists
+                        PickPlaylist <| PlaylistSelection (PlaylistSelected connection id)
 
         _ ->
             flow
 
 
-pickService : ConnectedProvider -> Flow -> Flow
-pickService otherConnection flow =
+pickService : ConnectedProvider -> Context m -> Flow -> Flow
+pickService otherConnection { playlists } flow =
     case flow of
-        PickOtherConnection { selection, playlist, playlists, connections } ->
+        PickOtherConnection { selection, playlist } ->
             case selection of
                 NoConnection ->
                     if otherConnection /= Tuple.first playlist then
-                        PickOtherConnection { selection = ConnectionSelected otherConnection, playlist = playlist, playlists = playlists, connections = connections }
+                        PickOtherConnection { selection = ConnectionSelected otherConnection, playlist = playlist }
 
                     else
                         flow
 
                 ConnectionSelected connection ->
                     if otherConnection /= connection then
-                        PickOtherConnection { selection = ConnectionSelected otherConnection, playlist = playlist, playlists = playlists, connections = connections }
+                        PickOtherConnection { selection = ConnectionSelected otherConnection, playlist = playlist }
 
                     else
-                        PickOtherConnection { selection = NoConnection, playlist = playlist, playlists = playlists, connections = connections }
+                        PickOtherConnection { selection = NoConnection, playlist = playlist }
 
         _ ->
             flow
 
 
-selectedPlaylist : Flow -> Maybe ( Playlist, PlaylistState )
-selectedPlaylist flow =
+selectedPlaylist : Context m -> Flow -> Maybe ( Playlist, PlaylistState )
+selectedPlaylist { playlists } flow =
     case flow of
-        PickPlaylist { selection, playlists } ->
+        PickPlaylist { selection } ->
             case selection of
                 NoPlaylist ->
                     Nothing
@@ -384,10 +247,10 @@ selectedPlaylist flow =
                 PlaylistSelected connection id ->
                     Dict.get ( connection, id ) playlists
 
-        PickOtherConnection { playlists, playlist } ->
+        PickOtherConnection { playlist } ->
             Dict.get playlist playlists
 
-        Transfer { playlist, playlists } ->
+        Transfer { playlist } ->
             Dict.get playlist playlists
 
         _ ->
@@ -397,40 +260,11 @@ selectedPlaylist flow =
 clearSelection : Flow -> Flow
 clearSelection flow =
     case flow of
-        PickPlaylist { playlists, selection, connections } ->
-            PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
+        PickPlaylist { selection } ->
+            PickPlaylist <| PlaylistSelection NoPlaylist
 
-        PickOtherConnection { playlists, connections } ->
-            PickPlaylist <| PlaylistSelection NoPlaylist connections playlists
-
-        _ ->
-            flow
-
-
-
--- Sync
-
-
-playlistTransferFinished : ( ConnectedProvider, PlaylistId ) -> PlaylistImportResult -> Flow -> Flow
-playlistTransferFinished key importResult flow =
-    let
-        updatePlaylists data =
-            { data
-                | playlists =
-                    data.playlists
-                        |> Dict.update key (Maybe.map <| \( p, _ ) -> ( p, Transferred importResult ))
-                        |> Dict.update (MusicService.importedPlaylistKey importResult) (\_ -> Just ( MusicService.importedPlaylist importResult, New ))
-            }
-    in
-    case flow of
-        PickPlaylist data ->
-            PickPlaylist <| updatePlaylists data
-
-        PickOtherConnection data ->
-            PickOtherConnection <| updatePlaylists data
-
-        Transfer data ->
-            Transfer <| updatePlaylists data
+        PickOtherConnection _ ->
+            PickPlaylist <| PlaylistSelection NoPlaylist
 
         _ ->
             flow

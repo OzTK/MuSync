@@ -1,6 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (const, flip)
+import Basics.Extra exposing (const, flip, iif)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
@@ -59,7 +59,8 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input exposing (button, checkbox, labelRight)
 import Element.Region as Region
-import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..), PlaylistState, PlaylistsDict)
+import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..))
+import Flow.Context as Ctx exposing (Context, PlaylistState, PlaylistsDict)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
@@ -89,6 +90,8 @@ import UserInfo exposing (UserInfo)
 
 type alias Model =
     { flow : Flow
+    , playlists : PlaylistsDict
+    , connections : List ProviderConnection
     , device : Element.Device
     }
 
@@ -130,13 +133,16 @@ initConnections { window, rawTokens } =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
-        flow =
-            Flow.start <| initConnections flags
+        m =
+            Ctx.init (initConnections flags)
+                { device = Element.classifyDevice flags.window
+                , playlists = Ctx.noPlaylists
+                , connections = []
+                , flow = Flow.start
+                }
     in
-    ( { flow = flow
-      , device = Element.classifyDevice flags.window
-      }
-    , getFlowStepCmd flow
+    ( m
+    , getFlowStepCmd m
     )
 
 
@@ -169,13 +175,11 @@ update msg model =
 
         ProviderConnected connection ->
             let
-                newFlow =
-                    Flow.updateConnection (\_ -> Connected connection) (MusicService.type_ connection) model.flow
+                m =
+                    Ctx.updateConnection (\_ -> Connected connection) (MusicService.type_ connection) model
             in
-            ( { model
-                | flow = newFlow
-              }
-            , getFlowStepCmd newFlow
+            ( m
+            , getFlowStepCmd m
             )
 
         ProviderDisconnected loggedOutConnection ->
@@ -183,7 +187,7 @@ update msg model =
                 connection =
                     Disconnected loggedOutConnection
             in
-            ( { model | flow = Flow.updateConnection (const connection) (Connection.type_ connection) model.flow }
+            ( Ctx.updateConnection (const connection) (Connection.type_ connection) model
             , Cmd.none
             )
 
@@ -207,18 +211,23 @@ update msg model =
             )
 
         UserInfoReceived con info ->
-            ( { model | flow = Flow.setUserInfo con info model.flow }
+            ( Ctx.setUserInfo con info model
             , Cmd.none
             )
 
         PlaylistsFetched connection (Ok playlistsData) ->
             let
-                data =
-                    playlistsData |> RemoteData.map SelectableList.fromList
+                newFlow =
+                    Flow.udpateLoadingPlaylists connection playlistsData model.flow
+
+                ( flow, m ) =
+                    if Flow.canStep model newFlow then
+                        Flow.next model newFlow
+
+                    else
+                        ( newFlow, model )
             in
-            ( { model
-                | flow = model.flow |> Flow.udpateLoadingPlaylists connection playlistsData |> Flow.next
-              }
+            ( { m | flow = flow }
             , Cmd.none
             )
 
@@ -228,7 +237,7 @@ update msg model =
             )
 
         PlaylistImported playlist (Success result) ->
-            ( { model | flow = Flow.playlistTransferFinished playlist result model.flow }
+            ( Ctx.playlistTransferFinished playlist result model
             , Cmd.none
             )
 
@@ -245,24 +254,28 @@ update msg model =
 
         StepFlow ->
             let
-                newFlow =
-                    Flow.next model.flow
+                ( newFlow, m ) =
+                    Flow.next model model.flow
+
+                newModel =
+                    { m | flow = newFlow }
             in
-            ( { model | flow = newFlow }, getFlowStepCmd newFlow )
+            ( newModel, getFlowStepCmd newModel )
 
         TogglePlaylistSelected connection playlist ->
-            ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
+            ( { model | flow = Flow.pickPlaylist connection playlist model model.flow }, Cmd.none )
 
         ToggleOtherProviderSelected connection ->
-            ( { model | flow = Flow.pickService connection model.flow }, Cmd.none )
+            ( { model | flow = Flow.pickService connection model model.flow }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
 
 
-getFlowStepCmd flow =
+getFlowStepCmd : Model -> Cmd Msg
+getFlowStepCmd { playlists, connections, flow } =
     case flow of
-        Connect connections ->
+        Connect ->
             connections
                 |> List.filterMap Connection.asConnected
                 |> List.filter (MusicService.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
@@ -278,7 +291,7 @@ getFlowStepCmd flow =
                     )
                 |> Cmd.batch
 
-        Transfer { playlists, playlist, otherConnection } ->
+        Transfer { playlist, otherConnection } ->
             Dict.get playlist playlists
                 |> Maybe.map (MusicService.importPlaylist (Tuple.first playlist) otherConnection << Tuple.first)
                 |> Maybe.map
@@ -353,25 +366,25 @@ view model =
 
 
 routeMainView : Model -> Element Msg
-routeMainView model =
+routeMainView ({ playlists, connections } as model) =
     case model.flow of
-        Connect connections ->
-            connectView model connections <| Flow.canStep model.flow
+        Connect ->
+            connectView model connections <| Flow.canStep model model.flow
 
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
-        PickPlaylist { playlists } ->
+        PickPlaylist _ ->
             playlistsList model playlists
 
-        PickOtherConnection { playlists } ->
+        PickOtherConnection _ ->
             playlistsList model playlists
 
-        Transfer { playlists } ->
+        Transfer _ ->
             playlistsList model playlists
 
 
-routePanel : { m | flow : Flow, device : Element.Device } -> Element Msg
+routePanel : Model -> Element Msg
 routePanel model =
     let
         d =
@@ -387,32 +400,32 @@ routePanel model =
             ]
     in
     case model.flow of
-        PickPlaylist { playlists, selection, connections } ->
+        PickPlaylist { selection } ->
             case selection of
                 PlaylistSelected con id ->
-                    playlistDetail model ( con, id ) playlists
+                    playlistDetail model ( con, id ) model.playlists
 
                 _ ->
                     Element.el placeholderStyle Element.none
 
-        PickOtherConnection { playlists, playlist, selection, connections } ->
+        PickOtherConnection { playlist, selection } ->
             let
                 connectionsSelection =
                     case selection of
                         NoConnection ->
-                            SelectableList.fromList connections
+                            SelectableList.fromList (Connections.connectedProviders model.connections)
 
                         ConnectionSelected con ->
-                            connections |> SelectableList.fromList |> SelectableList.select con
+                            model.connections |> Connections.connectedProviders |> SelectableList.fromList |> SelectableList.select con
             in
-            playlists
+            model.playlists
                 |> Dict.get playlist
                 |> Maybe.map Tuple.first
                 |> Maybe.map (transferConfigStep2 model (Tuple.first playlist) connectionsSelection)
                 |> Maybe.withDefault Element.none
 
-        Transfer { playlist, playlists, connections } ->
-            playlistDetail model playlist playlists
+        Transfer { playlist } ->
+            playlistDetail model playlist model.playlists
 
         _ ->
             Element.el placeholderStyle Element.none
@@ -428,12 +441,12 @@ playlistDetail model playlist playlists =
         |> Dict.get playlist
         |> Maybe.map
             (\( p, state ) ->
-                if Flow.isPlaylistTransferring state then
+                if Ctx.isPlaylistTransferring state then
                     transferConfigStep3 model p
 
-                else if Flow.isPlaylistTransferred state then
+                else if Ctx.isPlaylistTransferred state then
                     state
-                        |> Flow.importWarnings
+                        |> Ctx.importWarnings
                         |> Maybe.map (transferConfigStep4Warnings model)
                         |> Maybe.withDefault (transferConfigStep4 model)
 
@@ -447,7 +460,7 @@ playlistDetail model playlist playlists =
 -- View parts
 
 
-panel : { m | device : Element.Device, flow : Flow } -> Element.Attribute Msg
+panel : Model -> Element.Attribute Msg
 panel ({ device, flow } as model) =
     let
         d =
@@ -462,7 +475,7 @@ panel ({ device, flow } as model) =
                     Element.onRight
 
         isSelected =
-            flow |> Flow.selectedPlaylist |> Maybe.isDefined
+            flow |> Flow.selectedPlaylist model |> Maybe.isDefined
 
         panelStyle =
             case device.orientation of
@@ -492,14 +505,14 @@ panel ({ device, flow } as model) =
             routePanel model
 
 
-overlay : { m | flow : Flow } -> Element.Attribute Msg
-overlay { flow } =
+overlay : Model -> Element.Attribute Msg
+overlay ({ flow } as model) =
     let
         attrs =
             [ height fill, width fill, transition "background-color", mouseDown [] ]
     in
     flow
-        |> Flow.selectedPlaylist
+        |> Flow.selectedPlaylist model
         |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
         |> Maybe.withDefault (el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
         |> Element.inFront
@@ -710,14 +723,18 @@ transferConfigStep4Warnings model report =
         ]
 
 
-playlistRow : { m | device : Element.Device, flow : Flow } -> (PlaylistId -> msg) -> ( Playlist, PlaylistState ) -> Element msg
+playlistRow :
+    Model
+    -> (PlaylistId -> msg)
+    -> ( Playlist, PlaylistState )
+    -> Element msg
 playlistRow model tagger ( playlist, state ) =
     let
         d =
             dimensions model
 
         isSelected =
-            model.flow |> Flow.selectedPlaylist |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
+            model.flow |> Flow.selectedPlaylist model |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
     in
     button
         ([ width fill
@@ -741,11 +758,11 @@ playlistRow model tagger ( playlist, state ) =
                     Element.html <|
                         Html.text <|
                             Playlist.summary playlist
-                , if Flow.isPlaylistTransferring state then
+                , if Ctx.isPlaylistTransferring state then
                     Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
 
-                  else if Flow.isPlaylistTransferred state then
-                    Flow.importWarnings state
+                  else if Ctx.isPlaylistTransferred state then
+                    Ctx.importWarnings state
                         |> Maybe.filter (\w -> (w |> Playlist.Import.failedTracks |> List.length) > 0)
                         |> Maybe.map
                             (\report ->
@@ -763,7 +780,7 @@ playlistRow model tagger ( playlist, state ) =
                         |> Maybe.withDefault
                             (Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle")
 
-                  else if Flow.isPlaylistNew state then
+                  else if Ctx.isPlaylistNew state then
                     Element.el [ d.xSmallText, Font.color palette.primary ] <| text "new!"
 
                   else
@@ -773,7 +790,7 @@ playlistRow model tagger ( playlist, state ) =
         }
 
 
-playlistsList : { m | device : Element.Device, flow : Flow } -> PlaylistsDict -> Element Msg
+playlistsList : Model -> PlaylistsDict -> Element Msg
 playlistsList model playlists =
     let
         d =
