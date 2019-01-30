@@ -12,18 +12,15 @@ port module Spotify exposing
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full)
 import Basics.Extra exposing (apply)
-import Dict
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
 import Json.Decode.Pipeline as Pip
 import Json.Encode as JE
 import Playlist exposing (Playlist)
-import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
-import Tuple exposing (pair)
 import Url.Builder as Url
 import UserInfo exposing (UserInfo)
 

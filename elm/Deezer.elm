@@ -15,22 +15,19 @@ port module Deezer exposing
     , track
     )
 
-import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full, FullAndQuery)
+import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Either as Either exposing (Either(..))
-import Basics.Extra exposing (apply, flip)
+import Basics.Extra exposing (apply)
 import Dict
-import Http exposing (Error(..), Response)
-import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, nullable, string, succeed)
-import Json.Decode.Pipeline as Decode exposing (custom, hardcoded, optional, required, requiredAt)
+import Http exposing (Error(..))
+import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, string, succeed)
+import Json.Decode.Pipeline as Decode exposing (hardcoded, optional, required, requiredAt)
 import Json.Encode as JE
 import Playlist exposing (Playlist, PlaylistId)
-import Process
 import RemoteData exposing (RemoteData(..), WebData)
-import RemoteData.Http as Http exposing (Config, defaultConfig)
-import Set
+import RemoteData.Http exposing (defaultConfig)
 import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
-import Tuple exposing (pair)
 import Url.Builder as Url
 import UserInfo exposing (UserInfo)
 
@@ -79,6 +76,7 @@ httpBadPayloadError url json err =
         |> BadPayload (Either.unwrap Decode.errorToString identity err)
 
 
+decodeData : Decoder m -> String -> Decode.Value -> WebData m
 decodeData decoder url json =
     json
         |> Decode.decodeValue decoder
@@ -175,6 +173,7 @@ singleTrack =
 -- Values
 
 
+corsProxy : String
 corsProxy =
     "https://thingproxy.freeboard.io/fetch"
 
@@ -252,7 +251,7 @@ fetchAllTracks builder =
         CompleteTrackList trackList ->
             Task.succeed <| Success trackList
 
-        BuildingTrackList tracks url ->
+        BuildingTrackList _ url ->
             Api.getWithRateLimit defaultConfig
                 url
                 allTracks
@@ -289,6 +288,7 @@ addSongsToPlaylistEncoder tracks =
         |> String.join ","
 
 
+pageSize : Int
 pageSize =
     25
 

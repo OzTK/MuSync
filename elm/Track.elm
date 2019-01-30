@@ -2,22 +2,14 @@ module Track exposing
     ( IdentifiedTrack
     , Track
     , TrackId
-    , TrackIdSerializationError
     , asTrack
     , identified
     , toString
     )
 
-import Tuple exposing (pair)
-
 
 type alias TrackId =
     String
-
-
-type TrackIdSerializationError
-    = InvalidKeyPartsCount
-    | InvalidProviderType String
 
 
 type alias Track =
@@ -38,12 +30,7 @@ type alias IdentifiedTrack =
 
 identified : Track -> Maybe IdentifiedTrack
 identified track =
-    case track.isrc of
-        Just isrc ->
-            Just <| IdentifiedTrack track.id track.title track.artist isrc
-
-        Nothing ->
-            Nothing
+    Maybe.map (IdentifiedTrack track.id track.title track.artist) track.isrc
 
 
 asTrack : IdentifiedTrack -> Track

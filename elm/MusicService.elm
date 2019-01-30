@@ -31,8 +31,6 @@ module MusicService exposing
 import ApiClient as Api
 import Array
 import Deezer
-import Http
-import Json.Decode as Decode exposing (Decoder)
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Playlist exposing (Playlist, PlaylistId)
@@ -42,7 +40,7 @@ import Set
 import Spotify
 import Task exposing (Task)
 import Task.Extra as Task
-import Track exposing (IdentifiedTrack, Track, TrackId)
+import Track exposing (Track)
 import Tuple exposing (pair)
 import UserInfo exposing (UserInfo)
 
@@ -57,7 +55,6 @@ type MusicService
 type MusicServiceError
     = InvalidServiceConnectionError ConnectedProvider
     | MissingUserInfo ConnectedProvider
-    | IntermediateRequestFailed (Maybe Http.Error)
     | NeverError
 
 
@@ -325,7 +322,7 @@ importedPlaylist { playlist } =
 
 
 importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError (WebData PlaylistImportResult)
-importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
+importPlaylist con otherConnection ({ name } as playlist) =
     let
         tracksTask =
             playlist
@@ -338,9 +335,6 @@ importPlaylist con otherConnection ({ name, link, tracksCount } as playlist) =
 
         newPlaylistTask =
             createPlaylist otherConnection name
-
-        hasMissingTracks =
-            \tracksResult p -> p.tracksCount > List.length tracksResult
     in
     Api.chain2
         (\( tracksResult, dupes ) newPlaylist ->

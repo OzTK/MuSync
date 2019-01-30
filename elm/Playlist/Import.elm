@@ -1,6 +1,5 @@
 module Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult, duplicateCount, failedTracks, isSuccessful, matchedTracks, report)
 
-import Playlist exposing (Playlist)
 import Track exposing (Track)
 
 

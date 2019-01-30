@@ -1,6 +1,6 @@
 module SelectableList exposing
-    ( SelectableList
-    , ListWithSelection
+    ( ListWithSelection
+    , SelectableList
     , clear
     , filterMap
     , find
@@ -27,40 +27,6 @@ type ListWithSelection a
 type SelectableList a
     = Selected (ListWithSelection a)
     | NotSelected (List a)
-
-
-
--- Internal
-
-
-findAndUpdate : (a -> a) -> a -> List a -> List a
-findAndUpdate updater element =
-    List.map
-        (\el ->
-            if el /= element then
-                el
-
-            else
-                updater el
-        )
-
-
-update : (a -> a) -> a -> SelectableList a -> SelectableList a
-update updater el sList =
-    case sList of
-        Selected (Selection sel list) ->
-            Selected <|
-                Selection
-                    (if el == sel then
-                        updater el
-
-                     else
-                        el
-                    )
-                    (findAndUpdate updater el list)
-
-        NotSelected list ->
-            NotSelected (findAndUpdate updater el list)
 
 
 
@@ -190,6 +156,7 @@ map f sList =
             NotSelected <| List.map f list
 
 
+mapWithStatus : (el -> Bool -> newEl) -> SelectableList el -> SelectableList newEl
 mapWithStatus f sList =
     case sList of
         Selected (Selection el list) ->
@@ -209,6 +176,7 @@ mapWithStatus f sList =
             NotSelected <| List.map (\elem -> f elem False) list
 
 
+filterMap : (el -> Maybe newEl) -> SelectableList el -> SelectableList newEl
 filterMap f sList =
     case sList of
         Selected (Selection el list) ->
@@ -223,7 +191,7 @@ filterMap f sList =
 mapSelected : (a -> a) -> SelectableList a -> SelectableList a
 mapSelected f sList =
     case sList of
-        Selected (Selection el list) ->
+        Selected (Selection el _) ->
             upSelect f el sList
 
         _ ->

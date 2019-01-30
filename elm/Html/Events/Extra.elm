@@ -1,7 +1,7 @@
 module Html.Events.Extra exposing (onChangeTo)
 
 import Html
-import Html.Events exposing (on, targetValue)
+import Html.Events exposing (on)
 import Json.Decode as Json
 
 

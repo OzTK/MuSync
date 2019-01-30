@@ -22,19 +22,16 @@ module ApiClient exposing
     , recover
     )
 
-import Dict exposing (Dict)
+import Dict
 import Http
 import Json.Decode exposing (Decoder)
 import Json.Encode as Json
-import Playlist exposing (Playlist)
 import Process
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config)
 import Task exposing (Task)
-import Track exposing (Track)
-import Url exposing (Url)
+import Url
 import Url.Builder as Url exposing (QueryParameter)
-import UserInfo exposing (UserInfo)
 
 
 
@@ -72,10 +69,6 @@ withRateLimit task =
 
 
 -- Model
-
-
-scheme =
-    "https://"
 
 
 type Endpoint m
@@ -175,11 +168,6 @@ appendPath segment endpoint =
                 |> Maybe.withDefault endpoint
 
 
-appendQueryParamToUrl : QueryParameter -> Url -> Url
-appendQueryParamToUrl param url =
-    { url | query = url.query |> Maybe.map ((++) (Url.toQuery [ param ])) }
-
-
 appendQueryParam : QueryParameter -> AnyFullEndpoint -> Endpoint FullAndQuery
 appendQueryParam param endpoint =
     let
@@ -277,7 +265,7 @@ recover recovFn =
     Task.andThen
         (\data ->
             case data of
-                Success t2 ->
+                Success _ ->
                     Task.succeed data
 
                 Failure err ->

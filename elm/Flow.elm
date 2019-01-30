@@ -13,21 +13,15 @@ module Flow exposing
     , udpateLoadingPlaylists
     )
 
-import Basics.Extra exposing (const)
-import Connection exposing (ProviderConnection)
-import Dict.Any as Dict exposing (AnyDict)
+import Dict.Any as Dict
 import Flow.Context as Context exposing (Context, PlaylistState)
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportResult)
+import MusicService exposing (ConnectedProvider)
 import Playlist exposing (Playlist, PlaylistId)
-import Playlist.Import exposing (PlaylistImportReport)
 import RemoteData exposing (RemoteData(..), WebData)
-import SelectableList exposing (ListWithSelection)
-import String.Extra as String
 import Tuple exposing (pair, second)
-import UserInfo exposing (UserInfo)
 
 
 type alias ConnectionsWithLoadingPlaylists =
@@ -194,8 +188,8 @@ udpateLoadingPlaylists connection playlists flow =
 -- PickPlaylists
 
 
-pickPlaylist : ConnectedProvider -> PlaylistId -> Context m -> Flow -> Flow
-pickPlaylist connection id { playlists } flow =
+pickPlaylist : ConnectedProvider -> PlaylistId -> Flow -> Flow
+pickPlaylist connection id flow =
     case flow of
         PickPlaylist { selection } ->
             case selection of
@@ -213,8 +207,8 @@ pickPlaylist connection id { playlists } flow =
             flow
 
 
-pickService : ConnectedProvider -> Context m -> Flow -> Flow
-pickService otherConnection { playlists } flow =
+pickService : ConnectedProvider -> Flow -> Flow
+pickService otherConnection flow =
     case flow of
         PickOtherConnection { selection, playlist } ->
             case selection of
@@ -260,7 +254,7 @@ selectedPlaylist { playlists } flow =
 clearSelection : Flow -> Flow
 clearSelection flow =
     case flow of
-        PickPlaylist { selection } ->
+        PickPlaylist _ ->
             PickPlaylist <| PlaylistSelection NoPlaylist
 
         PickOtherConnection _ ->

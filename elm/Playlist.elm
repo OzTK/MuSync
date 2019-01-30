@@ -14,5 +14,5 @@ type alias Playlist =
 
 
 summary : Playlist -> String
-summary { name, tracksCount } =
+summary { name } =
     name

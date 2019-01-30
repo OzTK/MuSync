@@ -81,7 +81,10 @@ type alias PlaylistsDict =
 
 
 type alias Context m =
-    { m | playlists : PlaylistsDict, connections : List ProviderConnection }
+    { m
+        | playlists : PlaylistsDict
+        , connections : List ProviderConnection
+    }
 
 
 noPlaylists : PlaylistsDict

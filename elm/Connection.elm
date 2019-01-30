@@ -122,15 +122,6 @@ map f connection =
             connection
 
 
-withDefault default connection =
-    case connection of
-        Connected provider ->
-            provider
-
-        _ ->
-            default
-
-
 notifyProviderDisconnected : (DisconnectedProvider -> msg) -> DisconnectedProvider -> Cmd msg
 notifyProviderDisconnected tagger connection =
     Task.succeed () |> Task.perform (\_ -> tagger connection)

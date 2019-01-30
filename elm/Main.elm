@@ -1,10 +1,9 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (const, flip, iif)
+import Basics.Extra exposing (const)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
-import Deezer
 import Dict.Any as Dict exposing (AnyDict)
 import Dict.Any.Extra as Dict
 import Element
@@ -15,8 +14,6 @@ import Element
         , Orientation(..)
         , alignBottom
         , alignLeft
-        , alignRight
-        , alignTop
         , alpha
         , centerX
         , centerY
@@ -24,19 +21,16 @@ import Element
         , column
         , el
         , fill
-        , fillPortion
         , focused
         , height
         , html
         , htmlAttribute
         , image
-        , maximum
         , minimum
         , mouseDown
         , mouseOver
         , moveDown
         , moveLeft
-        , moveRight
         , moveUp
         , padding
         , paddingEach
@@ -44,7 +38,6 @@ import Element
         , paragraph
         , px
         , row
-        , scrollbarX
         , scrollbarY
         , shrink
         , spaceEvenly
@@ -57,17 +50,14 @@ import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
 import Element.Font as Font
-import Element.Input as Input exposing (button, checkbox, labelRight)
+import Element.Input exposing (button)
 import Element.Region as Region
-import Flow exposing (ConnectionSelection(..), ConnectionsWithLoadingPlaylists, Flow(..), PlaylistSelectionState(..))
-import Flow.Context as Ctx exposing (Context, PlaylistState, PlaylistsDict)
+import Flow exposing (ConnectionSelection(..), Flow(..), PlaylistSelectionState(..))
+import Flow.Context as Ctx exposing (PlaylistState, PlaylistsDict)
 import Html exposing (Html)
 import Html.Attributes as Html
 import Html.Events as Html
 import Html.Events.Extra as Html
-import Http
-import Json.Decode as JD
-import Json.Encode as JE
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
@@ -77,9 +67,8 @@ import Playlist.Import exposing (PlaylistImportReport)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
-import Spotify
 import Task
-import Track exposing (Track, TrackId)
+import Track
 import Tuple exposing (pair)
 import UserInfo exposing (UserInfo)
 
@@ -103,7 +92,9 @@ type alias Dimensions =
 
 
 type alias Flags =
-    { window : Dimensions, rawTokens : List ( String, String ) }
+    { window : Dimensions
+    , rawTokens : List ( String, String )
+    }
 
 
 deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, OAuthToken )
@@ -114,8 +105,8 @@ deserializeTokenPair ( serviceName, token ) =
         |> Maybe.map2 Tuple.pair (MusicService.fromString serviceName)
 
 
-initConnections : { m | window : Dimensions, rawTokens : List ( String, String ) } -> List ProviderConnection
-initConnections { window, rawTokens } =
+initConnections : { m | rawTokens : List ( String, String ) } -> List ProviderConnection
+initConnections { rawTokens } =
     let
         tokens =
             rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList MusicService.toString
@@ -153,10 +144,8 @@ init flags =
 type Msg
     = ToggleConnect ProviderConnection
     | PlaylistsFetched ConnectedProvider (Result MusicServiceError (WebData (List Playlist)))
-    | PlaylistTracksFetched PlaylistId (WebData (List Track))
     | PlaylistSelectionCleared
     | UserInfoReceived ConnectedProvider (WebData UserInfo)
-    | ProviderConnected ConnectedProvider
     | ProviderDisconnected DisconnectedProvider
     | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
@@ -164,7 +153,6 @@ type Msg
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
-    | NoOp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -172,15 +160,6 @@ update msg model =
     case msg of
         BrowserResized dims ->
             ( { model | device = Element.classifyDevice dims }, Cmd.none )
-
-        ProviderConnected connection ->
-            let
-                m =
-                    Ctx.updateConnection (\_ -> Connected connection) (MusicService.type_ connection) model
-            in
-            ( m
-            , getFlowStepCmd m
-            )
 
         ProviderDisconnected loggedOutConnection ->
             let
@@ -192,17 +171,8 @@ update msg model =
             )
 
         ToggleConnect connection ->
-            let
-                pType =
-                    Connection.type_ connection
-            in
             ( model
             , Connection.toggleProviderConnect ProviderDisconnected connection
-            )
-
-        PlaylistTracksFetched _ s ->
-            ( model
-            , Cmd.none
             )
 
         PlaylistSelectionCleared ->
@@ -242,7 +212,7 @@ update msg model =
             )
 
         -- TODO: Handle import error cases
-        PlaylistImported playlist _ ->
+        PlaylistImported _ _ ->
             ( model
             , Cmd.none
             )
@@ -263,13 +233,10 @@ update msg model =
             ( newModel, getFlowStepCmd newModel )
 
         TogglePlaylistSelected connection playlist ->
-            ( { model | flow = Flow.pickPlaylist connection playlist model model.flow }, Cmd.none )
+            ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
 
         ToggleOtherProviderSelected connection ->
-            ( { model | flow = Flow.pickService connection model model.flow }, Cmd.none )
-
-        NoOp ->
-            ( model, Cmd.none )
+            ( { model | flow = Flow.pickService connection model.flow }, Cmd.none )
 
 
 getFlowStepCmd : Model -> Cmd Msg
@@ -418,11 +385,7 @@ routePanel model =
                         ConnectionSelected con ->
                             model.connections |> Connections.connectedProviders |> SelectableList.fromList |> SelectableList.select con
             in
-            model.playlists
-                |> Dict.get playlist
-                |> Maybe.map Tuple.first
-                |> Maybe.map (transferConfigStep2 model (Tuple.first playlist) connectionsSelection)
-                |> Maybe.withDefault Element.none
+            transferConfigStep2 model (Tuple.first playlist) connectionsSelection
 
         Transfer { playlist } ->
             playlistDetail model playlist model.playlists
@@ -442,7 +405,7 @@ playlistDetail model playlist playlists =
         |> Maybe.map
             (\( p, state ) ->
                 if Ctx.isPlaylistTransferring state then
-                    transferConfigStep3 model p
+                    transferConfigStep3 model
 
                 else if Ctx.isPlaylistTransferred state then
                     state
@@ -581,8 +544,8 @@ transferConfigStep1 model { name } =
         ]
 
 
-transferConfigStep2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Playlist -> Element Msg
-transferConfigStep2 model unavailable services { name } =
+transferConfigStep2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Element Msg
+transferConfigStep2 model unavailable services =
     let
         d =
             dimensions model
@@ -610,8 +573,8 @@ transferConfigStep2 model unavailable services { name } =
         (Just "Transfer to")
         [ wrappedRow ([ d.smallSpacing, centerX, centerY ] ++ panelDefaultStyle model)
             (services
-                |> SelectableList.mapWithStatus
-                    (\connection isSelected ->
+                |> SelectableList.map
+                    (\connection ->
                         button (squareToggleButtonStyle model <| buttonState connection)
                             { onPress = Just <| ToggleOtherProviderSelected connection, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
                     )
@@ -629,8 +592,8 @@ transferConfigStep2 model unavailable services { name } =
         ]
 
 
-transferConfigStep3 : { m | device : Element.Device } -> Playlist -> Element Msg
-transferConfigStep3 model { name } =
+transferConfigStep3 : { m | device : Element.Device } -> Element Msg
+transferConfigStep3 model =
     let
         d =
             dimensions model
@@ -846,7 +809,7 @@ connectionStatus isConnected =
 
 stepFlowButton : { m | device : Element.Device } -> List (Element.Attribute Msg) -> String -> Element Msg
 stepFlowButton model style label =
-    button (primaryButtonStyle model ++ [ centerX ] ++ style)
+    button (primaryButtonStyle model ++ centerX :: style)
         { label = text label
         , onPress = Just StepFlow
         }
@@ -899,7 +862,7 @@ connectView model connections canStep =
         [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
         , row [ d.smallSpacing, centerX, centerY ] <| List.map (serviceConnectButton model ToggleConnect) connections
         , if canStep then
-            el ([ width fill ] ++ containerPadding) <|
+            el (width fill :: containerPadding) <|
                 stepFlowButton model [] "NEXT"
 
           else
@@ -984,11 +947,7 @@ transition prop =
     htmlAttribute <| Html.style "transition" (prop ++ " .2s ease-out")
 
 
-mainTitleStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
-mainTitleStyle model =
-    [ model |> dimensions |> .largeText, Font.color palette.primary ]
-
-
+baseButtonStyle : Element.Device -> ( Color, Color ) -> ( Color, Color ) -> List (Element.Attribute msg)
 baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     let
         d =
@@ -1065,10 +1024,6 @@ squareToggleButtonStyle model state =
                 Disabled ->
                     [ Element.alpha 0.5, mouseOver [], focused [], mouseDown [], Border.glow palette.textFaded 1 ]
            )
-
-
-songsListStyle { device } =
-    [ spacing 8, height fill, scrollbarY ]
 
 
 
