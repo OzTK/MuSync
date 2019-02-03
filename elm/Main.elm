@@ -287,7 +287,7 @@ view model =
         d =
             dimensions model
 
-        desktop =
+        deviceStyle =
             case model.device.orientation of
                 Portrait ->
                     []
@@ -326,13 +326,12 @@ view model =
                 , d.smallPaddingAll
                 ]
                 (header model)
-            , wire model
+            , breadcrumb [ width (fill |> maximum 800), centerX ] model
             , el
                 ([ Region.mainContent
                  , width fill
                  , height fill
                  , clip
-                 , d.mediumPaddingTop
                  ]
                     ++ hack_forceClip
                 )
@@ -952,16 +951,27 @@ icon name =
 ---- Wire
 
 
-dot : Bool -> Element msg
-dot active =
+baseDot : Int -> List (Element.Attribute msg) -> Element msg
+baseDot size attrs =
     el
-        [ height (px 15)
+        ([ width (px size)
+         , height (px size)
+         , centerY
+         , Border.rounded 8
+         ]
+            ++ attrs
+        )
+        Element.none
+
+
+dot : Int -> Bool -> Element msg
+dot size active =
+    el
+        [ height (px size)
         , inFront <|
-            el
-                [ width (px 15)
-                , height (px 15)
-                , Bg.color palette.primary
-                , Border.rounded 8
+            baseDot
+                size
+                [ Bg.color palette.primary
                 , if active then
                     delayedTransition 0.2 "transform"
 
@@ -969,65 +979,79 @@ dot active =
                     transition "transform"
                 , Element.htmlAttribute (Html.classList [ ( "active-dot", active ), ( "inactive-dot", not active ) ])
                 ]
-                Element.none
         ]
-        (el
-            [ width (px 12)
-            , height (px 12)
-            , centerY
-            , Bg.color palette.primaryFaded
-            , Border.rounded 8
-            ]
-            Element.none
+        (baseDot (size - 2) [ Bg.color palette.primaryFaded ])
+
+
+baseSegment : Int -> List (Element.Attribute msg) -> Element msg
+baseSegment size attrs =
+    el
+        ([ height (px size)
+         , width fill
+         , centerY
+         ]
+            ++ attrs
         )
+        Element.none
 
 
-segment : Bool -> Element msg
-segment active =
-    el [ width fill, height (px 5) ] <|
-        el
-            [ height (px 4)
-            , width fill
-            , centerY
-            , Bg.color palette.primaryFaded
-            , inFront <|
-                el
-                    [ height (px 5)
-                    , width fill
-                    , Bg.color palette.primary
-                    , Border.rounded 2
-                    , if active then
-                        transition "transform"
-
-                      else
-                        delayedTransition 0.2 "transform"
-                    , Element.htmlAttribute (Html.classList [ ( "active-segment", active ), ( "inactive-segment", not active ) ])
-                    ]
-                    Element.none
-            ]
-            Element.none
+segment : Int -> Bool -> Element msg
+segment size active =
+    el
+        [ width fill
+        , height fill
+        , inFront <|
+            baseSegment size
+                [ centerY
+                , Bg.color palette.primary
+                , Border.rounded 2
+                , transition "transform"
+                , Element.htmlAttribute (Html.classList [ ( "active-segment", active ), ( "inactive-segment", not active ) ])
+                ]
+        ]
+    <|
+        baseSegment (size - 1) [ Bg.color palette.primaryFaded ]
 
 
-wire : Model -> Element Msg
-wire { flow } =
+breadcrumb : List (Element.Attribute msg) -> { m | device : Element.Device, flow : Flow } -> Element msg
+breadcrumb attrs model =
     let
+        d =
+            dimensions model
+
+        { labelWidth, paddingX, fontSize, dotSize, segSize } =
+            case ( model.device.class, model.device.orientation ) of
+                ( Phone, Portrait ) ->
+                    { labelWidth = 75, paddingX = 30, fontSize = d.xxSmallText, dotSize = 10, segSize = 4 }
+
+                _ ->
+                    { labelWidth = 170, paddingX = 78, fontSize = d.smallText, dotSize = 15, segSize = 5 }
+
         ( step, index ) =
-            Flow.currentStep flow
+            Flow.currentStep model.flow
+
+        bigSpot =
+            dot dotSize True
+
+        fadedSpot =
+            dot dotSize False
 
         items =
-            [ dot True ] :: List.repeat index [ segment True, dot True ] ++ List.repeat (3 - index) [ segment False, dot False ]
+            [ bigSpot ]
+                :: List.repeat index [ segment segSize True, bigSpot ]
+                ++ List.repeat (3 - index) [ segment segSize False, fadedSpot ]
     in
     row
-        [ spaceEvenly
-        , centerX
-        , above <| row [ paddingXY 78 10, width fill ] (List.flatten items)
-        , width fill
-        ]
+        ([ spaceEvenly
+         , above <| row [ paddingXY paddingX 10, width fill, htmlAttribute (Html.style "z-index" "initial") ] (List.flatten items)
+         ]
+            ++ attrs
+        )
     <|
         List.indexedMap
             (\i s ->
                 el
-                    [ width (px 170)
+                    [ width (px labelWidth)
                     , Font.center
                     , if i == index then
                         delayedTransition 0.2 "color"
@@ -1039,6 +1063,7 @@ wire { flow } =
 
                       else
                         Font.color palette.text
+                    , fontSize
                     ]
                     (text s)
             )
@@ -1162,7 +1187,8 @@ scaled =
 
 
 type alias DimensionPalette msg =
-    { xSmallText : Element.Attribute msg
+    { xxSmallText : Element.Attribute msg
+    , xSmallText : Element.Attribute msg
     , smallText : Element.Attribute msg
     , mediumText : Element.Attribute msg
     , largeText : Element.Attribute msg
@@ -1197,7 +1223,8 @@ dimensions { device } =
     in
     case device.class of
         Phone ->
-            { xSmallText = scaled -2 |> round |> Font.size
+            { xxSmallText = scaled -3 |> round |> Font.size
+            , xSmallText = scaled -2 |> round |> Font.size
             , smallText = scaled -1 |> round |> Font.size
             , mediumText = scaled 1 |> round |> Font.size
             , largeText = scaled 2 |> round |> Font.size
@@ -1219,7 +1246,8 @@ dimensions { device } =
             }
 
         _ ->
-            { xSmallText = scaled -1 |> round |> Font.size
+            { xxSmallText = scaled -2 |> round |> Font.size
+            , xSmallText = scaled -1 |> round |> Font.size
             , smallText = scaled 1 |> round |> Font.size
             , mediumText = scaled 2 |> round |> Font.size
             , largeText = scaled 3 |> round |> Font.size
