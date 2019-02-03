@@ -7,7 +7,6 @@ describe('Connecting a music provider and displaying its playlists', () => {
   })
 
   it('displays playlists from a connected provider', () => {
-    cy.contains('Pick a playlist you want to transfer').should('exist')
     cy.contains('Spotify')
       .should('exist')
       .parent()

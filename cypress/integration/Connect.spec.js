@@ -6,10 +6,7 @@ describe('Visiting the website and connecting music providers', () => {
   })
 
   beforeEach(() => {
-    cy.contains('Connect your favorite music providers')
-      .parent()
-      .next()
-      .find('[role="button"]')
+    cy.get('[role="button"]')
       .as('providers')
   })
 
@@ -45,6 +42,7 @@ describe('Visiting the website and connecting music providers', () => {
     cy.visit('/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600')
     cy.visit('/?service=Deezer#access_token=987654321&token_type=Bearer&expires_in=3600')
     cy.contains('NEXT').click()
-    cy.contains('Pick a playlist you want to transfer').should('exist')
+    cy.contains('Deezer').should('exist')
+    cy.contains('Spotify').should('exist')
   })
 })
