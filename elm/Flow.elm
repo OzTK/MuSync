@@ -5,11 +5,13 @@ module Flow exposing
     , PlaylistSelectionState(..)
     , canStep
     , clearSelection
+    , currentStep
     , next
     , pickPlaylist
     , pickService
     , selectedPlaylist
     , start
+    , steps
     , udpateLoadingPlaylists
     )
 
@@ -159,6 +161,30 @@ next ({ connections, playlists } as ctx) flow =
 
         Transfer _ ->
             ( PickPlaylist <| PlaylistSelection NoPlaylist, ctx )
+
+
+currentStep : Flow -> ( String, Int )
+currentStep flow =
+    case flow of
+        Connect ->
+            ( "Connect", 0 )
+
+        LoadPlaylists _ ->
+            ( "Connect", 0 )
+
+        PickPlaylist _ ->
+            ( "Pick playlist", 1 )
+
+        PickOtherConnection _ ->
+            ( "Pick connection", 2 )
+
+        Transfer _ ->
+            ( "Transfer", 3 )
+
+
+steps : List String
+steps =
+    [ "Connect", "Pick playlist", "Pick connection", "Transfer" ]
 
 
 

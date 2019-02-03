@@ -12,6 +12,7 @@ import Element
         , DeviceClass(..)
         , Element
         , Orientation(..)
+        , above
         , alignBottom
         , alignLeft
         , alpha
@@ -26,6 +27,8 @@ import Element
         , html
         , htmlAttribute
         , image
+        , inFront
+        , maximum
         , minimum
         , mouseDown
         , mouseOver
@@ -49,6 +52,7 @@ import Element
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
+import Element.Extra as Element
 import Element.Font as Font
 import Element.Input exposing (button)
 import Element.Region as Region
@@ -282,6 +286,14 @@ view model =
     let
         d =
             dimensions model
+
+        desktop =
+            case model.device.orientation of
+                Portrait ->
+                    []
+
+                Landscape ->
+                    []
     in
     Element.layoutWith
         { options =
@@ -306,16 +318,16 @@ view model =
             , overlay model
             , panel model
             , clip
+            , d.mediumSpacing
             ]
-            [ row
+            [ el
                 [ Region.navigation
                 , width fill
                 , d.smallPaddingAll
-                , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
-                , Border.color palette.textFaded
                 ]
-                [ header model ]
-            , row
+                (header model)
+            , wire model
+            , el
                 ([ Region.mainContent
                  , width fill
                  , height fill
@@ -324,7 +336,7 @@ view model =
                  ]
                     ++ hack_forceClip
                 )
-                [ routeMainView model ]
+                (routeMainView model)
             ]
 
 
@@ -770,9 +782,8 @@ playlistsList model playlists =
                 |> Dict.map f
                 |> Dict.values
     in
-    Element.column ([ width fill, height fill, clip, d.mediumSpacing ] ++ hack_forceClip) <|
-        [ paragraph [ d.largeText, Font.center ] [ text "Pick a playlist you want to transfer" ]
-        , Element.column [ width fill, height fill, scrollbarY ]
+    Element.column ([ width fill, height fill, centerX, clip, d.mediumSpacing ] ++ hack_forceClip) <|
+        [ Element.column [ width fill, height fill, scrollbarY ]
             (withGroupedPlaylists <|
                 \connection playlistIds ->
                     Element.column [ width fill ] <|
@@ -859,8 +870,7 @@ connectView model connections canStep =
                     [ d.smallPaddingAll ]
     in
     column [ width fill, height fill, d.largeSpacing ]
-        [ paragraph [ d.largeText, Font.center ] [ text "Connect your favorite music providers" ]
-        , row [ d.smallSpacing, centerX, centerY ] <| List.map (serviceConnectButton model ToggleConnect) connections
+        [ row [ d.smallSpacing, centerX, centerY ] <| List.map (serviceConnectButton model ToggleConnect) connections
         , if canStep then
             el (width fill :: containerPadding) <|
                 stepFlowButton model [] "NEXT"
@@ -939,12 +949,114 @@ icon name =
 
 
 
+---- Wire
+
+
+dot : Bool -> Element msg
+dot active =
+    el
+        [ height (px 15)
+        , inFront <|
+            el
+                [ width (px 15)
+                , height (px 15)
+                , Bg.color palette.primary
+                , Border.rounded 8
+                , if active then
+                    delayedTransition 0.2 "transform"
+
+                  else
+                    transition "transform"
+                , Element.htmlAttribute (Html.classList [ ( "active-dot", active ), ( "inactive-dot", not active ) ])
+                ]
+                Element.none
+        ]
+        (el
+            [ width (px 12)
+            , height (px 12)
+            , centerY
+            , Bg.color palette.primaryFaded
+            , Border.rounded 8
+            ]
+            Element.none
+        )
+
+
+segment : Bool -> Element msg
+segment active =
+    el [ width fill, height (px 5) ] <|
+        el
+            [ height (px 4)
+            , width fill
+            , centerY
+            , Bg.color palette.primaryFaded
+            , inFront <|
+                el
+                    [ height (px 5)
+                    , width fill
+                    , Bg.color palette.primary
+                    , Border.rounded 2
+                    , if active then
+                        transition "transform"
+
+                      else
+                        delayedTransition 0.2 "transform"
+                    , Element.htmlAttribute (Html.classList [ ( "active-segment", active ), ( "inactive-segment", not active ) ])
+                    ]
+                    Element.none
+            ]
+            Element.none
+
+
+wire : Model -> Element Msg
+wire { flow } =
+    let
+        ( step, index ) =
+            Flow.currentStep flow
+
+        items =
+            [ dot True ] :: List.repeat index [ segment True, dot True ] ++ List.repeat (3 - index) [ segment False, dot False ]
+    in
+    row
+        [ spaceEvenly
+        , centerX
+        , above <| row [ paddingXY 78 10, width fill ] (List.flatten items)
+        , width fill
+        ]
+    <|
+        List.indexedMap
+            (\i s ->
+                el
+                    [ width (px 170)
+                    , Font.center
+                    , if i == index then
+                        delayedTransition 0.2 "color"
+
+                      else
+                        transition "color"
+                    , if i > index then
+                        Font.color palette.textFaded
+
+                      else
+                        Font.color palette.text
+                    ]
+                    (text s)
+            )
+            Flow.steps
+
+
+
 -- Styles
 
 
 transition : String -> Element.Attribute msg
 transition prop =
-    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease-out")
+    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease")
+
+
+delayedTransition : Float -> String -> Element.Attribute msg
+delayedTransition delay prop =
+    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease " ++ String.fromFloat delay ++ "s")
 
 
 baseButtonStyle : Element.Device -> ( Color, Color ) -> ( Color, Color ) -> List (Element.Attribute msg)
@@ -1081,7 +1193,7 @@ dimensions { device } =
                     ( scaled -2 |> round, scaled 1 |> round )
 
                 _ ->
-                    ( scaled 1 |> round, scaled 3 |> round )
+                    ( scaled -1 |> round, scaled 3 |> round )
     in
     case device.class of
         Phone ->
@@ -1151,6 +1263,7 @@ type alias ColorPalette =
     , white : Element.Color
     , black : Element.Color
     , text : Element.Color
+    , textHighlight : Element.Color
     , textFaded : Element.Color
     }
 
@@ -1183,6 +1296,7 @@ palette =
     , black = Element.rgb255 0 0 0
     , text = textColor
     , textFaded = textColor |> fade 0.17
+    , textHighlight = white
     }
 
 

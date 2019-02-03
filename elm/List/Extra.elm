@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenMaybe, find, ifNonEmpty, update, withDefault, zip)
+module List.Extra exposing (andThenMaybe, find, flatten, ifNonEmpty, update, withDefault, zip)
 
 import Basics.Extra exposing (uncurry)
 
@@ -60,3 +60,8 @@ find f list =
 zip : ( List a, List b ) -> List ( a, b )
 zip =
     uncurry (List.map2 Tuple.pair)
+
+
+flatten : List (List a) -> List a
+flatten =
+    List.foldl (\l flat -> flat ++ l) []

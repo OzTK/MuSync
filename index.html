@@ -20,6 +20,54 @@
     .hack_forceClip > s {
       flex-shrink: 1;
     }
+
+    @keyframes growX {
+      from {
+        transform: scaleX(0);
+      }
+
+      to {
+        transform: scaleX(1.01);
+      }
+    }
+
+    @keyframes shrinkX {
+      from {
+        transform: scaleX(1.01);
+      }
+
+      to {
+        transform: scaleX(0);
+      }
+    }
+
+    @keyframes grow {
+      from {
+        transform: scale(0, 0);
+      }
+
+      to {
+        transform: scale(1, 1);
+      }
+    }
+
+    .active-segment {
+      transform-origin: 0 0;
+      transform: scaleX(1.01);
+    }
+
+    .inactive-segment {
+      transform-origin: 0 0;
+      transform: scaleX(0);
+    }
+
+    .active-dot {
+      transform: scale(1);
+    }
+
+    .inactive-dot {
+      transform: scale(0);
+    }
   </style>
   <script async src="https://cdn.jsdelivr.net/npm/pwacompat@2.0.7/pwacompat.min.js"
     integrity="sha384-ptgwb3/v69WGur7IwSnWOowVxE7hcRB3DG/EiHdejrw2sFNwUHynFbiRMPxc4hdS"
