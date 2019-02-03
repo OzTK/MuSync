@@ -1043,7 +1043,7 @@ breadcrumb attrs model =
     in
     row
         ([ spaceEvenly
-         , htmlAttribute (Html.style "z-index" "initial")
+         , htmlAttribute (Html.style "z-index" "0 !important")
          , above <| row [ paddingXY paddingX 10, width fill ] (List.flatten items)
          ]
             ++ attrs
