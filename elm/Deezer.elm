@@ -175,8 +175,11 @@ singleTrack =
 
 corsProxy : String
 corsProxy =
-    -- "https://thingproxy.freeboard.io/fetch"
-    "https://cors-anywhere.herokuapp.com"
+    "https://thingproxy.freeboard.io/fetch"
+
+
+
+-- "https://cors-anywhere.herokuapp.com"
 
 
 endpoint : Endpoint Base

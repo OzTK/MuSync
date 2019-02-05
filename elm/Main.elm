@@ -15,6 +15,7 @@ import Element
         , above
         , alignBottom
         , alignLeft
+        , alignTop
         , alpha
         , centerX
         , centerY
@@ -290,10 +291,10 @@ view model =
         deviceStyle =
             case model.device.orientation of
                 Portrait ->
-                    []
+                    [ d.mediumSpacing ]
 
                 Landscape ->
-                    []
+                    [ d.mediumSpacing ]
     in
     Element.layoutWith
         { options =
@@ -313,13 +314,14 @@ view model =
         ]
     <|
         column
-            [ height fill
-            , width fill
-            , overlay model
-            , panel model
-            , clip
-            , d.mediumSpacing
-            ]
+            ([ height fill
+             , width fill
+             , overlay model
+             , panel model
+             , clip
+             ]
+                ++ deviceStyle
+            )
             [ el
                 [ Region.navigation
                 , width fill
@@ -503,7 +505,7 @@ header { device } =
                 [ centerX, width (px 150) ]
 
             _ ->
-                [ alignLeft, width (px 250) ]
+                [ alignLeft, width (px 200) ]
 
 
 panelDefaultStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -839,7 +841,10 @@ serviceConnectButton model tagger connection =
                 Untoggled
     in
     button
-        (htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection) :: squareToggleButtonStyle model buttonState)
+        (htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
+            :: squareToggleButtonStyle model buttonState
+            ++ [ alignTop ]
+        )
         { onPress =
             if Connection.isConnected connection then
                 Nothing
@@ -860,19 +865,28 @@ connectView model connections canStep =
         d =
             dimensions model
 
-        containerPadding =
+        ( containerPadding, servicesContainerStyle, buttonStyle ) =
             case model.device.orientation of
                 Portrait ->
-                    []
+                    ( [], [], [] )
 
                 Landscape ->
-                    [ d.smallPaddingAll ]
+                    ( [ d.smallPaddingAll ]
+                    , [ Border.dashed
+                      , Border.color palette.ternaryFaded
+                      , Border.width 3
+                      , height fill
+                      , width (fill |> maximum 800)
+                      ]
+                    , [ Border.rounded 8 ]
+                    )
     in
-    column [ width fill, height fill, d.largeSpacing ]
-        [ row [ d.smallSpacing, centerX, centerY ] <| List.map (serviceConnectButton model ToggleConnect) connections
+    column [ width fill, height fill, d.mediumSpacing ]
+        [ row ([ d.smallSpacing, d.mediumPaddingAll, centerX, centerY ] ++ servicesContainerStyle) <|
+            List.map (serviceConnectButton model ToggleConnect) connections
         , if canStep then
             el (width fill :: containerPadding) <|
-                stepFlowButton model [] "NEXT"
+                stepFlowButton model [] "Next"
 
           else
             el (d.buttonHeight :: containerPadding) Element.none
@@ -1124,7 +1138,7 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
 
 primaryButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
 primaryButtonStyle { device } =
-    baseButtonStyle device ( palette.secondary, palette.white ) ( palette.secondary, palette.white )
+    baseButtonStyle device ( palette.secondaryFaded, palette.white ) ( palette.secondary, palette.white )
 
 
 disabledButtonStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -1146,7 +1160,7 @@ squareToggleButtonStyle model state =
     in
     [ d.largePadding
     , Bg.color palette.white
-    , Border.rounded 3
+    , Border.rounded 12
     , transition "box-shadow"
     , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
     ]
@@ -1315,7 +1329,7 @@ palette =
     { primary = Element.rgb255 220 94 93
     , primaryFaded = Element.rgba255 220 94 93 0.1
     , secondary = secondary
-    , secondaryFaded = secondary |> fade 0.2
+    , secondaryFaded = secondary |> fade 0.7
     , ternary = ternary
     , ternaryFaded = ternary |> fade 0.2
     , quaternary = Element.rgb255 189 199 79
