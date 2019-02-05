@@ -1,6 +1,6 @@
 module Element.Extra exposing (noAttr)
 
-import Element exposing (htmlAttribute)
+import Element exposing (Color, htmlAttribute)
 import Html.Attributes as Html
 
 

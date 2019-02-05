@@ -326,9 +326,13 @@ view model =
                 [ Region.navigation
                 , width fill
                 , d.smallPaddingAll
+                , Border.color palette.ternaryFaded
+                , Bg.color palette.primaryFaded
+                , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
                 ]
                 (header model)
-            , breadcrumb [ width (fill |> maximum 800), centerX ] model
+            , el [ paddingEach { top = d.mediumPadding, left = 0, right = 0, bottom = d.smallPadding }, width fill ] <|
+                breadcrumb [ width (fill |> maximum 800), centerX ] model
             , el
                 ([ Region.mainContent
                  , width fill
@@ -502,10 +506,10 @@ header { device } =
                 [ centerX, width (px 80) ]
 
             ( Tablet, Portrait ) ->
-                [ centerX, width (px 150) ]
+                [ centerX, width (px 100) ]
 
             _ ->
-                [ alignLeft, width (px 200) ]
+                [ alignLeft, width (px 150) ]
 
 
 panelDefaultStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -852,7 +856,7 @@ serviceConnectButton model tagger connection =
             else
                 Just <| tagger connection
         , label =
-            column [ d.smallSpacing, d.smallHPadding ]
+            column [ d.xSmallSpacing, d.smallHPadding ]
                 [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
                 , connectionStatus <| Connection.isConnected connection
                 ]
@@ -872,9 +876,10 @@ connectView model connections canStep =
 
                 Landscape ->
                     ( [ d.smallPaddingAll ]
-                    , [ Border.dashed
+                    , [ Border.dotted
                       , Border.color palette.ternaryFaded
                       , Border.width 3
+                      , Border.rounded 8
                       , height fill
                       , width (fill |> maximum 800)
                       ]
@@ -886,7 +891,7 @@ connectView model connections canStep =
             List.map (serviceConnectButton model ToggleConnect) connections
         , if canStep then
             el (width fill :: containerPadding) <|
-                stepFlowButton model [] "Next"
+                stepFlowButton model buttonStyle "Next"
 
           else
             el (d.buttonHeight :: containerPadding) Element.none
@@ -1160,9 +1165,9 @@ squareToggleButtonStyle model state =
     in
     [ d.largePadding
     , Bg.color palette.white
-    , Border.rounded 12
+    , Border.rounded 8
     , transition "box-shadow"
-    , Border.shadow { offset = ( 0, 0 ), blur = 3, size = 1, color = palette.text }
+    , Border.shadow { offset = ( 0, 0 ), blur = 0, size = 0, color = palette.text |> fade 0.5 }
     ]
         ++ (case state of
                 Toggled ->
@@ -1170,7 +1175,7 @@ squareToggleButtonStyle model state =
 
                 Untoggled ->
                     [ mouseDown [ Border.glow palette.text 1 ]
-                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 12, size = 1, color = palette.text } ]
+                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 1, size = 1, color = palette.text |> fade 0.5 } ]
                     ]
 
                 Disabled ->
@@ -1207,6 +1212,7 @@ type alias DimensionPalette msg =
     , smallText : Element.Attribute msg
     , mediumText : Element.Attribute msg
     , largeText : Element.Attribute msg
+    , xSmallSpacing : Element.Attribute msg
     , smallSpacing : Element.Attribute msg
     , mediumSpacing : Element.Attribute msg
     , largeSpacing : Element.Attribute msg
@@ -1243,6 +1249,7 @@ dimensions { device } =
             , smallText = scaled -1 |> round |> Font.size
             , mediumText = scaled 1 |> round |> Font.size
             , largeText = scaled 2 |> round |> Font.size
+            , xSmallSpacing = scaled -2 |> round |> spacing
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 5 |> round |> spacing
@@ -1266,6 +1273,7 @@ dimensions { device } =
             , smallText = scaled 1 |> round |> Font.size
             , mediumText = scaled 2 |> round |> Font.size
             , largeText = scaled 3 |> round |> Font.size
+            , xSmallSpacing = scaled -2 |> round |> spacing
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 9 |> round |> spacing
@@ -1301,6 +1309,7 @@ type alias ColorPalette =
     , ternary : Element.Color
     , ternaryFaded : Element.Color
     , quaternary : Element.Color
+    , quaternaryFaded : Element.Color
     , transparentWhite : Element.Color
     , transparent : Element.Color
     , white : Element.Color
@@ -1325,6 +1334,9 @@ palette =
 
         ternary =
             Element.rgb255 248 160 116
+
+        quaternary =
+            Element.rgb255 189 199 79
     in
     { primary = Element.rgb255 220 94 93
     , primaryFaded = Element.rgba255 220 94 93 0.1
@@ -1332,7 +1344,8 @@ palette =
     , secondaryFaded = secondary |> fade 0.7
     , ternary = ternary
     , ternaryFaded = ternary |> fade 0.2
-    , quaternary = Element.rgb255 189 199 79
+    , quaternary = quaternary
+    , quaternaryFaded = quaternary |> fade 0.2
     , transparent = Element.rgba255 255 255 255 0
     , white = white
     , transparentWhite = white |> fade 0.7
