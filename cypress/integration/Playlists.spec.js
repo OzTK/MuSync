@@ -3,7 +3,7 @@ describe('Connecting a music provider and displaying its playlists', () => {
     cy.visit('/')
       .connectProvider('Deezer')
       .connectProvider('Spotify')
-    cy.contains('NEXT').click()
+    cy.contains('Next').click()
   })
 
   it('displays playlists from a connected provider', () => {
