@@ -35,13 +35,13 @@ describe('Visiting the website and connecting music providers', () => {
   it('displays a next button if both providers are connected', () => {
     cy.visit('/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600')
     cy.visit('/?service=Deezer#access_token=987654321&token_type=Bearer&expires_in=3600')
-    cy.contains('NEXT').parent().should('have.attr', 'role', 'button')
+    cy.contains('Next').parent().should('have.attr', 'role', 'button')
   })
 
   it('Clicking the next button goes to the loading screen', () => {
     cy.visit('/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600')
     cy.visit('/?service=Deezer#access_token=987654321&token_type=Bearer&expires_in=3600')
-    cy.contains('NEXT').click()
+    cy.contains('Next').click()
     cy.contains('Deezer').should('exist')
     cy.contains('Spotify').should('exist')
   })
