@@ -3,10 +3,10 @@ describe('when connecting a second provider', () => {
         cy.visit('/')
           .connectProvider('Spotify')
           .connectProvider('Deezer')
-        cy.contains('NEXT')
+        cy.contains('Next')
           .click()
           .withPlaylists('Spotify').first().click()
-        cy.contains('NEXT').click()
+        cy.contains('Next').click()
     })
 
     it('Picks another provider', () => {
