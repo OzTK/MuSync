@@ -553,7 +553,7 @@ transferConfigStep1 model { name } =
     panelContainer model
         (Just "Transfer playlist")
         [ paragraph ([ height fill, clip, scrollbarY ] ++ panelDefaultStyle model ++ hack_forceClip) [ text name ]
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "NEXT" }
+        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Next" }
         ]
 
 
