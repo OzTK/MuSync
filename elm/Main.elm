@@ -291,10 +291,10 @@ view model =
         deviceStyle =
             case model.device.orientation of
                 Portrait ->
-                    [ d.mediumSpacing ]
+                    []
 
                 Landscape ->
-                    [ d.mediumSpacing ]
+                    [ d.smallSpacing ]
     in
     Element.layoutWith
         { options =
@@ -331,13 +331,12 @@ view model =
                 , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
                 ]
                 (header model)
-            , el [ paddingEach { top = d.mediumPadding, left = 0, right = 0, bottom = d.smallPadding }, width fill ] <|
+            , el [ paddingEach { top = 32, left = 0, right = 0, bottom = 0 }, width fill ] <|
                 breadcrumb [ width (fill |> maximum 800), centerX ] model
             , el
                 ([ Region.mainContent
                  , width fill
                  , height fill
-                 , clip
                  ]
                     ++ hack_forceClip
                 )
@@ -706,20 +705,24 @@ transferConfigStep4Warnings model report =
 playlistRow :
     Model
     -> (PlaylistId -> msg)
+    -> ConnectedProvider
     -> ( Playlist, PlaylistState )
     -> Element msg
-playlistRow model tagger ( playlist, state ) =
+playlistRow model tagger connection ( playlist, state ) =
     let
         d =
             dimensions model
 
         isSelected =
-            model.flow |> Flow.selectedPlaylist model |> Maybe.map (Tuple.first >> .id >> (==) playlist.id) |> Maybe.withDefault False
+            model.flow
+                |> Flow.selectedPlaylist model
+                |> Maybe.map (Tuple.first >> .id >> (==) playlist.id)
+                |> Maybe.withDefault False
     in
     button
         ([ width fill
          , clip
-         , Border.widthEach { top = 1, left = 0, right = 0, bottom = 0 }
+         , Border.widthEach { top = 0, left = 0, right = 0, bottom = 1 }
          , Border.color palette.primaryFaded
          , d.smallPaddingAll
          , transition "background"
@@ -734,10 +737,9 @@ playlistRow model tagger ( playlist, state ) =
         { onPress = Just <| tagger playlist.id
         , label =
             row [ width fill, d.smallSpacing ] <|
-                [ el ([ width fill, clip ] ++ hack_textEllipsis) <|
-                    Element.html <|
-                        Html.text <|
-                            Playlist.summary playlist
+                [ providerLogoOrName [ width (px 28) ] (MusicService.type_ connection)
+                , el ([ width fill, clip ] ++ hack_textEllipsis) <|
+                    text (Playlist.summary playlist)
                 , if Ctx.isPlaylistTransferring state then
                     Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
 
@@ -776,6 +778,25 @@ playlistsList model playlists =
         d =
             dimensions model
 
+        ( tableStyle, containerStyle, headerStyle ) =
+            case model.device.orientation of
+                Portrait ->
+                    ( [ width fill ]
+                    , []
+                    , [ Border.shadow { offset = ( 0, 2 ), size = -7, blur = 14, color = palette.text } ]
+                    )
+
+                Landscape ->
+                    ( [ width (fill |> maximum 1024)
+                      , Border.solid
+                      , Border.rounded 5
+                      , Border.color palette.quaternaryFaded
+                      , Border.shadow { offset = ( 0, 2 ), size = 0, blur = 10, color = palette.text }
+                      ]
+                    , [ paddingEach { bottom = d.mediumPadding, top = 0, left = 0, right = 0 } ]
+                    , [ Border.solid ]
+                    )
+
         withGroupedPlaylists f =
             playlists
                 |> Dict.keys
@@ -787,22 +808,28 @@ playlistsList model playlists =
                 |> Dict.map f
                 |> Dict.values
     in
-    Element.column ([ width fill, height fill, centerX, clip, d.mediumSpacing ] ++ hack_forceClip) <|
-        [ Element.column [ width fill, height fill, scrollbarY ]
-            (withGroupedPlaylists <|
-                \connection playlistIds ->
-                    Element.column [ width fill ] <|
-                        (Element.el [ width fill, d.mediumText, d.smallPaddingAll, Bg.color palette.ternary ] <|
-                            text <|
-                                MusicService.connectionToString connection
-                        )
-                            :: (playlistIds
-                                    |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
-                                    |> List.map (playlistRow model <| TogglePlaylistSelected connection)
-                                    |> List.withDefault [ text "No tracks" ]
-                               )
-            )
-        ]
+    el ([ height fill, width fill, centerX, hack_forceSticky ] ++ containerStyle ++ hack_forceClip) <|
+        column ([ height fill, centerX, hack_forceSticky ] ++ hack_forceClip ++ tableStyle)
+            [ el
+                ([ width fill
+                 , paddingXY d.smallPadding d.mediumPadding
+                 , d.mediumText
+                 , Border.color palette.textFaded
+                 , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
+                 ]
+                    ++ headerStyle
+                )
+                (text "Playlists")
+            , column [ height fill, width fill, scrollbarY ] <|
+                withGroupedPlaylists <|
+                    \connection playlistIds ->
+                        Element.column [ width fill ] <|
+                            (playlistIds
+                                |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+                                |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
+                                |> List.withDefault [ text "No tracks" ]
+                            )
+            ]
 
 
 connectionStatus : Bool -> Element msg
@@ -1166,16 +1193,21 @@ squareToggleButtonStyle model state =
     [ d.largePadding
     , Bg.color palette.white
     , Border.rounded 8
+    , Border.width 1
+    , Border.color palette.transparent
     , transition "box-shadow"
-    , Border.shadow { offset = ( 0, 0 ), blur = 0, size = 0, color = palette.text |> fade 0.5 }
+    , transition "border"
     ]
         ++ (case state of
                 Toggled ->
                     [ Border.innerGlow palette.text 1 ]
 
                 Untoggled ->
-                    [ mouseDown [ Border.glow palette.text 1 ]
-                    , mouseOver [ Border.shadow { offset = ( 0, 0 ), blur = 1, size = 1, color = palette.text |> fade 0.5 } ]
+                    [ mouseDown [ Border.innerGlow palette.text 1 ]
+                    , mouseOver
+                        [ -- Border.shadow { offset = ( 0, 0 ), blur = 1, size = 1, color = palette.text |> fade 0.5,
+                          Border.color (palette.text |> fade 0.5)
+                        ]
                     ]
 
                 Disabled ->
@@ -1195,6 +1227,11 @@ hack_forceClip =
 hack_textEllipsis : List (Element.Attribute msg)
 hack_textEllipsis =
     [ htmlAttribute <| Html.style "text-overflow" "ellipsis", htmlAttribute <| Html.style "display" "inline-block" ]
+
+
+hack_forceSticky : Element.Attribute msg
+hack_forceSticky =
+    htmlAttribute <| Html.style "position" "sticky"
 
 
 
@@ -1268,10 +1305,10 @@ dimensions { device } =
             }
 
         _ ->
-            { xxSmallText = scaled -2 |> round |> Font.size
-            , xSmallText = scaled -1 |> round |> Font.size
-            , smallText = scaled 1 |> round |> Font.size
-            , mediumText = scaled 2 |> round |> Font.size
+            { xxSmallText = scaled -3 |> round |> Font.size
+            , xSmallText = scaled -2 |> round |> Font.size
+            , smallText = scaled -1 |> round |> Font.size
+            , mediumText = scaled 1 |> round |> Font.size
             , largeText = scaled 3 |> round |> Font.size
             , xSmallSpacing = scaled -2 |> round |> spacing
             , smallSpacing = scaled 1 |> round |> spacing

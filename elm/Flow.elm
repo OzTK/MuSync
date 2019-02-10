@@ -176,7 +176,7 @@ currentStep flow =
             ( "Pick playlist", 1 )
 
         PickOtherConnection _ ->
-            ( "Pick connection", 2 )
+            ( "Pick destination", 2 )
 
         Transfer _ ->
             ( "Transfer", 3 )
@@ -184,7 +184,7 @@ currentStep flow =
 
 steps : List String
 steps =
-    [ "Connect", "Pick playlist", "Pick connection", "Transfer" ]
+    [ "Connect", "Pick playlist", "Pick destination", "Transfer" ]
 
 
 
