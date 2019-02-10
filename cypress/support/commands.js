@@ -17,7 +17,11 @@ Cypress.Commands.add(
 Cypress.Commands.add(
   "withPlaylists",
   (providerName) =>
-    cy.contains(providerName).parent().nextAll()
+    cy.contains('Playlists')
+      .parent()
+      .next()
+      .get('div[role=button]')
+      .within(() => cy.get(`img[alt=${providerName}]`).length === 1)
 )
 
 Cypress.Commands.add(

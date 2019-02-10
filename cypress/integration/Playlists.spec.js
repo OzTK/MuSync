@@ -7,15 +7,19 @@ describe('Connecting a music provider and displaying its playlists', () => {
   })
 
   it('displays playlists from a connected provider', () => {
-    cy.contains('Spotify')
-      .should('exist')
+    cy.contains('Playlists')
       .parent()
-      .nextAll('div')
-      .should('have.length', 4)
+      .next()
+      .get('div[role=button]')
+      .should('have.length', 8)
   })
 
   it('selects a playlist when clicking on it', () => {
-    cy.contains('Spotify').parent().nextAll('div').as('playlists')
+    cy.contains('Playlists')
+      .parent()
+      .next()
+      .get('div[role=button]')
+      .as('playlists')
 
     cy.get('@playlists').first().click()
     cy.contains('Transfer playlist').parent().parent().find('p').should('contain', 'Chouchou')

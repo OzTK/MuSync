@@ -10,7 +10,7 @@ describe('when connecting a second provider', () => {
     })
 
     it('Picks another provider', () => {
-        cy.get('img[alt=Deezer]').click()
+        cy.contains('Transfer to').parent().closest('div').find('img[alt=Deezer]').click()
         cy.contains('GO!').should('exist')
     })
 
