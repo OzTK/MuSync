@@ -1,6 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (const)
+import Basics.Extra exposing (apply, const)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
@@ -288,13 +288,13 @@ view model =
         d =
             dimensions model
 
-        deviceStyle =
+        ( bodyStyle, mainContentStyle ) =
             case model.device.orientation of
                 Portrait ->
-                    []
+                    ( [], [] )
 
                 Landscape ->
-                    [ d.smallSpacing ]
+                    ( [ d.smallSpacing ], [ paddingXY d.mediumPadding 0 ] )
     in
     Element.layoutWith
         { options =
@@ -320,7 +320,7 @@ view model =
              , panel model
              , clip
              ]
-                ++ deviceStyle
+                ++ bodyStyle
             )
             [ el
                 [ Region.navigation
@@ -339,6 +339,7 @@ view model =
                  , height fill
                  ]
                     ++ hack_forceClip
+                    ++ mainContentStyle
                 )
                 (routeMainView model)
             ]
@@ -480,7 +481,7 @@ panel ({ device, flow } as model) =
                         ++ hack_forceClip
     in
     panelPositioner <|
-        el (panelStyle ++ [ Bg.color palette.white, transition "transform" ]) <|
+        el (panelStyle ++ [ Bg.color palette.white, transition [ "transform" ] ]) <|
             routePanel model
 
 
@@ -488,7 +489,7 @@ overlay : Model -> Element.Attribute Msg
 overlay ({ flow } as model) =
     let
         attrs =
-            [ height fill, width fill, transition "background-color", mouseDown [] ]
+            [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
     in
     flow
         |> Flow.selectedPlaylist model
@@ -724,8 +725,8 @@ playlistRow model tagger connection ( playlist, state ) =
          , clip
          , Border.widthEach { top = 0, left = 0, right = 0, bottom = 1 }
          , Border.color palette.primaryFaded
-         , d.smallPaddingAll
-         , transition "background"
+         , paddingXY d.smallPadding d.xSmallPadding
+         , transition [ "background" ]
          ]
             ++ (if isSelected then
                     [ Bg.color palette.ternaryFaded, Border.innerGlow palette.textFaded 1 ]
@@ -809,7 +810,17 @@ playlistsList model playlists =
                 |> Dict.values
     in
     el ([ height fill, width fill, centerX, hack_forceSticky ] ++ containerStyle ++ hack_forceClip) <|
-        column ([ height fill, centerX, hack_forceSticky ] ++ hack_forceClip ++ tableStyle)
+        column
+            ([ height fill
+             , centerX
+             , inFront <|
+                el [ d.smallPaddingAll, Bg.color (palette.transparentWhite 0.9), width fill, alignBottom ] <|
+                    text ((Dict.size >> String.fromInt) playlists ++ " playlists in your library")
+             , hack_forceSticky
+             ]
+                ++ tableStyle
+                ++ hack_forceClip
+            )
             [ el
                 ([ width fill
                  , paddingXY d.smallPadding d.mediumPadding
@@ -821,7 +832,7 @@ playlistsList model playlists =
                 )
                 (text "Playlists")
             , column [ height fill, width fill, scrollbarY ] <|
-                withGroupedPlaylists <|
+                (withGroupedPlaylists <|
                     \connection playlistIds ->
                         Element.column [ width fill ] <|
                             (playlistIds
@@ -829,6 +840,8 @@ playlistsList model playlists =
                                 |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
                                 |> List.withDefault [ text "No tracks" ]
                             )
+                )
+                    ++ [ el [ paddingEach { top = d.mediumPadding, bottom = d.smallPadding, left = 0, right = 0 } ] Element.none ]
             ]
 
 
@@ -1022,7 +1035,7 @@ dot size active =
                     delayedTransition 0.2 "transform"
 
                   else
-                    transition "transform"
+                    transition [ "transform" ]
                 , Element.htmlAttribute (Html.classList [ ( "active-dot", active ), ( "inactive-dot", not active ) ])
                 ]
         ]
@@ -1051,7 +1064,7 @@ segment size active =
                 [ centerY
                 , Bg.color palette.primary
                 , Border.rounded 2
-                , transition "transform"
+                , transition [ "transform" ]
                 , Element.htmlAttribute (Html.classList [ ( "active-segment", active ), ( "inactive-segment", not active ) ])
                 ]
         ]
@@ -1104,7 +1117,7 @@ breadcrumb attrs model =
                         delayedTransition 0.2 "color"
 
                       else
-                        transition "color"
+                        transition [ "color" ]
                     , if i > index then
                         Font.color palette.textFaded
 
@@ -1121,9 +1134,14 @@ breadcrumb attrs model =
 -- Styles
 
 
-transition : String -> Element.Attribute msg
-transition prop =
-    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease")
+transition : List String -> Element.Attribute msg
+transition props =
+    props
+        |> String.join " .2s ease,"
+        |> (++)
+        |> apply " .2s ease"
+        |> Html.style "transition"
+        |> htmlAttribute
 
 
 delayedTransition : Float -> String -> Element.Attribute msg
@@ -1157,8 +1175,7 @@ baseButtonStyle device ( bgColor, textColor ) ( bgHoverColor, textHoverColor ) =
     , alignBottom
     , Font.center
     , Font.semiBold
-    , transition "box-shadow"
-    , transition "background"
+    , transition [ "box-shadow", "background" ]
     , mouseOver
         [ Bg.color bgHoverColor
         , Font.color textHoverColor
@@ -1195,8 +1212,7 @@ squareToggleButtonStyle model state =
     , Border.rounded 8
     , Border.width 1
     , Border.color palette.transparent
-    , transition "box-shadow"
-    , transition "border"
+    , transition [ "box-shadow", "border" ]
     ]
         ++ (case state of
                 Toggled ->
@@ -1253,6 +1269,7 @@ type alias DimensionPalette msg =
     , smallSpacing : Element.Attribute msg
     , mediumSpacing : Element.Attribute msg
     , largeSpacing : Element.Attribute msg
+    , xSmallPadding : Int
     , smallPadding : Int
     , smallPaddingAll : Element.Attribute msg
     , smallHPadding : Element.Attribute msg
@@ -1271,13 +1288,13 @@ type alias DimensionPalette msg =
 dimensions : { m | device : Element.Device } -> DimensionPalette msg
 dimensions { device } =
     let
-        ( smallPadding, mediumPadding ) =
+        ( xSmallPadding, smallPadding, mediumPadding ) =
             case device.class of
                 Phone ->
-                    ( scaled -2 |> round, scaled 1 |> round )
+                    ( scaled -3 |> round, scaled -2 |> round, scaled 1 |> round )
 
                 _ ->
-                    ( scaled -1 |> round, scaled 3 |> round )
+                    ( scaled -2 |> round, scaled -1 |> round, scaled 3 |> round )
     in
     case device.class of
         Phone ->
@@ -1290,6 +1307,7 @@ dimensions { device } =
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 5 |> round |> spacing
+            , xSmallPadding = smallPadding
             , smallPadding = smallPadding
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
@@ -1314,6 +1332,7 @@ dimensions { device } =
             , smallSpacing = scaled 1 |> round |> spacing
             , mediumSpacing = scaled 3 |> round |> spacing
             , largeSpacing = scaled 9 |> round |> spacing
+            , xSmallPadding = xSmallPadding
             , smallPadding = smallPadding
             , smallPaddingAll = padding smallPadding
             , smallHPadding = paddingXY smallPadding 0
@@ -1347,7 +1366,7 @@ type alias ColorPalette =
     , ternaryFaded : Element.Color
     , quaternary : Element.Color
     , quaternaryFaded : Element.Color
-    , transparentWhite : Element.Color
+    , transparentWhite : Float -> Element.Color
     , transparent : Element.Color
     , white : Element.Color
     , black : Element.Color
@@ -1385,7 +1404,7 @@ palette =
     , quaternaryFaded = quaternary |> fade 0.2
     , transparent = Element.rgba255 255 255 255 0
     , white = white
-    , transparentWhite = white |> fade 0.7
+    , transparentWhite = \t -> white |> fade t
     , black = Element.rgb255 0 0 0
     , text = textColor
     , textFaded = textColor |> fade 0.17
