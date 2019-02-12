@@ -339,6 +339,7 @@ view model =
                 ([ Region.mainContent
                  , width fill
                  , height fill
+                 , clip
                  ]
                     ++ hack_forceClip
                     ++ mainContentStyle
@@ -810,10 +811,11 @@ playlistsList model playlists =
                 |> Dict.map f
                 |> Dict.values
     in
-    el ([ height fill, width fill, centerX, hack_forceSticky ] ++ containerStyle ++ hack_forceClip) <|
+    el ([ height fill, width fill, clip, centerX, hack_forceSticky ] ++ containerStyle ++ hack_forceClip) <|
         column
             ([ height fill
              , centerX
+             , clip
              , inFront <|
                 el [ d.smallPaddingAll, Bg.color (palette.transparentWhite 0.9), width fill, alignBottom ] <|
                     text ((Dict.size >> String.fromInt) playlists ++ " playlists in your library")
