@@ -796,7 +796,7 @@ playlistsList model playlists =
                       , Border.color palette.quaternaryFaded
                       , Border.shadow { offset = ( 0, 2 ), size = 0, blur = 10, color = palette.text }
                       ]
-                    , [ paddingEach { bottom = d.mediumPadding, top = 0, left = 0, right = 0 } ]
+                    , [ paddingEach { bottom = d.mediumPadding, top = d.smallPadding, left = 0, right = 0 } ]
                     , [ Border.solid ]
                     )
 
