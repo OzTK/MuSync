@@ -60,6 +60,7 @@ import Element.Region as Region
 import Flow exposing (ConnectionSelection(..), Flow(..), PlaylistSelectionState(..))
 import Flow.Context as Ctx exposing (PlaylistState, PlaylistsDict)
 import Graphics.Logo as Logo
+import Graphics.Note
 import Graphics.Palette exposing (fade, palette)
 import Html exposing (Html)
 import Html.Attributes as Html
@@ -969,7 +970,7 @@ logo attrs isAnimated =
 
 note : List (Element.Attribute msg) -> Element msg
 note attrs =
-    image attrs { src = "assets/img/Note.svg", description = "" }
+    html <| Graphics.Note.view
 
 
 providerName : MusicService -> String
