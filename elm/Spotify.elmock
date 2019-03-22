@@ -5,7 +5,6 @@ port module Spotify exposing
     , getPlaylistTracksFromLink
     , getPlaylists
     , getUserInfo
-    , importPlaylist
     , onConnected
     , searchTrackByISRC
     , searchTrackByName
@@ -14,25 +13,26 @@ port module Spotify exposing
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import Task exposing (Task)
+import TestUtils
 import Track exposing (IdentifiedTrack, Track)
 import UserInfo exposing (UserInfo)
 
 
 getUserInfo : String -> Task Never (WebData UserInfo)
-getUserInfo token =
+getUserInfo _ =
     UserInfo "1" "Test User"
         |> RemoteData.succeed
         |> Task.succeed
 
 
 searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
-searchTrackByName token t =
+searchTrackByName _ t =
     Task.succeed (Success <| Just t)
 
 
 searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
-searchTrackByISRC token t =
-    Task.succeed (Success <| Just (Track.asTrack t))
+searchTrackByISRC _ t =
+    Task.succeed (Success <| Just (TestUtils.asTrack t))
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))
@@ -69,13 +69,6 @@ getPlaylistTracksFromLink _ _ =
 addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
 addSongsToPlaylist _ _ _ =
     Task.succeed <| Success ()
-
-
-importPlaylist : String -> String -> List Track -> String -> Task Never (WebData Playlist)
-importPlaylist _ _ songs name =
-    Playlist "1" name "http://myplaylist" 5
-        |> RemoteData.succeed
-        |> Task.succeed
 
 
 
