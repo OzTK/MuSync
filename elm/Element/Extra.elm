@@ -1,13 +1,7 @@
-module Element.Extra exposing (noAttr, toHex)
+module Element.Extra exposing (toHex)
 
-import Element exposing (Color, htmlAttribute)
+import Element exposing (Color)
 import Hex
-import Html.Attributes as Html
-
-
-noAttr : Element.Attribute msg
-noAttr =
-    htmlAttribute (Html.attribute "" "")
 
 
 

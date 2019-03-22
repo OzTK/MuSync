@@ -2,13 +2,11 @@ module Connection exposing
     ( ProviderConnection(..)
     , asConnected
     , connected
-    , connectedWithToken
     , connecting
     , disconnected
     , fromConnected
     , fromDisconnected
     , isConnected
-    , isConnecting
     , map
     , toggleProviderConnect
     , type_
@@ -54,11 +52,6 @@ connected pType userInfo =
     Connected <| P.connected pType userInfo
 
 
-connectedWithToken : MusicService -> OAuthToken -> WebData UserInfo -> ProviderConnection
-connectedWithToken pType token user =
-    Connected <| P.connectedWithToken pType token user
-
-
 disconnected : MusicService -> ProviderConnection
 disconnected =
     Disconnected << P.disconnected
@@ -83,16 +76,6 @@ isConnected : ProviderConnection -> Bool
 isConnected connection =
     case connection of
         Connected _ ->
-            True
-
-        _ ->
-            False
-
-
-isConnecting : ProviderConnection -> Bool
-isConnecting connection =
-    case connection of
-        Connecting _ ->
             True
 
         _ ->

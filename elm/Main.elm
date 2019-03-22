@@ -5,7 +5,6 @@ import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
 import Dict.Any as Dict exposing (AnyDict)
-import Dict.Any.Extra as Dict
 import Element
     exposing
         ( Color
@@ -16,7 +15,6 @@ import Element
         , alignBottom
         , alignLeft
         , alignTop
-        , alpha
         , centerX
         , centerY
         , clip
@@ -53,7 +51,6 @@ import Element
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
-import Element.Extra as Element
 import Element.Font as Font
 import Element.Input exposing (button)
 import Element.Region as Region
@@ -64,8 +61,6 @@ import Graphics.Note
 import Graphics.Palette exposing (fade, palette)
 import Html exposing (Html)
 import Html.Attributes as Html
-import Html.Events as Html
-import Html.Events.Extra as Html
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
@@ -77,7 +72,7 @@ import Result.Extra as Result
 import SelectableList exposing (SelectableList)
 import Task
 import Track
-import Tuple exposing (pair)
+import Tuple
 import UserInfo exposing (UserInfo)
 
 
@@ -968,8 +963,8 @@ logo attrs isAnimated =
         image attrs { src = "assets/img/Logo.svg", description = "MuSync logo" }
 
 
-note : List (Element.Attribute msg) -> Element msg
-note attrs =
+note : Element msg
+note =
     html <| Graphics.Note.view
 
 
@@ -1094,7 +1089,7 @@ breadcrumb attrs model =
                 _ ->
                     { labelWidth = 170, paddingX = 78, fontSize = d.smallText, dotSize = 15, segSize = 5 }
 
-        ( step, index ) =
+        index =
             Flow.currentStep model.flow
 
         bigSpot =

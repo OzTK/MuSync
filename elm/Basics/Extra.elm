@@ -1,4 +1,4 @@
-module Basics.Extra exposing (apply, const, flip, iif, uncurry)
+module Basics.Extra exposing (apply, const, flip, uncurry)
 
 
 flip : (a -> b -> c) -> b -> a -> c
@@ -19,12 +19,3 @@ uncurry f ( a, b ) =
 apply : a -> (a -> b) -> b
 apply a f =
     f a
-
-
-iif : ret -> ret -> Bool -> ret
-iif whenTrue whenFalse test =
-    if test then
-        whenTrue
-
-    else
-        whenFalse

@@ -11,7 +11,6 @@ module ApiClient exposing
     , chain
     , chain2
     , endpointFromLink
-    , endpointToString
     , fullAsAny
     , fullQueryAsAny
     , get
@@ -19,7 +18,6 @@ module ApiClient exposing
     , map
     , post
     , queryEndpoint
-    , recover
     )
 
 import Dict
@@ -144,16 +142,6 @@ fullQueryAsAny =
     FullWithQuery
 
 
-endpointToString : AnyFullEndpoint -> String
-endpointToString endpoint =
-    case endpoint of
-        FullNoQuery (Endpoint url) ->
-            url
-
-        FullWithQuery (Endpoint url) ->
-            url
-
-
 appendPath : String -> AnyFullEndpoint -> AnyFullEndpoint
 appendPath segment endpoint =
     case endpoint of
@@ -258,19 +246,3 @@ chain2 f task1 task2 =
                     _ ->
                         Task.succeed NotAsked
             )
-
-
-recover : (Http.Error -> Task e (WebData a)) -> Task e (WebData a) -> Task e (WebData a)
-recover recovFn =
-    Task.andThen
-        (\data ->
-            case data of
-                Success _ ->
-                    Task.succeed data
-
-                Failure err ->
-                    recovFn err
-
-                _ ->
-                    Task.succeed data
-        )

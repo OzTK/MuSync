@@ -18,12 +18,10 @@ module Flow exposing
 import Dict.Any as Dict
 import Flow.Context as Context exposing (Context, PlaylistState)
 import List.Connection as Connections
-import List.Extra as List
-import Maybe.Extra as Maybe
 import MusicService exposing (ConnectedProvider)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
-import Tuple exposing (pair, second)
+import Tuple exposing (pair)
 
 
 type alias ConnectionsWithLoadingPlaylists =
@@ -163,23 +161,23 @@ next ({ connections, playlists } as ctx) flow =
             ( PickPlaylist <| PlaylistSelection NoPlaylist, ctx )
 
 
-currentStep : Flow -> ( String, Int )
+currentStep : Flow -> Int
 currentStep flow =
     case flow of
         Connect ->
-            ( "Connect", 0 )
+            0
 
         LoadPlaylists _ ->
-            ( "Connect", 0 )
+            0
 
         PickPlaylist _ ->
-            ( "Pick playlist", 1 )
+            1
 
         PickOtherConnection _ ->
-            ( "Pick destination", 2 )
+            2
 
         Transfer _ ->
-            ( "Transfer", 3 )
+            3
 
 
 steps : List String

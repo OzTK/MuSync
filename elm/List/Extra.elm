@@ -1,4 +1,4 @@
-module List.Extra exposing (andThenMaybe, find, flatten, ifNonEmpty, update, withDefault, zip)
+module List.Extra exposing (find, flatten, update, withDefault, zip)
 
 import Basics.Extra exposing (uncurry)
 
@@ -9,25 +9,6 @@ withDefault placeholderList list =
         placeholderList
 
     else
-        list
-
-
-ifNonEmpty : (List a -> List a) -> List a -> List a
-ifNonEmpty f list =
-    if List.isEmpty list then
-        list
-
-    else
-        f list
-
-
-andThenMaybe : (a -> Maybe b) -> List a -> Maybe (List b)
-andThenMaybe f list =
-    List.foldl
-        (\item result ->
-            Maybe.map2 (::) (f item) result
-        )
-        (Just [])
         list
 
 

@@ -3,8 +3,8 @@ module Graphics.Logo exposing (animated)
 import Element.Extra as Element
 import Graphics.Palette exposing (palette)
 import Html exposing (Html)
-import Svg exposing (animateTransform, defs, g, style, svg, text)
-import Svg.Attributes exposing (additive, attributeName, begin, calcMode, d, dur, enableBackground, end, fill, from, id, keySplines, keyTimes, origin, to, transform, type_, version, viewBox, x, y)
+import Svg exposing (animateTransform, g, svg)
+import Svg.Attributes exposing (attributeName, begin, calcMode, d, dur, end, fill, id, keySplines, keyTimes, to, type_, viewBox)
 
 
 animated : Html msg

@@ -8,7 +8,6 @@ module MusicService exposing
     , PlaylistImportResult
     , connect
     , connected
-    , connectedWithToken
     , connecting
     , connectionToString
     , createToken
@@ -32,16 +31,14 @@ import ApiClient as Api
 import Array
 import Deezer
 import List.Extra as List
-import Maybe.Extra as Maybe
 import Playlist exposing (Playlist, PlaylistId)
 import Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult)
 import RemoteData exposing (RemoteData(..), WebData)
 import Set
 import Spotify
 import Task exposing (Task)
-import Task.Extra as Task
 import Track exposing (Track)
-import Tuple exposing (pair)
+import Tuple
 import UserInfo exposing (UserInfo)
 
 
@@ -162,11 +159,6 @@ setUserInfo userInfo provider =
 
         ConnectedProviderWithToken t tok _ ->
             ConnectedProviderWithToken t tok userInfo
-
-
-connectedWithToken : MusicService -> OAuthToken -> WebData UserInfo -> ConnectedProvider
-connectedWithToken t tok u =
-    ConnectedProviderWithToken t tok u
 
 
 type DisconnectedProvider

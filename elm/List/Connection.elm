@@ -1,12 +1,11 @@
 module List.Connection exposing
     ( connectedProviders
-    , findConnected
     , mapOn
     , toggle
     )
 
 import Connection exposing (ProviderConnection(..))
-import MusicService as P
+import MusicService
     exposing
         ( ConnectedProvider(..)
         , ConnectingProvider(..)
@@ -66,11 +65,6 @@ mapOn pType f =
                     else
                         con
         )
-
-
-findConnected : MusicService -> List ConnectedProvider -> Maybe ConnectedProvider
-findConnected pType connections =
-    connections |> List.filter (\con -> P.type_ con == pType) |> List.head
 
 
 toggle : MusicService -> SelectableList ProviderConnection -> SelectableList ProviderConnection

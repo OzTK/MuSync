@@ -2,13 +2,11 @@ port module Deezer exposing
     ( addSongsToPlaylist
     , connectDeezer
     , createPlaylist
-    , decodePlaylist
     , decodePlaylists
     , disconnectDeezer
     , getPlaylistTracks
     , getPlaylists
     , getUserInfo
-    , httpBadPayloadError
     , playlist
     , searchTrackByISRC
     , searchTrackByName
@@ -16,13 +14,9 @@ port module Deezer exposing
     )
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
-import Basics.Either as Either exposing (Either(..))
 import Basics.Extra exposing (apply)
-import Dict
-import Http exposing (Error(..))
 import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, string, succeed)
 import Json.Decode.Pipeline as Decode exposing (hardcoded, optional, required, requiredAt)
-import Json.Encode as JE
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http exposing (defaultConfig)
@@ -66,35 +60,11 @@ track =
         |> optional "isrc" (maybe string) Nothing
 
 
-httpBadPayloadError : String -> Decode.Value -> Either Decode.Error String -> Error
-httpBadPayloadError url json err =
-    { url = url
-    , status = { code = 200, message = "OK" }
-    , headers = Dict.empty
-    , body = JE.encode 0 json
-    }
-        |> BadPayload (Either.unwrap Decode.errorToString identity err)
-
-
-decodeData : Decoder m -> String -> Decode.Value -> WebData m
-decodeData decoder url json =
-    json
-        |> Decode.decodeValue decoder
-        |> Result.mapError Left
-        |> Result.mapError (httpBadPayloadError url json)
-        |> RemoteData.fromResult
-
-
 decodePlaylists : Decoder (List Playlist)
 decodePlaylists =
     succeed succeed
         |> Decode.required "data" (list playlist)
         |> Decode.resolve
-
-
-decodePlaylist : Decode.Value -> WebData Playlist
-decodePlaylist =
-    decodeData playlist "/deezer/playlist"
 
 
 type TrackBatch

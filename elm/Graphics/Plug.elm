@@ -1,12 +1,10 @@
 module Graphics.Plug exposing (connected, disconnected)
 
-import Browser
 import Element exposing (Color)
 import Element.Extra as Element
 import Html exposing (Html)
-import Main
-import Svg exposing (animateTransform, defs, g, style, svg, text)
-import Svg.Attributes exposing (attributeName, begin, calcMode, d, dur, enableBackground, end, fill, from, id, keySplines, keyTimes, origin, to, transform, type_, version, viewBox, x, y)
+import Svg exposing (g, svg)
+import Svg.Attributes exposing (d, enableBackground, fill, transform, version, viewBox, x, y)
 
 
 connected : Color -> Html msg
