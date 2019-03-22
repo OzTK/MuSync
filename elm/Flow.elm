@@ -15,9 +15,7 @@ module Flow exposing
     , udpateLoadingPlaylists
     )
 
-import Dict.Any as Dict
 import Flow.Context as Context exposing (Context, PlaylistState)
-import List.Connection as Connections
 import MusicService exposing (ConnectedProvider)
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -69,14 +67,10 @@ start =
 
 
 canStep : Context m -> Flow -> Bool
-canStep { connections, playlists } flow =
+canStep ctx flow =
     case flow of
         Connect ->
-            connections
-                |> Connections.connectedProviders
-                |> List.filter MusicService.hasUser
-                |> List.length
-                |> (<=) 2
+            Context.hasAtLeast2Connected ctx
 
         LoadPlaylists data ->
             data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
@@ -84,7 +78,9 @@ canStep { connections, playlists } flow =
         PickPlaylist { selection } ->
             case selection of
                 PlaylistSelected con id ->
-                    Dict.get ( con, id ) playlists |> Maybe.map (Tuple.second >> Context.isPlaylistTransferring >> not) |> Maybe.withDefault False
+                    Context.getPlaylist ( con, id ) ctx
+                        |> Maybe.map (Tuple.second >> Context.isPlaylistTransferring >> not)
+                        |> Maybe.withDefault False
 
                 NoPlaylist ->
                     False
@@ -98,22 +94,21 @@ canStep { connections, playlists } flow =
                     False
 
         Transfer { playlist } ->
-            Dict.get playlist playlists |> Maybe.map (Context.isPlaylistTransferred << Tuple.second) |> Maybe.withDefault False
+            Context.getPlaylist playlist ctx
+                |> Maybe.map (Context.isPlaylistTransferred << Tuple.second)
+                |> Maybe.withDefault False
 
 
 next : Context m -> Flow -> ( Flow, Context m )
-next ({ connections, playlists } as ctx) flow =
+next ctx flow =
     case flow of
         Connect ->
-            let
-                connected =
-                    Connections.connectedProviders connections
-            in
-            if List.length connected > 1 then
-                ( LoadPlaylists (List.map (\c -> ( c, Loading )) connected), ctx )
+            case Context.allConnected ctx of
+                (_ :: _ :: _) as connected ->
+                    ( LoadPlaylists (List.map (\c -> ( c, Loading )) connected), ctx )
 
-            else
-                ( flow, ctx )
+                _ ->
+                    ( flow, ctx )
 
         LoadPlaylists data ->
             data
@@ -129,14 +124,7 @@ next ({ connections, playlists } as ctx) flow =
         PickPlaylist ({ selection } as payload) ->
             case selection of
                 PlaylistSelected con id ->
-                    let
-                        canTransfer =
-                            Dict.get ( con, id ) playlists
-                                |> Maybe.map Tuple.second
-                                |> Maybe.map (not << (\s -> Context.isPlaylistTransferring s || Context.isPlaylistTransferred s))
-                                |> Maybe.withDefault False
-                    in
-                    if canTransfer then
+                    if Context.canTransferPlaylist id con ctx then
                         ( PickOtherConnection { selection = NoConnection, playlist = ( con, id ) }
                         , ctx
                         )
@@ -189,23 +177,33 @@ steps =
 -- LoadPlaylists
 
 
-udpateLoadingPlaylists : ConnectedProvider -> WebData (List Playlist) -> Flow -> Flow
-udpateLoadingPlaylists connection playlists flow =
+udpateLoadingPlaylists : ConnectedProvider -> WebData (List Playlist) -> Context m -> Flow -> ( Flow, Context m )
+udpateLoadingPlaylists connection playlists ctx flow =
     case flow of
         LoadPlaylists data ->
-            data
-                |> List.map
-                    (\( c, p ) ->
-                        if connection == c then
-                            ( c, playlists )
+            let
+                loading =
+                    data
+                        |> List.map
+                            (\( c, p ) ->
+                                if connection == c then
+                                    ( c, playlists )
 
-                        else
-                            ( c, p )
-                    )
-                |> LoadPlaylists
+                                else
+                                    ( c, p )
+                            )
+
+                updated =
+                    LoadPlaylists loading
+            in
+            if loading |> List.map Tuple.second |> List.all RemoteData.isSuccess then
+                next ctx updated
+
+            else
+                ( updated, ctx )
 
         _ ->
-            flow
+            ( flow, ctx )
 
 
 
@@ -255,7 +253,7 @@ pickService otherConnection flow =
 
 
 selectedPlaylist : Context m -> Flow -> Maybe ( Playlist, PlaylistState )
-selectedPlaylist { playlists } flow =
+selectedPlaylist ctx flow =
     case flow of
         PickPlaylist { selection } ->
             case selection of
@@ -263,13 +261,13 @@ selectedPlaylist { playlists } flow =
                     Nothing
 
                 PlaylistSelected connection id ->
-                    Dict.get ( connection, id ) playlists
+                    Context.getPlaylist ( connection, id ) ctx
 
         PickOtherConnection { playlist } ->
-            Dict.get playlist playlists
+            Context.getPlaylist playlist ctx
 
         Transfer { playlist } ->
-            Dict.get playlist playlists
+            Context.getPlaylist playlist ctx
 
         _ ->
             Nothing

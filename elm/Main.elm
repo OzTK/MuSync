@@ -190,15 +190,8 @@ update msg model =
 
         PlaylistsFetched connection (Ok playlistsData) ->
             let
-                newFlow =
-                    Flow.udpateLoadingPlaylists connection playlistsData model.flow
-
                 ( flow, m ) =
-                    if Flow.canStep model newFlow then
-                        Flow.next model newFlow
-
-                    else
-                        ( newFlow, model )
+                    Flow.udpateLoadingPlaylists connection playlistsData model model.flow
             in
             ( { m | flow = flow }
             , Cmd.none

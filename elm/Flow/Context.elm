@@ -3,6 +3,10 @@ module Flow.Context exposing
     , PlaylistState
     , PlaylistsDict
     , addPlaylists
+    , allConnected
+    , canTransferPlaylist
+    , getPlaylist
+    , hasAtLeast2Connected
     , importWarnings
     , init
     , isPlaylistNew
@@ -18,6 +22,7 @@ module Flow.Context exposing
 import Basics.Extra exposing (const)
 import Connection exposing (ProviderConnection)
 import Dict.Any as Dict exposing (AnyDict)
+import List.Connection as Connections
 import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportResult)
 import Playlist exposing (Playlist, PlaylistId)
 import Playlist.Import exposing (PlaylistImportReport)
@@ -104,6 +109,20 @@ init connections ctx =
 -- Connections
 
 
+allConnected : Context m -> List ConnectedProvider
+allConnected { connections } =
+    Connections.connectedProviders connections
+
+
+hasAtLeast2Connected : Context m -> Bool
+hasAtLeast2Connected { connections } =
+    connections
+        |> Connections.connectedProviders
+        |> List.filter MusicService.hasUser
+        |> List.length
+        |> (<=) 2
+
+
 updateConnection : (ProviderConnection -> ProviderConnection) -> MusicService -> Context m -> Context m
 updateConnection updater pType ctx =
     ctx.connections
@@ -154,6 +173,19 @@ addPlaylists ctx con playlists =
 startTransfer : ConnectedProvider -> PlaylistId -> Context m -> Context m
 startTransfer con playlist ctx =
     { ctx | playlists = Dict.update ( con, playlist ) (Maybe.map (Tuple.mapSecond (const Transferring))) ctx.playlists }
+
+
+canTransferPlaylist : PlaylistId -> ConnectedProvider -> Context m -> Bool
+canTransferPlaylist id con { playlists } =
+    Dict.get ( con, id ) playlists
+        |> Maybe.map Tuple.second
+        |> Maybe.map (not << (\s -> isPlaylistTransferring s || isPlaylistTransferred s))
+        |> Maybe.withDefault False
+
+
+getPlaylist : ( ConnectedProvider, PlaylistId ) -> Context m -> Maybe ( Playlist, PlaylistState )
+getPlaylist pId { playlists } =
+    Dict.get pId playlists
 
 
 

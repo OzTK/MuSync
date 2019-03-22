@@ -1,11 +1,6 @@
-module Task.Extra exposing (andThen2, resultSequence)
+module Task.Extra exposing (resultSequence)
 
 import Task exposing (Task)
-
-
-andThen2 : (a -> b -> Task e c) -> Task e a -> Task e b -> Task e c
-andThen2 f t =
-    Task.andThen identity << Task.map2 f t
 
 
 taskAsResults : Task e r -> Task Never (List (Result e r))
