@@ -1,5 +1,5 @@
 var config = {
-  offline: true,
+  offline: false,
   local: false,
   allowedIps: ["86.6.108.70", "185.78.8.131"],
   scheme: "https",
