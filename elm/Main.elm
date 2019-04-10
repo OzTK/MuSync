@@ -875,7 +875,7 @@ playlistsTableFrame model items =
             ]
 
 
-playlistsGroup : Model -> PlaylistsDict -> ConnectedProvider -> List PlaylistId -> Element msg
+playlistsGroup : Model -> PlaylistsDict -> ConnectedProvider -> List PlaylistId -> Element Msg
 playlistsGroup model playlists connection playlistIds =
     Element.column [ width fill ] <|
         (playlistIds
@@ -1025,7 +1025,7 @@ progressBar attrs message =
                 [ Html.div [ Html.class "progress-bar" ] [] ]
         , ifMessage <|
             \msg ->
-                paragraph [ width shrink, centerX, centerY, Font.center ] msg
+                paragraph [ width shrink, centerX, centerY, Font.center ] [ msg ]
         ]
 
 
