@@ -1,4 +1,4 @@
-module Graphics.Logo exposing (animated)
+module Graphics.Logo exposing (view)
 
 import Element.Extra as Element
 import Graphics.Palette exposing (palette)
@@ -7,8 +7,8 @@ import Svg exposing (animateTransform, g, svg)
 import Svg.Attributes exposing (attributeName, begin, calcMode, d, dur, end, fill, id, keySplines, keyTimes, to, type_, viewBox)
 
 
-animated : Html msg
-animated =
+view : Html msg
+view =
     svg [ viewBox "0 0 119 45", id "logo", fill "white" ]
         [ g [ id "Text" ]
             [ g []

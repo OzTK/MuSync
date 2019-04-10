@@ -351,13 +351,13 @@ routeMainView ({ playlists, connections } as model) =
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
 
         PickPlaylist _ ->
-            playlistsList model playlists
+            playlistsTable model playlists
 
         PickOtherConnection _ ->
-            playlistsList model playlists
+            playlistsTable model playlists
 
         Transfer _ ->
-            playlistsList model playlists
+            playlistsTable model playlists
 
 
 routePanel : Model -> Element Msg
@@ -432,6 +432,23 @@ playlistDetail model playlist playlists =
 -- View parts
 
 
+overlay : Model -> Element.Attribute Msg
+overlay ({ flow } as model) =
+    let
+        attrs =
+            [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
+    in
+    flow
+        |> Flow.selectedPlaylist model
+        |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
+        |> Maybe.withDefault (el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
+        |> Element.inFront
+
+
+
+---- Panel
+
+
 panel : Model -> Element.Attribute Msg
 panel ({ device, flow } as model) =
     let
@@ -477,30 +494,17 @@ panel ({ device, flow } as model) =
             routePanel model
 
 
-overlay : Model -> Element.Attribute Msg
-overlay ({ flow } as model) =
-    let
-        attrs =
-            [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
-    in
-    flow
-        |> Flow.selectedPlaylist model
-        |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
-        |> Maybe.withDefault (el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
-        |> Element.inFront
-
-
 header : { m | device : Element.Device } -> Element msg
 header { device } =
     case ( device.class, device.orientation ) of
         ( Phone, Portrait ) ->
-            logo [ centerX, width (px 80) ] False
+            logo [ centerX, width (px 80) ]
 
         ( Tablet, Portrait ) ->
-            logo [ centerX, width (px 100) ] False
+            logo [ centerX, width (px 100) ]
 
         _ ->
-            logo [ alignLeft, width (px 150) ] True
+            logo [ alignLeft, width (px 150) ]
 
 
 panelDefaultStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -514,32 +518,34 @@ panelDefaultStyle model =
 
 panelContainer : { m | device : Element.Device } -> Maybe String -> List (Element msg) -> Element msg
 panelContainer model maybeTitle children =
-    column
-        ([ width fill
-         , height fill
-         , clip
-         , spaceEvenly
-         , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
-         ]
-            ++ hack_forceClip
-        )
-    <|
-        (maybeTitle
-            |> Maybe.map
-                (\title ->
-                    el
-                        ([ Region.heading 2
-                         , width fill
-                         , Border.color palette.textFaded
-                         , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
-                         ]
-                            ++ panelDefaultStyle model
-                        )
-                    <|
-                        text title
-                )
-            |> Maybe.withDefault Element.none
-        )
+    let
+        style =
+            [ width fill
+            , height fill
+            , clip
+            , spaceEvenly
+            , Border.shadow { offset = ( 0, 0 ), size = 1, blur = 6, color = palette.textFaded }
+            ]
+                ++ hack_forceClip
+
+        ifTitle v =
+            maybeTitle
+                |> Maybe.map v
+                |> Maybe.withDefault Element.none
+    in
+    column style <|
+        ifTitle
+            (\title ->
+                el
+                    ([ Region.heading 2
+                     , width fill
+                     , Border.color palette.textFaded
+                     , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0 }
+                     ]
+                        ++ panelDefaultStyle model
+                    )
+                    (text title)
+            )
             :: children
 
 
@@ -694,6 +700,67 @@ transferConfigStep4Warnings model report =
         ]
 
 
+
+---- Playlists Table
+
+
+playlistIconTransferring : DimensionPalette msg -> Element msg
+playlistIconTransferring d =
+    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
+
+
+playlistIconWarnings : DimensionPalette msg -> PlaylistState -> Element msg
+playlistIconWarnings d state =
+    let
+        whenWarnings f =
+            Ctx.importWarnings state
+                |> Maybe.filter (\w -> (w |> Playlist.Import.failedTracks |> List.length) > 0)
+                |> Maybe.map f
+
+        orElse =
+            Maybe.withDefault
+    in
+    (whenWarnings <|
+        \report ->
+            Element.el
+                [ d.smallHPadding
+                , Font.color palette.ternary
+                , Element.htmlAttribute
+                    (Html.title <|
+                        (Playlist.Import.failedTracks report |> List.length |> String.fromInt)
+                            ++ " tracks failed to be imported"
+                    )
+                ]
+                (icon "fas fa-exclamation-triangle")
+    )
+        |> orElse
+            (Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle")
+
+
+playlistIconNew : DimensionPalette msg -> Element msg
+playlistIconNew d =
+    Element.el [ d.xSmallText, Font.color palette.primary ] <| text "new!"
+
+
+playlistState : Model -> PlaylistState -> Element msg
+playlistState model state =
+    let
+        d =
+            dimensions model
+    in
+    if Ctx.isPlaylistTransferring state then
+        playlistIconTransferring d
+
+    else if Ctx.isPlaylistTransferred state then
+        playlistIconWarnings d state
+
+    else if Ctx.isPlaylistNew state then
+        playlistIconNew d
+
+    else
+        Element.none
+
+
 playlistRow :
     Model
     -> (PlaylistId -> msg)
@@ -710,62 +777,65 @@ playlistRow model tagger connection ( playlist, state ) =
                 |> Flow.selectedPlaylist model
                 |> Maybe.map (Tuple.first >> .id >> (==) playlist.id)
                 |> Maybe.withDefault False
+
+        style =
+            [ width fill
+            , clip
+            , Border.widthEach { top = 0, left = 0, right = 0, bottom = 1 }
+            , Border.color palette.primaryFaded
+            , paddingXY d.smallPadding d.xSmallPadding
+            , transition [ "background" ]
+            ]
+                ++ (if isSelected then
+                        [ Bg.color palette.ternaryFaded, Border.innerGlow palette.textFaded 1 ]
+
+                    else
+                        [ mouseOver [ Bg.color palette.ternaryFaded ] ]
+                   )
     in
     button
-        ([ width fill
-         , clip
-         , Border.widthEach { top = 0, left = 0, right = 0, bottom = 1 }
-         , Border.color palette.primaryFaded
-         , paddingXY d.smallPadding d.xSmallPadding
-         , transition [ "background" ]
-         ]
-            ++ (if isSelected then
-                    [ Bg.color palette.ternaryFaded, Border.innerGlow palette.textFaded 1 ]
-
-                else
-                    [ mouseOver [ Bg.color palette.ternaryFaded ] ]
-               )
-        )
+        style
         { onPress = Just <| tagger playlist.id
         , label =
             row [ width fill, d.smallSpacing ] <|
                 [ providerLogoOrName [ width (px 28) ] (MusicService.type_ connection)
                 , el ([ width fill, clip ] ++ hack_textEllipsis) <|
                     text (Playlist.summary playlist)
-                , if Ctx.isPlaylistTransferring state then
-                    Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "fas fa-sync-alt spinning"
-
-                  else if Ctx.isPlaylistTransferred state then
-                    Ctx.importWarnings state
-                        |> Maybe.filter (\w -> (w |> Playlist.Import.failedTracks |> List.length) > 0)
-                        |> Maybe.map
-                            (\report ->
-                                Element.el
-                                    [ d.smallHPadding
-                                    , Font.color palette.ternary
-                                    , Element.htmlAttribute
-                                        (Html.title <|
-                                            (Playlist.Import.failedTracks report |> List.length |> String.fromInt)
-                                                ++ " tracks failed to be imported"
-                                        )
-                                    ]
-                                    (icon "fas fa-exclamation-triangle")
-                            )
-                        |> Maybe.withDefault
-                            (Element.el [ d.smallHPadding, Font.color palette.quaternary ] <| icon "far fa-check-circle")
-
-                  else if Ctx.isPlaylistNew state then
-                    Element.el [ d.xSmallText, Font.color palette.primary ] <| text "new!"
-
-                  else
-                    Element.none
+                , playlistState model state
                 , text <| String.fromInt playlist.tracksCount ++ " tracks"
                 ]
         }
 
 
-playlistsList : Model -> PlaylistsDict -> Element Msg
-playlistsList model playlists =
+playlistTableFooter : Element.Attribute msg -> List (Element msg) -> Element msg
+playlistTableFooter padding items =
+    el [ padding, Bg.color (palette.transparentWhite 0.9), width fill, alignBottom ] <|
+        text ((List.length >> String.fromInt) items ++ " playlists in your library")
+
+
+playlistsTableHeader : List (Element.Attribute msg) -> DimensionPalette msg -> Element msg
+playlistsTableHeader style d =
+    el
+        ([ width fill
+         , paddingXY d.smallPadding d.mediumPadding
+         , d.mediumText
+         , Border.color palette.textFaded
+         , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
+         ]
+            ++ style
+        )
+        (text "Playlists")
+
+
+playlistsTableItemsContainer : List (Element msg) -> DimensionPalette msg -> Element msg
+playlistsTableItemsContainer items d =
+    column [ height fill, width fill, scrollbarY ] <|
+        items
+            ++ [ el [ paddingEach { top = d.mediumPadding, bottom = d.smallPadding, left = 0, right = 0 } ] Element.none ]
+
+
+playlistsTableFrame : Model -> List (Element msg) -> Element msg
+playlistsTableFrame model items =
     let
         d =
             dimensions model
@@ -788,53 +858,58 @@ playlistsList model playlists =
                     , [ paddingEach { bottom = d.mediumPadding, top = d.smallPadding, left = 0, right = 0 } ]
                     , [ Border.solid ]
                     )
-
-        withGroupedPlaylists f =
-            playlists
-                |> Dict.keys
-                |> List.foldl
-                    (\( c, id ) grouped ->
-                        Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped
-                    )
-                    (Dict.empty MusicService.connectionToString)
-                |> Dict.map f
-                |> Dict.values
     in
     el ([ height fill, width fill, clip, centerX, hack_forceSticky ] ++ containerStyle ++ hack_forceClip) <|
         column
             ([ height fill
              , centerX
              , clip
-             , inFront <|
-                el [ d.smallPaddingAll, Bg.color (palette.transparentWhite 0.9), width fill, alignBottom ] <|
-                    text ((Dict.size >> String.fromInt) playlists ++ " playlists in your library")
+             , inFront <| playlistTableFooter d.smallPaddingAll items
              , hack_forceSticky
              ]
                 ++ tableStyle
                 ++ hack_forceClip
             )
-            [ el
-                ([ width fill
-                 , paddingXY d.smallPadding d.mediumPadding
-                 , d.mediumText
-                 , Border.color palette.textFaded
-                 , Border.widthEach { bottom = 1, top = 0, left = 0, right = 0 }
-                 ]
-                    ++ headerStyle
-                )
-                (text "Playlists")
-            , column [ height fill, width fill, scrollbarY ] <|
-                (withGroupedPlaylists <|
-                    \connection playlistIds ->
-                        Element.column [ width fill ] <|
-                            (playlistIds
-                                |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
-                                |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
-                                |> List.withDefault [ text "No tracks" ]
-                            )
-                )
-                    ++ [ el [ paddingEach { top = d.mediumPadding, bottom = d.smallPadding, left = 0, right = 0 } ] Element.none ]
+            [ playlistsTableHeader headerStyle d
+            , playlistsTableItemsContainer items d
             ]
+
+
+playlistsGroup : Model -> PlaylistsDict -> ConnectedProvider -> List PlaylistId -> Element msg
+playlistsGroup model playlists connection playlistIds =
+    Element.column [ width fill ] <|
+        (playlistIds
+            |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+            |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
+            |> List.withDefault [ text "No tracks" ]
+        )
+
+
+playlistsTable : Model -> PlaylistsDict -> Element Msg
+playlistsTable model playlists =
+    let
+        groupByProvider p =
+            p
+                |> Dict.keys
+                |> List.foldl
+                    (\( c, id ) grouped ->
+                        Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped
+                    )
+                    (Dict.empty MusicService.connectionToString)
+
+        withPlaylistsGroups f =
+            playlists
+                |> groupByProvider
+                |> Dict.map f
+                |> Dict.values
+    in
+    playlistsTableFrame model <|
+        withPlaylistsGroups <|
+            playlistsGroup model playlists
+
+
+
+---- Connect View
 
 
 connectionStatus : Bool -> Element msg
@@ -855,14 +930,6 @@ connectionStatus isConnected =
         }
 
 
-stepFlowButton : { m | device : Element.Device } -> List (Element.Attribute Msg) -> String -> Element Msg
-stepFlowButton model style label =
-    button (primaryButtonStyle model ++ centerX :: style)
-        { label = text label
-        , onPress = Just StepFlow
-        }
-
-
 serviceConnectButton : { m | device : Element.Device } -> (ProviderConnection -> msg) -> ProviderConnection -> Element msg
 serviceConnectButton model tagger connection =
     let
@@ -875,18 +942,24 @@ serviceConnectButton model tagger connection =
 
             else
                 Untoggled
-    in
-    button
-        (htmlAttribute (Html.attribute "aria-label" <| (Connection.type_ >> MusicService.toString) connection)
-            :: squareToggleButtonStyle model buttonState
-            ++ [ alignTop ]
-        )
-        { onPress =
+
+        style =
+            htmlAttribute
+                (Html.attribute "aria-label" <|
+                    (Connection.type_ >> MusicService.toString) connection
+                )
+                :: squareToggleButtonStyle model buttonState
+                ++ [ alignTop ]
+
+        connectIfDisconnected =
             if Connection.isConnected connection then
                 Nothing
 
             else
                 Just <| tagger connection
+    in
+    button style
+        { onPress = connectIfDisconnected
         , label =
             column [ d.xSmallSpacing, d.smallHPadding ]
                 [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
@@ -923,7 +996,10 @@ connectView model connections canStep =
             List.map (serviceConnectButton model ToggleConnect) connections
         , if canStep then
             el (width fill :: containerPadding) <|
-                stepFlowButton model buttonStyle "Next"
+                button (primaryButtonStyle model ++ centerX :: buttonStyle)
+                    { label = text "Next"
+                    , onPress = Just StepFlow
+                    }
 
           else
             el (d.buttonHeight :: containerPadding) Element.none
@@ -936,24 +1012,26 @@ connectView model connections canStep =
 
 progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
 progressBar attrs message =
+    let
+        ifMessage v =
+            message
+                |> Maybe.map (v << text)
+                |> Maybe.withDefault Element.none
+    in
     column attrs
         [ Element.html <|
             Html.div
                 [ Html.class "progress progress-sm progress-indeterminate" ]
                 [ Html.div [ Html.class "progress-bar" ] [] ]
-        , message
-            |> Maybe.map (paragraph [ width shrink, centerX, centerY, Font.center ] << List.singleton << text)
-            |> Maybe.withDefault Element.none
+        , ifMessage <|
+            \msg ->
+                paragraph [ width shrink, centerX, centerY, Font.center ] msg
         ]
 
 
-logo : List (Element.Attribute msg) -> Bool -> Element msg
-logo attrs isAnimated =
-    if isAnimated then
-        el attrs <| html Logo.animated
-
-    else
-        image attrs { src = "assets/img/Logo.svg", description = "MuSync logo" }
+logo : List (Element.Attribute msg) -> Element msg
+logo attrs =
+    el attrs <| html Logo.view
 
 
 note : Element msg
@@ -1003,7 +1081,7 @@ icon name =
 
 
 
----- Wire
+---- Breadcrumb
 
 
 baseDot : Int -> List (Element.Attribute msg) -> Element msg
