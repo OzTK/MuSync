@@ -1,88 +1,26 @@
 module Flow.Context exposing
     ( Context
-    , PlaylistState
-    , PlaylistsDict
     , addPlaylists
     , allConnected
     , canTransferPlaylist
     , getPlaylist
     , hasAtLeast2Connected
-    , importWarnings
     , init
-    , isPlaylistNew
-    , isPlaylistTransferred
-    , isPlaylistTransferring
-    , noPlaylists
     , playlistTransferFinished
     , setUserInfo
     , startTransfer
     , updateConnection
     )
 
-import Basics.Extra exposing (const)
 import Connection exposing (ProviderConnection)
-import Dict.Any as Dict exposing (AnyDict)
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
 import List.Connection as Connections
-import MusicService exposing (ConnectedProvider, MusicService, PlaylistImportResult)
+import MusicService
 import Playlist exposing (Playlist, PlaylistId)
-import Playlist.Import exposing (PlaylistImportReport)
+import Playlist.Dict as Playlists exposing (PlaylistsDict, noPlaylists)
+import Playlist.State exposing (PlaylistImportResult, PlaylistState)
 import RemoteData exposing (WebData)
 import UserInfo exposing (UserInfo)
-
-
-type PlaylistState
-    = New
-    | Untransferred
-    | Transferring
-    | Transferred PlaylistImportResult
-
-
-isPlaylistTransferring : PlaylistState -> Bool
-isPlaylistTransferring state =
-    case state of
-        Transferring ->
-            True
-
-        _ ->
-            False
-
-
-isPlaylistTransferred : PlaylistState -> Bool
-isPlaylistTransferred playlistState =
-    case playlistState of
-        Transferred _ ->
-            True
-
-        _ ->
-            False
-
-
-importWarnings : PlaylistState -> Maybe PlaylistImportReport
-importWarnings playlistState =
-    case playlistState of
-        Transferred result ->
-            if Playlist.Import.isSuccessful result.status then
-                Nothing
-
-            else
-                Just result.status
-
-        _ ->
-            Nothing
-
-
-isPlaylistNew : PlaylistState -> Bool
-isPlaylistNew playlistState =
-    case playlistState of
-        New ->
-            True
-
-        _ ->
-            False
-
-
-type alias PlaylistsDict =
-    AnyDict String ( ConnectedProvider, PlaylistId ) ( Playlist, PlaylistState )
 
 
 type alias Context m =
@@ -90,11 +28,6 @@ type alias Context m =
         | playlists : PlaylistsDict
         , connections : List ProviderConnection
     }
-
-
-noPlaylists : PlaylistsDict
-noPlaylists =
-    Dict.empty (\( con, p ) -> MusicService.connectionToString con ++ "_" ++ p)
 
 
 init : List ProviderConnection -> Context m -> Context m
@@ -118,7 +51,7 @@ hasAtLeast2Connected : Context m -> Bool
 hasAtLeast2Connected { connections } =
     connections
         |> Connections.connectedProviders
-        |> List.filter MusicService.hasUser
+        |> List.filter ConnectedProvider.hasUser
         |> List.length
         |> (<=) 2
 
@@ -144,7 +77,7 @@ setUserInfo con info ctx =
             (Connection.map
                 (\c ->
                     if c == con then
-                        MusicService.setUserInfo info c
+                        ConnectedProvider.setUserInfo info c
 
                     else
                         c
@@ -162,9 +95,7 @@ addPlaylists ctx con playlists =
     { ctx
         | playlists =
             List.foldl
-                (\p dict ->
-                    Dict.update ( con, p.id ) (\_ -> Just ( p, Untransferred )) dict
-                )
+                (\p dict -> Playlists.add (Playlists.keyFromPlaylist con p) p dict)
                 ctx.playlists
                 playlists
     }
@@ -172,20 +103,24 @@ addPlaylists ctx con playlists =
 
 startTransfer : ConnectedProvider -> PlaylistId -> Context m -> Context m
 startTransfer con playlist ctx =
-    { ctx | playlists = Dict.update ( con, playlist ) (Maybe.map (Tuple.mapSecond (const Transferring))) ctx.playlists }
+    { ctx | playlists = Playlists.startTransfer (Playlists.key con playlist) ctx.playlists }
 
 
 canTransferPlaylist : PlaylistId -> ConnectedProvider -> Context m -> Bool
 canTransferPlaylist id con { playlists } =
-    Dict.get ( con, id ) playlists
-        |> Maybe.map Tuple.second
-        |> Maybe.map (not << (\s -> isPlaylistTransferring s || isPlaylistTransferred s))
-        |> Maybe.withDefault False
+    let
+        key =
+            Playlists.key con id
+    in
+    not
+        (Playlists.isTransferring key playlists
+            || Playlists.isTransferComplete key playlists
+        )
 
 
 getPlaylist : ( ConnectedProvider, PlaylistId ) -> Context m -> Maybe ( Playlist, PlaylistState )
-getPlaylist pId { playlists } =
-    Dict.get pId playlists
+getPlaylist ( con, id ) { playlists } =
+    Playlists.get (Playlists.key con id) playlists
 
 
 
@@ -193,10 +128,10 @@ getPlaylist pId { playlists } =
 
 
 playlistTransferFinished : ( ConnectedProvider, PlaylistId ) -> PlaylistImportResult -> Context m -> Context m
-playlistTransferFinished key importResult ctx =
+playlistTransferFinished ( con, id ) importResult ctx =
     { ctx
         | playlists =
             ctx.playlists
-                |> Dict.update key (Maybe.map <| \( p, _ ) -> ( p, Transferred importResult ))
-                |> Dict.update (MusicService.importedPlaylistKey importResult) (\_ -> Just ( MusicService.importedPlaylist importResult, New ))
+                |> Playlists.completeTransfer (Playlists.key con id) importResult
+                |> Playlists.addNew (MusicService.importedPlaylistKey importResult) (MusicService.importedPlaylist importResult)
     }

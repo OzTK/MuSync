@@ -4,6 +4,7 @@ import Basics.Extra exposing (apply, const)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
 import Dict.Any as Dict exposing (AnyDict)
 import Element
     exposing
@@ -55,7 +56,7 @@ import Element.Font as Font
 import Element.Input exposing (button)
 import Element.Region as Region
 import Flow exposing (ConnectionSelection(..), Flow(..), PlaylistSelectionState(..))
-import Flow.Context as Ctx exposing (PlaylistState, PlaylistsDict)
+import Flow.Context as Ctx
 import Graphics.Logo as Logo
 import Graphics.Note
 import Graphics.Palette exposing (fade, palette)
@@ -64,9 +65,12 @@ import Html.Attributes as Html
 import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
-import MusicService exposing (ConnectedProvider(..), DisconnectedProvider(..), MusicService(..), MusicServiceError, OAuthToken, PlaylistImportResult)
+import MusicService exposing (DisconnectedProvider(..), MusicServiceError)
+import Page exposing (Page)
 import Playlist exposing (Playlist, PlaylistId)
+import Playlist.Dict as Playlists exposing (PlaylistKey, PlaylistsDict)
 import Playlist.Import exposing (PlaylistImportReport)
+import Playlist.State exposing (PlaylistImportResult, PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
@@ -88,6 +92,14 @@ type alias Model =
     }
 
 
+type alias M =
+    { page : Page
+    , playlists : PlaylistsDict
+    , connections : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) )
+    , device : Element.Device
+    }
+
+
 type alias Dimensions =
     { height : Int
     , width : Int
@@ -100,10 +112,10 @@ type alias Flags =
     }
 
 
-deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, OAuthToken )
+deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, ConnectedProvider.OAuthToken )
 deserializeTokenPair ( serviceName, token ) =
     token
-        |> MusicService.createToken
+        |> ConnectedProvider.createToken
         |> Result.toMaybe
         |> Maybe.map2 Tuple.pair (MusicService.fromString serviceName)
 
@@ -112,7 +124,7 @@ initConnections : { m | rawTokens : List ( String, String ) } -> List ProviderCo
 initConnections { rawTokens } =
     let
         tokens =
-            rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList MusicService.toString
+            rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList ConnectedProvider.toString
     in
     [ MusicService.disconnected Spotify, MusicService.disconnected Deezer ]
         |> List.map
@@ -130,7 +142,7 @@ init flags =
         m =
             Ctx.init (initConnections flags)
                 { device = Element.classifyDevice flags.window
-                , playlists = Ctx.noPlaylists
+                , playlists = Playlists.noPlaylists
                 , connections = []
                 , flow = Flow.start
                 }
@@ -241,7 +253,7 @@ getFlowStepCmd { playlists, connections, flow } =
         Connect ->
             connections
                 |> List.filterMap Connection.asConnected
-                |> List.filter (MusicService.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
+                |> List.filter (ConnectedProvider.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
                 |> List.map (\c -> ( c, c |> MusicService.fetchUserInfo |> Task.onError (\_ -> Task.succeed NotAsked) ))
                 |> List.map (\( c, t ) -> Task.perform (UserInfoReceived c) t)
                 |> Cmd.batch
@@ -255,7 +267,11 @@ getFlowStepCmd { playlists, connections, flow } =
                 |> Cmd.batch
 
         Transfer { playlist, otherConnection } ->
-            Dict.get playlist playlists
+            let
+                ( con, id ) =
+                    playlist
+            in
+            Playlists.get (Playlists.key con id) playlists
                 |> Maybe.map (MusicService.importPlaylist (Tuple.first playlist) otherConnection << Tuple.first)
                 |> Maybe.map
                     (Task.attempt <|
@@ -379,7 +395,7 @@ routePanel model =
         PickPlaylist { selection } ->
             case selection of
                 PlaylistSelected con id ->
-                    playlistDetail model ( con, id ) model.playlists
+                    playlistDetail model (Playlists.key con id) model.playlists
 
                 _ ->
                     Element.el placeholderStyle Element.none
@@ -397,7 +413,11 @@ routePanel model =
             transferConfigStep2 model (Tuple.first playlist) connectionsSelection
 
         Transfer { playlist } ->
-            playlistDetail model playlist model.playlists
+            let
+                ( con, id ) =
+                    playlist
+            in
+            playlistDetail model (Playlists.key con id) model.playlists
 
         _ ->
             Element.el placeholderStyle Element.none
@@ -405,20 +425,20 @@ routePanel model =
 
 playlistDetail :
     { m | device : Element.Device }
-    -> ( ConnectedProvider, PlaylistId )
-    -> AnyDict String ( ConnectedProvider, PlaylistId ) ( Playlist, PlaylistState )
+    -> PlaylistKey
+    -> PlaylistsDict
     -> Element Msg
 playlistDetail model playlist playlists =
     playlists
-        |> Dict.get playlist
+        |> Playlists.get playlist
         |> Maybe.map
             (\( p, state ) ->
-                if Ctx.isPlaylistTransferring state then
+                if Playlist.State.isPlaylistTransferring state then
                     transferConfigStep3 model
 
-                else if Ctx.isPlaylistTransferred state then
+                else if Playlist.State.isPlaylistTransferred state then
                     state
-                        |> Ctx.importWarnings
+                        |> Playlist.State.importWarnings
                         |> Maybe.map (transferConfigStep4Warnings model)
                         |> Maybe.withDefault (transferConfigStep4 model)
 
@@ -590,7 +610,7 @@ transferConfigStep2 model unavailable services =
                 |> SelectableList.map
                     (\connection ->
                         button (squareToggleButtonStyle model <| buttonState connection)
-                            { onPress = Just <| ToggleOtherProviderSelected connection, label = (MusicService.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
+                            { onPress = Just <| ToggleOtherProviderSelected connection, label = (ConnectedProvider.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
                     )
                 |> SelectableList.toList
             )
@@ -713,7 +733,7 @@ playlistIconWarnings : DimensionPalette msg -> PlaylistState -> Element msg
 playlistIconWarnings d state =
     let
         whenWarnings f =
-            Ctx.importWarnings state
+            Playlist.State.importWarnings state
                 |> Maybe.filter (\w -> (w |> Playlist.Import.failedTracks |> List.length) > 0)
                 |> Maybe.map f
 
@@ -748,13 +768,13 @@ playlistState model state =
         d =
             dimensions model
     in
-    if Ctx.isPlaylistTransferring state then
+    if Playlist.State.isPlaylistTransferring state then
         playlistIconTransferring d
 
-    else if Ctx.isPlaylistTransferred state then
+    else if Playlist.State.isPlaylistTransferred state then
         playlistIconWarnings d state
 
-    else if Ctx.isPlaylistNew state then
+    else if Playlist.State.isPlaylistNew state then
         playlistIconNew d
 
     else
@@ -765,7 +785,7 @@ playlistRow :
     Model
     -> (PlaylistId -> msg)
     -> ConnectedProvider
-    -> ( Playlist, PlaylistState )
+    -> Playlists.PlaylistData
     -> Element msg
 playlistRow model tagger connection ( playlist, state ) =
     let
@@ -798,7 +818,7 @@ playlistRow model tagger connection ( playlist, state ) =
         { onPress = Just <| tagger playlist.id
         , label =
             row [ width fill, d.smallSpacing ] <|
-                [ providerLogoOrName [ width (px 28) ] (MusicService.type_ connection)
+                [ providerLogoOrName [ width (px 28) ] (ConnectedProvider.type_ connection)
                 , el ([ width fill, clip ] ++ hack_textEllipsis) <|
                     text (Playlist.summary playlist)
                 , playlistState model state
@@ -879,7 +899,8 @@ playlistsGroup : Model -> PlaylistsDict -> ConnectedProvider -> List PlaylistId 
 playlistsGroup model playlists connection playlistIds =
     Element.column [ width fill ] <|
         (playlistIds
-            |> List.filterMap (\id -> Dict.get ( connection, id ) playlists)
+            |> List.map (Playlists.key connection)
+            |> List.filterMap (\key -> Playlists.get key playlists)
             |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
             |> List.withDefault [ text "No tracks" ]
         )
@@ -892,10 +913,14 @@ playlistsTable model playlists =
             p
                 |> Dict.keys
                 |> List.foldl
-                    (\( c, id ) grouped ->
+                    (\key grouped ->
+                        let
+                            ( c, id ) =
+                                Playlists.destructureKey key
+                        in
                         Dict.update c (Maybe.map (Just << (::) id) >> Maybe.withDefault (Just [ id ])) grouped
                     )
-                    (Dict.empty MusicService.connectionToString)
+                    (Dict.empty ConnectedProvider.connectionToString)
 
         withPlaylistsGroups f =
             playlists
@@ -946,7 +971,7 @@ serviceConnectButton model tagger connection =
         style =
             htmlAttribute
                 (Html.attribute "aria-label" <|
-                    (Connection.type_ >> MusicService.toString) connection
+                    (Connection.type_ >> ConnectedProvider.toString) connection
                 )
                 :: squareToggleButtonStyle model buttonState
                 ++ [ alignTop ]

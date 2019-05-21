@@ -12,15 +12,9 @@ module Connection exposing
     , type_
     )
 
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
 import Deezer
-import MusicService as P
-    exposing
-        ( ConnectedProvider(..)
-        , ConnectingProvider(..)
-        , DisconnectedProvider(..)
-        , MusicService(..)
-        , OAuthToken
-        )
+import MusicService as P exposing (ConnectingProvider(..), DisconnectedProvider(..))
 import RemoteData exposing (WebData)
 import Spotify
 import Task
@@ -49,7 +43,7 @@ fromDisconnected connection =
 
 connected : MusicService -> WebData UserInfo -> ProviderConnection
 connected pType userInfo =
-    Connected <| P.connected pType userInfo
+    Connected <| ConnectedProvider.connected pType userInfo
 
 
 disconnected : MusicService -> ProviderConnection
@@ -92,7 +86,7 @@ type_ con =
             pType
 
         Connected connection ->
-            P.type_ connection
+            ConnectedProvider.type_ connection
 
 
 map : (ConnectedProvider -> ConnectedProvider) -> ProviderConnection -> ProviderConnection

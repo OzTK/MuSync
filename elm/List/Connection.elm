@@ -5,13 +5,8 @@ module List.Connection exposing
     )
 
 import Connection exposing (ProviderConnection(..))
-import MusicService
-    exposing
-        ( ConnectedProvider(..)
-        , ConnectingProvider(..)
-        , DisconnectedProvider(..)
-        , MusicService
-        )
+import Connection.Connected exposing (ConnectedProvider(..), MusicService)
+import MusicService exposing (ConnectingProvider(..), DisconnectedProvider(..))
 import SelectableList exposing (SelectableList)
 
 

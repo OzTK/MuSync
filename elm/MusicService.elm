@@ -1,38 +1,28 @@
 module MusicService exposing
-    ( ConnectedProvider(..)
-    , ConnectingProvider(..)
+    ( ConnectingProvider(..)
     , DisconnectedProvider(..)
-    , MusicService(..)
     , MusicServiceError
-    , OAuthToken
-    , PlaylistImportResult
     , connect
-    , connected
     , connecting
-    , connectionToString
-    , createToken
     , disconnect
     , disconnected
     , fetchUserInfo
     , fromString
-    , hasUser
     , importPlaylist
     , importedPlaylist
     , importedPlaylistKey
     , loadPlaylists
-    , setUserInfo
-    , toString
-    , token
-    , type_
-    , user
     )
 
 import ApiClient as Api
 import Array
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider(..), MusicService(..), OAuthToken)
 import Deezer
 import List.Extra as List
 import Playlist exposing (Playlist, PlaylistId)
+import Playlist.Dict as Playlists exposing (PlaylistKey)
 import Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult)
+import Playlist.State exposing (PlaylistImportResult)
 import RemoteData exposing (RemoteData(..), WebData)
 import Set
 import Spotify
@@ -42,127 +32,19 @@ import Tuple
 import UserInfo exposing (UserInfo)
 
 
-type MusicService
-    = Spotify
-    | Deezer
-    | Google
-    | Amazon
-
-
 type MusicServiceError
     = InvalidServiceConnectionError ConnectedProvider
     | MissingUserInfo ConnectedProvider
     | NeverError
 
 
-
--- OAuth token
-
-
-type OAuthToken
-    = OAuthToken String
-
-
-type OAuthTokenFormatError
-    = EmptyTokenError
-
-
-createToken : String -> Result OAuthTokenFormatError OAuthToken
-createToken rawValue =
-    if rawValue == "" then
-        Err EmptyTokenError
-
-    else
-        Ok (OAuthToken rawValue)
-
-
-rawToken : OAuthToken -> String
-rawToken (OAuthToken value) =
-    value
-
-
-
--- Provider
-
-
-type ConnectedProvider
-    = ConnectedProvider MusicService (WebData UserInfo)
-    | ConnectedProviderWithToken MusicService OAuthToken (WebData UserInfo)
-
-
-connectionToString : ConnectedProvider -> String
-connectionToString =
-    type_ >> toString
+type DisconnectedProvider
+    = DisconnectedProvider MusicService
 
 
 connect : DisconnectedProvider -> OAuthToken -> ConnectedProvider
 connect (DisconnectedProvider service) tok =
     ConnectedProviderWithToken service tok NotAsked
-
-
-connected : MusicService -> WebData UserInfo -> ConnectedProvider
-connected t userInfo =
-    ConnectedProvider t userInfo
-
-
-type_ : ConnectedProvider -> MusicService
-type_ connection =
-    case connection of
-        ConnectedProvider t _ ->
-            t
-
-        ConnectedProviderWithToken t _ _ ->
-            t
-
-
-token : ConnectedProvider -> Maybe OAuthToken
-token con =
-    case con of
-        ConnectedProviderWithToken _ t _ ->
-            Just t
-
-        _ ->
-            Nothing
-
-
-hasUser : ConnectedProvider -> Bool
-hasUser con =
-    case con of
-        ConnectedProviderWithToken _ _ (Success _) ->
-            True
-
-        ConnectedProvider _ (Success _) ->
-            True
-
-        _ ->
-            False
-
-
-user : ConnectedProvider -> Maybe UserInfo
-user con =
-    case con of
-        ConnectedProviderWithToken _ _ (Success u) ->
-            Just u
-
-        ConnectedProvider _ (Success u) ->
-            Just u
-
-        _ ->
-            Nothing
-
-
-setUserInfo : WebData UserInfo -> ConnectedProvider -> ConnectedProvider
-setUserInfo userInfo provider =
-    case provider of
-        ConnectedProvider t _ ->
-            ConnectedProvider t userInfo
-
-        ConnectedProviderWithToken t tok _ ->
-            ConnectedProviderWithToken t tok userInfo
-
-
-type DisconnectedProvider
-    = DisconnectedProvider MusicService
 
 
 disconnected : MusicService -> DisconnectedProvider
@@ -172,7 +54,7 @@ disconnected =
 
 disconnect : ConnectedProvider -> DisconnectedProvider
 disconnect connection =
-    DisconnectedProvider <| type_ connection
+    DisconnectedProvider <| ConnectedProvider.type_ connection
 
 
 type ConnectingProvider
@@ -203,22 +85,6 @@ fromString pName =
             Nothing
 
 
-toString : MusicService -> String
-toString t =
-    case t of
-        Spotify ->
-            "Spotify"
-
-        Deezer ->
-            "Deezer"
-
-        Google ->
-            "Google"
-
-        Amazon ->
-            "Amazon"
-
-
 
 -- HTTP
 
@@ -227,10 +93,10 @@ fetchUserInfo : ConnectedProvider -> Task MusicServiceError (WebData UserInfo)
 fetchUserInfo connection =
     case connection of
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getUserInfo (rawToken tok) |> asErrorTask
+            Spotify.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getUserInfo (rawToken tok) |> asErrorTask
+            Deezer.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -240,10 +106,10 @@ createPlaylist : ConnectedProvider -> String -> Task MusicServiceError (WebData 
 createPlaylist connection name =
     case connection of
         ConnectedProviderWithToken Spotify tok (Success userInfo) ->
-            Spotify.createPlaylist (rawToken tok) userInfo.id name |> asErrorTask
+            Spotify.createPlaylist (ConnectedProvider.rawToken tok) userInfo.id name |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok (Success userInfo) ->
-            Deezer.createPlaylist (rawToken tok) userInfo.id name |> asErrorTask
+            Deezer.createPlaylist (ConnectedProvider.rawToken tok) userInfo.id name |> asErrorTask
 
         ConnectedProvider _ _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -256,10 +122,10 @@ addSongsToPlaylist : ConnectedProvider -> Playlist -> List Track -> Task MusicSe
 addSongsToPlaylist connection playlist tracks =
     case connection of
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.addSongsToPlaylist (rawToken tok) tracks playlist |> asErrorTask
+            Spotify.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist |> asErrorTask
 
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.addSongsToPlaylist (rawToken tok) tracks playlist.id |> asErrorTask
+            Deezer.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist.id |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -296,16 +162,9 @@ searchAllTracks connection trackList =
         |> Task.map (RemoteData.map List.zip)
 
 
-type alias PlaylistImportResult =
-    { connection : ConnectedProvider
-    , playlist : Playlist
-    , status : PlaylistImportReport
-    }
-
-
-importedPlaylistKey : PlaylistImportResult -> ( ConnectedProvider, PlaylistId )
+importedPlaylistKey : PlaylistImportResult -> PlaylistKey
 importedPlaylistKey { connection, playlist } =
-    ( connection, playlist.id )
+    Playlists.keyFromPlaylist connection playlist
 
 
 importedPlaylist : PlaylistImportResult -> Playlist
@@ -352,10 +211,10 @@ loadPlaylists : ConnectedProvider -> Task MusicServiceError (WebData (List Playl
 loadPlaylists connection =
     case connection of
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylists (rawToken tok) |> asErrorTask
+            Deezer.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylists (rawToken tok) |> asErrorTask
+            Spotify.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -365,10 +224,10 @@ loadPlaylistSongs : ConnectedProvider -> Playlist -> Task MusicServiceError (Web
 loadPlaylistSongs connection { id, link } =
     case connection of
         ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylistTracks (rawToken tok) id |> asErrorTask
+            Deezer.getPlaylistTracks (ConnectedProvider.rawToken tok) id |> asErrorTask
 
         ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylistTracksFromLink (rawToken tok) link |> asErrorTask
+            Spotify.getPlaylistTracksFromLink (ConnectedProvider.rawToken tok) link |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -380,10 +239,10 @@ searchSongFromProvider con track =
         searchFns =
             case con of
                 ConnectedProviderWithToken Spotify tok _ ->
-                    Just ( Spotify.searchTrackByISRC, Spotify.searchTrackByName, rawToken tok )
+                    Just ( Spotify.searchTrackByISRC, Spotify.searchTrackByName, ConnectedProvider.rawToken tok )
 
                 ConnectedProviderWithToken Deezer tok _ ->
-                    Just ( Deezer.searchTrackByISRC, Deezer.searchTrackByName, rawToken tok )
+                    Just ( Deezer.searchTrackByISRC, Deezer.searchTrackByName, ConnectedProvider.rawToken tok )
 
                 _ ->
                     Nothing

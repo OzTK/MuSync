@@ -15,9 +15,10 @@ module Flow exposing
     , udpateLoadingPlaylists
     )
 
-import Flow.Context as Context exposing (Context, PlaylistState)
-import MusicService exposing (ConnectedProvider)
+import Connection.Connected exposing (ConnectedProvider)
+import Flow.Context as Context exposing (Context)
 import Playlist exposing (Playlist, PlaylistId)
+import Playlist.State as PlaylistState exposing (PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
 import Tuple exposing (pair)
 
@@ -79,7 +80,7 @@ canStep ctx flow =
             case selection of
                 PlaylistSelected con id ->
                     Context.getPlaylist ( con, id ) ctx
-                        |> Maybe.map (Tuple.second >> Context.isPlaylistTransferring >> not)
+                        |> Maybe.map (Tuple.second >> PlaylistState.isPlaylistTransferring >> not)
                         |> Maybe.withDefault False
 
                 NoPlaylist ->
@@ -95,7 +96,7 @@ canStep ctx flow =
 
         Transfer { playlist } ->
             Context.getPlaylist playlist ctx
-                |> Maybe.map (Context.isPlaylistTransferred << Tuple.second)
+                |> Maybe.map (PlaylistState.isPlaylistTransferred << Tuple.second)
                 |> Maybe.withDefault False
 
 
@@ -130,7 +131,7 @@ next ctx flow =
                         )
 
                     else
-                        ( PickPlaylist { payload | selection = NoPlaylist }, ctx )
+                        Debug.log "CANNOT TRANSFER" ( PickPlaylist { payload | selection = NoPlaylist }, ctx )
 
                 NoPlaylist ->
                     ( flow, ctx )
