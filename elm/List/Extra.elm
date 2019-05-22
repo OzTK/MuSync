@@ -1,6 +1,7 @@
-module List.Extra exposing (find, flatten, update, withDefault, zip)
+module List.Extra exposing (find, flatten, groupByOverwrite, update, withDefault, zip)
 
 import Basics.Extra exposing (uncurry)
+import Dict.Any as Dict exposing (AnyDict)
 
 
 withDefault : List a -> List a -> List a
@@ -46,3 +47,12 @@ zip =
 flatten : List (List a) -> List a
 flatten =
     List.foldl (\l flat -> flat ++ l) []
+
+
+groupByOverwrite : (key -> String) -> (a -> key) -> List a -> AnyDict String key a
+groupByOverwrite keyBuilder grouper =
+    List.foldl
+        (\el dict ->
+            Dict.insert (grouper el) el dict
+        )
+        (Dict.empty keyBuilder)

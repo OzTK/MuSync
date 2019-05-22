@@ -14,6 +14,8 @@ module Flow.Context exposing
 
 import Connection exposing (ProviderConnection)
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
+import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
+import Dict.Any as Dict
 import List.Connection as Connections
 import MusicService
 import Playlist exposing (Playlist, PlaylistId)
@@ -26,11 +28,11 @@ import UserInfo exposing (UserInfo)
 type alias Context m =
     { m
         | playlists : PlaylistsDict
-        , connections : List ProviderConnection
+        , connections : ConnectionsDict
     }
 
 
-init : List ProviderConnection -> Context m -> Context m
+init : ConnectionsDict -> Context m -> Context m
 init connections ctx =
     { ctx
         | connections = connections
@@ -44,12 +46,13 @@ init connections ctx =
 
 allConnected : Context m -> List ConnectedProvider
 allConnected { connections } =
-    Connections.connectedProviders connections
+    Connections.connectedProviders (ConnectionsDict.connections connections)
 
 
 hasAtLeast2Connected : Context m -> Bool
 hasAtLeast2Connected { connections } =
     connections
+        |> ConnectionsDict.connections
         |> Connections.connectedProviders
         |> List.filter ConnectedProvider.hasUser
         |> List.length
@@ -59,13 +62,14 @@ hasAtLeast2Connected { connections } =
 updateConnection : (ProviderConnection -> ProviderConnection) -> MusicService -> Context m -> Context m
 updateConnection updater pType ctx =
     ctx.connections
-        |> List.map
-            (\con ->
-                if Connection.type_ con == pType then
-                    updater con
+        |> Dict.update pType
+            (Maybe.map <|
+                \( con, playlists ) ->
+                    if Connection.type_ con == pType then
+                        ( updater con, playlists )
 
-                else
-                    con
+                    else
+                        ( con, playlists )
             )
         |> (\c -> { ctx | connections = c })
 
@@ -73,7 +77,7 @@ updateConnection updater pType ctx =
 setUserInfo : ConnectedProvider -> WebData UserInfo -> Context m -> Context m
 setUserInfo con info ctx =
     ctx.connections
-        |> List.map
+        |> ConnectionsDict.updateConnection (ConnectedProvider.type_ con)
             (Connection.map
                 (\c ->
                     if c == con then

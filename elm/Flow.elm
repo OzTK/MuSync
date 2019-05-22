@@ -131,7 +131,7 @@ next ctx flow =
                         )
 
                     else
-                        Debug.log "CANNOT TRANSFER" ( PickPlaylist { payload | selection = NoPlaylist }, ctx )
+                        ( PickPlaylist { payload | selection = NoPlaylist }, ctx )
 
                 NoPlaylist ->
                     ( flow, ctx )

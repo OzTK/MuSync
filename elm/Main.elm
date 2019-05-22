@@ -5,6 +5,7 @@ import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
+import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
 import Dict.Any as Dict exposing (AnyDict)
 import Element
     exposing
@@ -86,8 +87,9 @@ import UserInfo exposing (UserInfo)
 
 type alias Model =
     { flow : Flow
+    , page : Page
     , playlists : PlaylistsDict
-    , connections : List ProviderConnection
+    , connections : ConnectionsDict
     , device : Element.Device
     }
 
@@ -120,7 +122,7 @@ deserializeTokenPair ( serviceName, token ) =
         |> Maybe.map2 Tuple.pair (MusicService.fromString serviceName)
 
 
-initConnections : { m | rawTokens : List ( String, String ) } -> List ProviderConnection
+initConnections : { m | rawTokens : List ( String, String ) } -> ConnectionsDict
 initConnections { rawTokens } =
     let
         tokens =
@@ -134,6 +136,7 @@ initConnections { rawTokens } =
                     |> Maybe.map (Connection.fromConnected << MusicService.connect con)
                     |> Maybe.withDefault (Connection.fromDisconnected con)
             )
+        |> ConnectionsDict.fromList
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -142,8 +145,9 @@ init flags =
         m =
             Ctx.init (initConnections flags)
                 { device = Element.classifyDevice flags.window
+                , page = Page.init
                 , playlists = Playlists.noPlaylists
-                , connections = []
+                , connections = ConnectionsDict.init
                 , flow = Flow.start
                 }
     in
@@ -165,6 +169,7 @@ type Msg
     | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
+    | Navigated Page
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
@@ -240,6 +245,9 @@ update msg model =
             in
             ( newModel, getFlowStepCmd newModel )
 
+        Navigated page ->
+            ( { model | page = page }, Cmd.none )
+
         TogglePlaylistSelected connection playlist ->
             ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
 
@@ -252,6 +260,7 @@ getFlowStepCmd { playlists, connections, flow } =
     case flow of
         Connect ->
             connections
+                |> ConnectionsDict.connections
                 |> List.filterMap Connection.asConnected
                 |> List.filter (ConnectedProvider.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
                 |> List.map (\c -> ( c, c |> MusicService.fetchUserInfo |> Task.onError (\_ -> Task.succeed NotAsked) ))
@@ -361,7 +370,7 @@ routeMainView : Model -> Element Msg
 routeMainView ({ playlists, connections } as model) =
     case model.flow of
         Connect ->
-            connectView model connections <| Flow.canStep model model.flow
+            connectView model (ConnectionsDict.connections connections) <| Flow.canStep model model.flow
 
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
@@ -402,13 +411,16 @@ routePanel model =
 
         PickOtherConnection { playlist, selection } ->
             let
+                connectedConnections =
+                    Connections.connectedProviders <| ConnectionsDict.connections model.connections
+
                 connectionsSelection =
                     case selection of
                         NoConnection ->
-                            SelectableList.fromList (Connections.connectedProviders model.connections)
+                            SelectableList.fromList connectedConnections
 
                         ConnectionSelected con ->
-                            model.connections |> Connections.connectedProviders |> SelectableList.fromList |> SelectableList.select con
+                            connectedConnections |> SelectableList.fromList |> SelectableList.select con
             in
             transferConfigStep2 model (Tuple.first playlist) connectionsSelection
 

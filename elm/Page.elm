@@ -1,7 +1,8 @@
-module Page exposing (Page, navigate)
+module Page exposing (Page, init, navigate)
 
 import Connection exposing (ProviderConnection(..))
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
+import Connection.Dict exposing (ConnectionsDict)
 import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import Page.Request as Request
@@ -26,9 +27,14 @@ type NavigationError
     | MusicServiceNotFound Request.PageRequest
 
 
+init : Page
+init =
+    ServiceConnection
+
+
 navigate :
     Request.PageRequest
-    -> { m | connections : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) ), playlists : PlaylistsDict }
+    -> { m | connections : ConnectionsDict, playlists : PlaylistsDict }
     -> Result NavigationError Page
 navigate path model =
     case path of
@@ -52,7 +58,7 @@ navigate path model =
 
 
 type alias WithServiceConnections m =
-    { m | connections : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) ) }
+    { m | connections : ConnectionsDict }
 
 
 type alias WithPlaylists m =
@@ -61,7 +67,7 @@ type alias WithPlaylists m =
 
 type alias WithPlaylistsAndConnections m =
     { m
-        | connections : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) )
+        | connections : ConnectionsDict
         , playlists : PlaylistsDict
     }
 
@@ -95,7 +101,7 @@ tryPlaylistsSpinner { connections } =
         Err <| NotEnoughConnectedProviders Request.PlaylistsSpinner
 
 
-hasAtLeast2Connected : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) ) -> Bool
+hasAtLeast2Connected : ConnectionsDict -> Bool
 hasAtLeast2Connected connections =
     connections
         |> Dict.values
