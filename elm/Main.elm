@@ -68,6 +68,7 @@ import List.Extra as List
 import Maybe.Extra as Maybe
 import MusicService exposing (DisconnectedProvider(..), MusicServiceError)
 import Page exposing (Page)
+import Page.Request
 import Playlist exposing (Playlist, PlaylistId)
 import Playlist.Dict as Playlists exposing (PlaylistKey, PlaylistsDict)
 import Playlist.Import exposing (PlaylistImportReport)
@@ -246,7 +247,14 @@ update msg model =
             ( newModel, getFlowStepCmd newModel )
 
         Navigated page ->
-            ( { model | page = page }, Cmd.none )
+            ( { model | page = page, flow = Flow.next model model.flow |> Tuple.first }
+            , Page.onNavigate
+                { userInfoReceivedHandler = UserInfoReceived
+                , playlistsFetchedHandler = PlaylistsFetched
+                }
+                page
+                model
+            )
 
         TogglePlaylistSelected connection playlist ->
             ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
@@ -256,25 +264,8 @@ update msg model =
 
 
 getFlowStepCmd : Model -> Cmd Msg
-getFlowStepCmd { playlists, connections, flow } =
+getFlowStepCmd { playlists, flow } =
     case flow of
-        Connect ->
-            connections
-                |> ConnectionsDict.connections
-                |> List.filterMap Connection.asConnected
-                |> List.filter (ConnectedProvider.user >> Maybe.map (\_ -> False) >> Maybe.withDefault True)
-                |> List.map (\c -> ( c, c |> MusicService.fetchUserInfo |> Task.onError (\_ -> Task.succeed NotAsked) ))
-                |> List.map (\( c, t ) -> Task.perform (UserInfoReceived c) t)
-                |> Cmd.batch
-
-        LoadPlaylists byProvider ->
-            byProvider
-                |> List.map
-                    (\( con, _ ) ->
-                        con |> MusicService.loadPlaylists |> Task.attempt (PlaylistsFetched con)
-                    )
-                |> Cmd.batch
-
         Transfer { playlist, otherConnection } ->
             let
                 ( con, id ) =
@@ -366,11 +357,24 @@ view model =
 -- Flow routing
 
 
+newRouteMainView : Model -> Element Msg
+newRouteMainView ({ playlists, connections, page } as model) =
+    page
+        |> Page.match
+            { serviceConnection = connectView model (ConnectionsDict.connections connections)
+            , playlistSpinner = progressBar [ centerX, centerY ] (Just "Fetching your playlists")
+            , playlistsPicker = playlistsTable model playlists
+            , destinationPicker = \_ -> playlistsTable model playlists
+            , transferSpinner = \_ _ -> playlistsTable model playlists
+            , transferComplete = \_ -> playlistsTable model playlists
+            }
+
+
 routeMainView : Model -> Element Msg
 routeMainView ({ playlists, connections } as model) =
     case model.flow of
         Connect ->
-            connectView model (ConnectionsDict.connections connections) <| Flow.canStep model model.flow
+            connectView model (ConnectionsDict.connections connections)
 
         LoadPlaylists _ ->
             progressBar [ centerX, centerY ] (Just "Fetching your playlists")
@@ -1005,8 +1009,8 @@ serviceConnectButton model tagger connection =
         }
 
 
-connectView : { m | device : Element.Device } -> List ProviderConnection -> Bool -> Element Msg
-connectView model connections canStep =
+connectView : Model -> List ProviderConnection -> Element Msg
+connectView model connections =
     let
         d =
             dimensions model
@@ -1031,15 +1035,18 @@ connectView model connections canStep =
     column [ width fill, height fill, d.mediumSpacing ]
         [ row ([ d.smallSpacing, d.mediumPaddingAll, centerX, centerY ] ++ servicesContainerStyle) <|
             List.map (serviceConnectButton model ToggleConnect) connections
-        , if canStep then
-            el (width fill :: containerPadding) <|
-                button (primaryButtonStyle model ++ centerX :: buttonStyle)
-                    { label = text "Next"
-                    , onPress = Just StepFlow
-                    }
-
-          else
-            el (d.buttonHeight :: containerPadding) Element.none
+        , Page.navigate Page.Request.PlaylistsSpinner model
+            |> Result.map
+                (\page ->
+                    el (width fill :: containerPadding) <|
+                        button (primaryButtonStyle model ++ centerX :: buttonStyle)
+                            { label = text "Next"
+                            , onPress = Just (Navigated page)
+                            }
+                )
+            |> (Result.withDefault <|
+                    el (d.buttonHeight :: containerPadding) Element.none
+               )
         ]
 
 

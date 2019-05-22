@@ -3,7 +3,6 @@ module Flow exposing
     , ConnectionsWithLoadingPlaylists
     , Flow(..)
     , PlaylistSelectionState(..)
-    , canStep
     , clearSelection
     , currentStep
     , next
@@ -18,7 +17,7 @@ module Flow exposing
 import Connection.Connected exposing (ConnectedProvider)
 import Flow.Context as Context exposing (Context)
 import Playlist exposing (Playlist, PlaylistId)
-import Playlist.State as PlaylistState exposing (PlaylistState)
+import Playlist.State exposing (PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
 import Tuple exposing (pair)
 
@@ -65,39 +64,6 @@ type Flow
 start : Flow
 start =
     Connect
-
-
-canStep : Context m -> Flow -> Bool
-canStep ctx flow =
-    case flow of
-        Connect ->
-            Context.hasAtLeast2Connected ctx
-
-        LoadPlaylists data ->
-            data |> List.map Tuple.second |> RemoteData.fromList |> RemoteData.isSuccess
-
-        PickPlaylist { selection } ->
-            case selection of
-                PlaylistSelected con id ->
-                    Context.getPlaylist ( con, id ) ctx
-                        |> Maybe.map (Tuple.second >> PlaylistState.isPlaylistTransferring >> not)
-                        |> Maybe.withDefault False
-
-                NoPlaylist ->
-                    False
-
-        PickOtherConnection { selection } ->
-            case selection of
-                ConnectionSelected _ ->
-                    True
-
-                NoConnection ->
-                    False
-
-        Transfer { playlist } ->
-            Context.getPlaylist playlist ctx
-                |> Maybe.map (PlaylistState.isPlaylistTransferred << Tuple.second)
-                |> Maybe.withDefault False
 
 
 next : Context m -> Flow -> ( Flow, Context m )

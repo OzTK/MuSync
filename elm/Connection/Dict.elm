@@ -1,8 +1,9 @@
-module Connection.Dict exposing (ConnectionsDict, connections, fromList, init, updateConnection)
+module Connection.Dict exposing (ConnectionsDict, connectedConnections, connections, fromList, init, updateConnection)
 
 import Connection exposing (ProviderConnection)
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
 import Dict.Any as Dict exposing (AnyDict)
+import List.Connection as Connections
 import List.Extra as List
 import Playlist.Dict exposing (PlaylistKey)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -27,6 +28,11 @@ connections connectionsDict =
     connectionsDict
         |> Dict.values
         |> List.map Tuple.first
+
+
+connectedConnections : ConnectionsDict -> List ConnectedProvider
+connectedConnections =
+    Connections.connectedProviders << connections
 
 
 updateConnection : MusicService -> (ProviderConnection -> ProviderConnection) -> ConnectionsDict -> ConnectionsDict
