@@ -1,4 +1,4 @@
-module Result.Extra exposing (unwrap)
+module Result.Extra exposing (fromBool, unwrap)
 
 
 unwrap : Result a a -> a
@@ -9,3 +9,12 @@ unwrap r =
 
         Err error ->
             error
+
+
+fromBool : error -> Bool -> Result error ()
+fromBool error test =
+    if test then
+        Ok ()
+
+    else
+        Err error

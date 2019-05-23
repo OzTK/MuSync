@@ -1,55 +1,15 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (apply, const)
+import Basics.Extra exposing (const)
+import Breadcrumb exposing (breadcrumb)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
 import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
 import Dict.Any as Dict exposing (AnyDict)
-import Element
-    exposing
-        ( Color
-        , DeviceClass(..)
-        , Element
-        , Orientation(..)
-        , above
-        , alignBottom
-        , alignLeft
-        , alignTop
-        , centerX
-        , centerY
-        , clip
-        , column
-        , el
-        , fill
-        , focused
-        , height
-        , html
-        , htmlAttribute
-        , image
-        , inFront
-        , maximum
-        , minimum
-        , mouseDown
-        , mouseOver
-        , moveDown
-        , moveLeft
-        , moveUp
-        , padding
-        , paddingEach
-        , paddingXY
-        , paragraph
-        , px
-        , row
-        , scrollbarY
-        , shrink
-        , spaceEvenly
-        , spacing
-        , text
-        , width
-        , wrappedRow
-        )
+import Dimensions exposing (DimensionPalette, dimensions)
+import Element exposing (..)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Events exposing (onClick)
@@ -76,6 +36,7 @@ import Playlist.State exposing (PlaylistImportResult, PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
+import Styles exposing (transition)
 import Task
 import Track
 import Tuple
@@ -153,7 +114,7 @@ init flags =
                 }
     in
     ( m
-    , getFlowStepCmd m
+    , Cmd.batch [ getFlowStepCmd m, Page.onNavigate handlers m.page m ]
     )
 
 
@@ -174,6 +135,12 @@ type Msg
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
+
+
+handlers =
+    { userInfoReceivedHandler = UserInfoReceived
+    , playlistsFetchedHandler = PlaylistsFetched
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -248,12 +215,7 @@ update msg model =
 
         Navigated page ->
             ( { model | page = page, flow = Flow.next model model.flow |> Tuple.first }
-            , Page.onNavigate
-                { userInfoReceivedHandler = UserInfoReceived
-                , playlistsFetchedHandler = PlaylistsFetched
-                }
-                page
-                model
+            , Page.onNavigate handlers page model
             )
 
         TogglePlaylistSelected connection playlist ->
@@ -364,7 +326,44 @@ newRouteMainView ({ playlists, connections, page } as model) =
             { serviceConnection = connectView model (ConnectionsDict.connections connections)
             , playlistSpinner = progressBar [ centerX, centerY ] (Just "Fetching your playlists")
             , playlistsPicker = playlistsTable model playlists
+            , playlistDetails = \_ -> playlistsTable model playlists
             , destinationPicker = \_ -> playlistsTable model playlists
+            , destinationPicked = \_ _ -> playlistsTable model playlists
+            , transferSpinner = \_ _ -> playlistsTable model playlists
+            , transferComplete = \_ -> playlistsTable model playlists
+            }
+
+
+newRoutePanel : Model -> Element Msg
+newRoutePanel ({ playlists, connections, page } as model) =
+    let
+        d =
+            dimensions model
+
+        placeholderStyle =
+            [ case model.device.orientation of
+                Portrait ->
+                    height (px d.panelHeight)
+
+                Landscape ->
+                    width (px d.panelHeight)
+            ]
+
+        connectedConnections =
+            connections |> ConnectionsDict.connectedConnections |> SelectableList.fromList
+    in
+    page
+        |> Page.match
+            { serviceConnection = Element.el placeholderStyle Element.none
+            , playlistSpinner = Element.el placeholderStyle Element.none
+            , playlistsPicker = Element.el placeholderStyle Element.none
+            , playlistDetails = \key -> playlistDetail model key model.playlists
+            , destinationPicker =
+                \key ->
+                    transferConfigStep2 model (Playlists.keyToCon key) connectedConnections
+            , destinationPicked =
+                \key con ->
+                    transferConfigStep2 model (Playlists.keyToCon key) (SelectableList.select con connectedConnections)
             , transferSpinner = \_ _ -> playlistsTable model playlists
             , transferComplete = \_ -> playlistsTable model playlists
             }
@@ -1125,146 +1124,7 @@ icon name =
 
 
 
----- Breadcrumb
-
-
-baseDot : Int -> List (Element.Attribute msg) -> Element msg
-baseDot size attrs =
-    el
-        ([ width (px size)
-         , height (px size)
-         , centerY
-         , Border.rounded 8
-         ]
-            ++ attrs
-        )
-        Element.none
-
-
-dot : Int -> Bool -> Element msg
-dot size active =
-    el
-        [ height (px size)
-        , inFront <|
-            baseDot
-                size
-                [ Bg.color palette.primary
-                , if active then
-                    delayedTransition 0.2 "transform"
-
-                  else
-                    transition [ "transform" ]
-                , Element.htmlAttribute (Html.classList [ ( "active-dot", active ), ( "inactive-dot", not active ) ])
-                ]
-        ]
-        (baseDot (size - 2) [ Bg.color palette.primaryFaded ])
-
-
-baseSegment : Int -> List (Element.Attribute msg) -> Element msg
-baseSegment size attrs =
-    el
-        ([ height (px size)
-         , width fill
-         , centerY
-         ]
-            ++ attrs
-        )
-        Element.none
-
-
-segment : Int -> Bool -> Element msg
-segment size active =
-    el
-        [ width fill
-        , height fill
-        , inFront <|
-            baseSegment size
-                [ centerY
-                , Bg.color palette.primary
-                , Border.rounded 2
-                , transition [ "transform" ]
-                , Element.htmlAttribute (Html.classList [ ( "active-segment", active ), ( "inactive-segment", not active ) ])
-                ]
-        ]
-    <|
-        baseSegment (size - 1) [ Bg.color palette.primaryFaded ]
-
-
-breadcrumb : List (Element.Attribute msg) -> { m | device : Element.Device, flow : Flow } -> Element msg
-breadcrumb attrs model =
-    let
-        d =
-            dimensions model
-
-        { labelWidth, paddingX, fontSize, dotSize, segSize } =
-            case ( model.device.class, model.device.orientation ) of
-                ( Phone, Portrait ) ->
-                    { labelWidth = 75, paddingX = 30, fontSize = d.xxSmallText, dotSize = 10, segSize = 4 }
-
-                _ ->
-                    { labelWidth = 170, paddingX = 78, fontSize = d.smallText, dotSize = 15, segSize = 5 }
-
-        index =
-            Flow.currentStep model.flow
-
-        bigSpot =
-            dot dotSize True
-
-        fadedSpot =
-            dot dotSize False
-
-        items =
-            [ bigSpot ]
-                :: List.repeat index [ segment segSize True, bigSpot ]
-                ++ List.repeat (3 - index) [ segment segSize False, fadedSpot ]
-    in
-    row
-        ([ spaceEvenly
-         , htmlAttribute (Html.style "z-index" "0")
-         , above <| row [ paddingXY paddingX 10, width fill ] (List.flatten items)
-         ]
-            ++ attrs
-        )
-    <|
-        List.indexedMap
-            (\i s ->
-                el
-                    [ width (px labelWidth)
-                    , Font.center
-                    , if i == index then
-                        delayedTransition 0.2 "color"
-
-                      else
-                        transition [ "color" ]
-                    , if i > index then
-                        Font.color palette.textFaded
-
-                      else
-                        Font.color palette.text
-                    , fontSize
-                    ]
-                    (text s)
-            )
-            Flow.steps
-
-
-
 -- Styles
-
-
-transition : List String -> Element.Attribute msg
-transition props =
-    props
-        |> String.join " .2s ease,"
-        |> (++)
-        |> apply " .2s ease"
-        |> Html.style "transition"
-        |> htmlAttribute
-
-
-delayedTransition : Float -> String -> Element.Attribute msg
-delayedTransition delay prop =
-    htmlAttribute <| Html.style "transition" (prop ++ " .2s ease " ++ String.fromFloat delay ++ "s")
 
 
 baseButtonStyle : Element.Device -> ( Color, Color ) -> ( Color, Color ) -> List (Element.Attribute msg)
@@ -1366,104 +1226,6 @@ hack_textEllipsis =
 hack_forceSticky : Element.Attribute msg
 hack_forceSticky =
     htmlAttribute <| Html.style "position" "sticky"
-
-
-
--- Palettes
-
-
-scaled : Int -> Float
-scaled =
-    Element.modular 16 1.25
-
-
-type alias DimensionPalette msg =
-    { xxSmallText : Element.Attribute msg
-    , xSmallText : Element.Attribute msg
-    , smallText : Element.Attribute msg
-    , mediumText : Element.Attribute msg
-    , largeText : Element.Attribute msg
-    , xSmallSpacing : Element.Attribute msg
-    , smallSpacing : Element.Attribute msg
-    , mediumSpacing : Element.Attribute msg
-    , largeSpacing : Element.Attribute msg
-    , xSmallPadding : Int
-    , smallPadding : Int
-    , smallPaddingAll : Element.Attribute msg
-    , smallHPadding : Element.Attribute msg
-    , smallVPadding : Element.Attribute msg
-    , mediumPadding : Int
-    , mediumPaddingAll : Element.Attribute msg
-    , mediumPaddingTop : Element.Attribute msg
-    , largePadding : Element.Attribute msg
-    , buttonImageWidth : Element.Attribute msg
-    , buttonHeight : Element.Attribute msg
-    , headerTopPadding : Element.Attribute msg
-    , panelHeight : Int
-    }
-
-
-dimensions : { m | device : Element.Device } -> DimensionPalette msg
-dimensions { device } =
-    let
-        ( xSmallPadding, smallPadding, mediumPadding ) =
-            case device.class of
-                Phone ->
-                    ( scaled -3 |> round, scaled -2 |> round, scaled 1 |> round )
-
-                _ ->
-                    ( scaled -2 |> round, scaled -1 |> round, scaled 3 |> round )
-    in
-    case device.class of
-        Phone ->
-            { xxSmallText = scaled -3 |> round |> Font.size
-            , xSmallText = scaled -2 |> round |> Font.size
-            , smallText = scaled -1 |> round |> Font.size
-            , mediumText = scaled 1 |> round |> Font.size
-            , largeText = scaled 2 |> round |> Font.size
-            , xSmallSpacing = scaled -2 |> round |> spacing
-            , smallSpacing = scaled 1 |> round |> spacing
-            , mediumSpacing = scaled 3 |> round |> spacing
-            , largeSpacing = scaled 5 |> round |> spacing
-            , xSmallPadding = smallPadding
-            , smallPadding = smallPadding
-            , smallPaddingAll = padding smallPadding
-            , smallHPadding = paddingXY smallPadding 0
-            , smallVPadding = paddingXY 0 smallPadding
-            , mediumPadding = mediumPadding
-            , mediumPaddingAll = padding mediumPadding
-            , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
-            , largePadding = scaled 2 |> round |> padding
-            , buttonImageWidth = scaled 4 |> round |> px |> width
-            , buttonHeight = scaled 7 |> round |> px |> height
-            , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
-            , panelHeight = 220
-            }
-
-        _ ->
-            { xxSmallText = scaled -3 |> round |> Font.size
-            , xSmallText = scaled -2 |> round |> Font.size
-            , smallText = scaled -1 |> round |> Font.size
-            , mediumText = scaled 1 |> round |> Font.size
-            , largeText = scaled 3 |> round |> Font.size
-            , xSmallSpacing = scaled -2 |> round |> spacing
-            , smallSpacing = scaled 1 |> round |> spacing
-            , mediumSpacing = scaled 3 |> round |> spacing
-            , largeSpacing = scaled 9 |> round |> spacing
-            , xSmallPadding = xSmallPadding
-            , smallPadding = smallPadding
-            , smallPaddingAll = padding smallPadding
-            , smallHPadding = paddingXY smallPadding 0
-            , smallVPadding = paddingXY 0 smallPadding
-            , mediumPadding = mediumPadding
-            , mediumPaddingAll = padding mediumPadding
-            , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
-            , largePadding = scaled 5 |> round |> padding
-            , buttonImageWidth = scaled 6 |> round |> px |> width
-            , buttonHeight = scaled 6 |> round |> px |> height
-            , headerTopPadding = paddingEach { top = round (scaled 2), right = 0, bottom = 0, left = 0 }
-            , panelHeight = 350
-            }
 
 
 

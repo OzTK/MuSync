@@ -11,6 +11,7 @@ import Playlist exposing (Playlist)
 import Playlist.Dict exposing (PlaylistKey, PlaylistsDict)
 import Playlist.State exposing (PlaylistImportResult)
 import RemoteData exposing (RemoteData(..), WebData)
+import Result.Extra as Result
 import Task
 import UserInfo exposing (UserInfo)
 
@@ -19,7 +20,9 @@ type Page
     = ServiceConnection
     | PlaylistsSpinner
     | PlaylistPicker
+    | PlaylistDetails PlaylistKey
     | DestinationPicker PlaylistKey
+    | DestinationPicked PlaylistKey ConnectedProvider
     | TransferSpinner PlaylistKey ConnectedProvider
     | TransferReport PlaylistImportResult
 
@@ -29,6 +32,7 @@ type NavigationError
     | WaitingForLoadingPlaylists Request.PageRequest
     | PlaylistNotFound Request.PageRequest
     | MusicServiceNotFound Request.PageRequest
+    | SourceIsDestination Request.PageRequest
 
 
 init : Page
@@ -40,7 +44,9 @@ match :
     { serviceConnection : a
     , playlistSpinner : a
     , playlistsPicker : a
+    , playlistDetails : PlaylistKey -> a
     , destinationPicker : PlaylistKey -> a
+    , destinationPicked : PlaylistKey -> ConnectedProvider -> a
     , transferSpinner : PlaylistKey -> ConnectedProvider -> a
     , transferComplete : PlaylistImportResult -> a
     }
@@ -57,8 +63,14 @@ match matchers page =
         PlaylistPicker ->
             matchers.playlistsPicker
 
+        PlaylistDetails playlist ->
+            matchers.playlistDetails playlist
+
         DestinationPicker playlist ->
             matchers.destinationPicker playlist
+
+        DestinationPicked playlist connection ->
+            matchers.destinationPicked playlist connection
 
         TransferSpinner playlist connection ->
             matchers.transferSpinner playlist connection
@@ -82,8 +94,14 @@ navigate path model =
         Request.PlaylistPicker ->
             tryPlaylistPicker model
 
+        Request.PlaylistDetails playlist ->
+            tryPlaylistDetails playlist model
+
         Request.DestinationPicker playlist ->
             tryDestinationPicker playlist model
+
+        Request.DestinationPicked playlist connection ->
+            trySelectedDestinationPicker playlist connection model
 
         Request.TransferSpinner playlist destination ->
             tryTransferSpinner playlist destination model
@@ -111,6 +129,14 @@ type alias WithPlaylistsAndConnections m =
     }
 
 
+tryGetPlaylist : (PlaylistKey -> Request.PageRequest) -> (PlaylistKey -> Page) -> PlaylistKey -> PlaylistsDict -> Result NavigationError Page
+tryGetPlaylist req page playlistKey playlists =
+    playlists
+        |> Dict.get playlistKey
+        |> Maybe.map (\_ -> Ok <| page playlistKey)
+        |> Maybe.withDefault (Err <| PlaylistNotFound (req playlistKey))
+
+
 tryTransferSpinner : PlaylistKey -> ConnectedProvider -> WithPlaylistsAndConnections m -> Result NavigationError Page
 tryTransferSpinner playlistKey service ({ connections } as model) =
     model
@@ -125,10 +151,24 @@ tryTransferSpinner playlistKey service ({ connections } as model) =
 
 tryDestinationPicker : PlaylistKey -> WithPlaylists m -> Result NavigationError Page
 tryDestinationPicker playlistKey { playlists } =
-    playlists
-        |> Dict.get playlistKey
-        |> Maybe.map (\_ -> Ok <| DestinationPicker playlistKey)
-        |> Maybe.withDefault (Err <| PlaylistNotFound (Request.DestinationPicker playlistKey))
+    tryGetPlaylist Request.DestinationPicker DestinationPicker playlistKey playlists
+
+
+trySelectedDestinationPicker : PlaylistKey -> ConnectedProvider -> WithPlaylists m -> Result NavigationError Page
+trySelectedDestinationPicker playlistKey connection { playlists } =
+    playlistKey
+        |> Playlist.Dict.keyToCon
+        |> (/=) connection
+        |> Result.fromBool (SourceIsDestination <| Request.DestinationPicked playlistKey connection)
+        |> Result.andThen
+            (\_ ->
+                tryGetPlaylist Request.DestinationPicker DestinationPicker playlistKey playlists
+            )
+
+
+tryPlaylistDetails : PlaylistKey -> WithPlaylists m -> Result NavigationError Page
+tryPlaylistDetails playlistKey { playlists } =
+    tryGetPlaylist Request.PlaylistDetails PlaylistDetails playlistKey playlists
 
 
 tryPlaylistsSpinner : WithServiceConnections m -> Result NavigationError Page

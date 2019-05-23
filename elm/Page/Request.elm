@@ -9,6 +9,8 @@ type PageRequest
     = ServiceConnection
     | PlaylistsSpinner
     | PlaylistPicker
+    | PlaylistDetails PlaylistKey
     | DestinationPicker PlaylistKey
+    | DestinationPicked PlaylistKey ConnectedProvider
     | TransferSpinner PlaylistKey ConnectedProvider
     | TransferReport PlaylistImportResult
