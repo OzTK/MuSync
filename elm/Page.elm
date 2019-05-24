@@ -1,4 +1,4 @@
-module Page exposing (Page, init, match, navigate, onNavigate)
+module Page exposing (Page, init, is, match, navigate, onNavigate, oneOf)
 
 import Connection exposing (ProviderConnection(..))
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
@@ -108,6 +108,42 @@ navigate path model =
 
         Request.TransferReport result ->
             Ok <| TransferReport result
+
+
+is : Page -> Request.PageRequest -> Bool
+is page req =
+    case ( req, page ) of
+        ( Request.ServiceConnection, ServiceConnection ) ->
+            True
+
+        ( Request.PlaylistsSpinner, PlaylistsSpinner ) ->
+            True
+
+        ( Request.PlaylistPicker, PlaylistPicker ) ->
+            True
+
+        ( Request.PlaylistDetails _, PlaylistDetails _ ) ->
+            True
+
+        ( Request.DestinationPicker _, DestinationPicker _ ) ->
+            True
+
+        ( Request.DestinationPicked _ _, DestinationPicked _ _ ) ->
+            True
+
+        ( Request.TransferSpinner _ _, TransferSpinner _ _ ) ->
+            True
+
+        ( Request.TransferReport _, TransferReport _ ) ->
+            True
+
+        _ ->
+            False
+
+
+oneOf : Page -> List Request.PageRequest -> Bool
+oneOf page =
+    List.foldl (\req matched -> matched || is page req) False
 
 
 
@@ -223,8 +259,8 @@ type alias NavigationHandlers msg =
     }
 
 
-onNavigate : NavigationHandlers msg -> Page -> WithPlaylistsAndConnections m -> Cmd msg
-onNavigate handlers page { connections } =
+onNavigate : NavigationHandlers msg -> WithPlaylistsAndConnections m -> Page -> Cmd msg
+onNavigate handlers { connections } page =
     case page of
         ServiceConnection ->
             connections

@@ -1,6 +1,6 @@
 module Main exposing (Model, Msg, init, main, subscriptions, update, view)
 
-import Basics.Extra exposing (const)
+import Basics.Extra exposing (apply, const)
 import Breadcrumb exposing (breadcrumb)
 import Browser
 import Browser.Events as Browser
@@ -114,7 +114,7 @@ init flags =
                 }
     in
     ( m
-    , Cmd.batch [ getFlowStepCmd m, Page.onNavigate handlers m.page m ]
+    , Cmd.batch [ getFlowStepCmd m, Page.onNavigate handlers m m.page ]
     )
 
 
@@ -175,12 +175,33 @@ update msg model =
 
         PlaylistsFetched connection (Ok playlistsData) ->
             let
-                ( flow, m ) =
+                ( flow, _ ) =
                     Flow.udpateLoadingPlaylists connection playlistsData model model.flow
+
+                withPlaylists =
+                    playlistsData
+                        |> RemoteData.map (List.map .id)
+                        |> ConnectionsDict.stopLoading (ConnectedProvider.type_ connection)
+                        |> apply model.connections
+
+                storedPlaylists =
+                    playlistsData
+                        |> RemoteData.map
+                            (List.foldl
+                                (\p dict ->
+                                    Playlists.add (Playlists.key connection p.id) p dict
+                                )
+                                model.playlists
+                            )
+                        |> RemoteData.withDefault model.playlists
+
+                m =
+                    { model | flow = flow, connections = withPlaylists, playlists = storedPlaylists }
             in
-            ( { m | flow = flow }
-            , Cmd.none
-            )
+            m
+                |> Page.navigate Page.Request.PlaylistPicker
+                |> Result.map (apply m << update << Navigated)
+                |> Result.withDefault ( m, Cmd.none )
 
         PlaylistsFetched _ (Err _) ->
             ( model
@@ -215,7 +236,7 @@ update msg model =
 
         Navigated page ->
             ( { model | page = page, flow = Flow.next model model.flow |> Tuple.first }
-            , Page.onNavigate handlers page model
+            , Page.onNavigate handlers model page
             )
 
         TogglePlaylistSelected connection playlist ->
@@ -311,7 +332,7 @@ view model =
                     ++ hack_forceClip
                     ++ mainContentStyle
                 )
-                (routeMainView model)
+                (newRouteMainView model)
             ]
 
 
@@ -367,25 +388,6 @@ newRoutePanel ({ playlists, connections, page } as model) =
             , transferSpinner = \_ _ -> playlistsTable model playlists
             , transferComplete = \_ -> playlistsTable model playlists
             }
-
-
-routeMainView : Model -> Element Msg
-routeMainView ({ playlists, connections } as model) =
-    case model.flow of
-        Connect ->
-            connectView model (ConnectionsDict.connections connections)
-
-        LoadPlaylists _ ->
-            progressBar [ centerX, centerY ] (Just "Fetching your playlists")
-
-        PickPlaylist _ ->
-            playlistsTable model playlists
-
-        PickOtherConnection _ ->
-            playlistsTable model playlists
-
-        Transfer _ ->
-            playlistsTable model playlists
 
 
 routePanel : Model -> Element Msg
@@ -467,17 +469,33 @@ playlistDetail model playlist playlists =
 -- View parts
 
 
+isPanelOpen : Page -> Bool
+isPanelOpen page =
+    not <| Page.oneOf page [ Page.Request.ServiceConnection, Page.Request.PlaylistsSpinner, Page.Request.PlaylistPicker ]
+
+
+isPanelOpenLegacy flow model =
+    flow |> Flow.selectedPlaylist model |> Maybe.isDefined
+
+
 overlay : Model -> Element.Attribute Msg
-overlay ({ flow } as model) =
+overlay ({ page, flow } as model) =
     let
         attrs =
             [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
+
+        clickHandler =
+            model
+                |> Page.navigate Page.Request.PlaylistPicker
+                |> Result.map (List.singleton << onClick << Navigated)
+                |> Result.withDefault []
     in
-    flow
-        |> Flow.selectedPlaylist model
-        |> Maybe.map (\_ -> el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none)
-        |> Maybe.withDefault (el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none)
-        |> Element.inFront
+    Element.inFront <|
+        if isPanelOpenLegacy flow model then
+            el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none
+
+        else
+            el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none
 
 
 
@@ -485,7 +503,7 @@ overlay ({ flow } as model) =
 
 
 panel : Model -> Element.Attribute Msg
-panel ({ device, flow } as model) =
+panel ({ device, page, flow } as model) =
     let
         d =
             dimensions model
@@ -498,15 +516,12 @@ panel ({ device, flow } as model) =
                 Landscape ->
                     Element.onRight
 
-        isSelected =
-            flow |> Flow.selectedPlaylist model |> Maybe.isDefined
-
         panelStyle =
             case device.orientation of
                 Portrait ->
                     [ width fill
                     , height (px d.panelHeight)
-                    , if not isSelected then
+                    , if not <| isPanelOpenLegacy flow model then
                         moveDown 0
 
                       else
@@ -516,7 +531,7 @@ panel ({ device, flow } as model) =
                 Landscape ->
                     [ width (px d.panelHeight)
                     , height fill
-                    , if not isSelected then
+                    , if not <| isPanelOpenLegacy flow model then
                         moveLeft 0
 
                       else
@@ -830,7 +845,13 @@ playlistRow model tagger connection ( playlist, state ) =
     in
     button
         style
-        { onPress = Just <| tagger playlist.id
+        { onPress =
+            model
+                |> Page.navigate (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
+                |> Result.map Navigated
+                |> Result.toMaybe
+                |> Maybe.map (\_ -> Just <| tagger playlist.id)
+                |> Maybe.withDefault (Just <| tagger playlist.id)
         , label =
             row [ width fill, d.smallSpacing ] <|
                 [ providerLogoOrName [ width (px 28) ] (ConnectedProvider.type_ connection)
