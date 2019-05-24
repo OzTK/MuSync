@@ -1,11 +1,12 @@
 module Graphics.Note exposing (view)
 
+import Element exposing (Element, html)
 import Svg exposing (defs, style, svg, text)
 import Svg.Attributes exposing (class, d, id, viewBox)
 
-
+view : Element msg
 view =
-    svg [ viewBox "0 0 30 43.5" ]
+    html <| svg [ viewBox "0 0 30 43.5" ]
         [ defs [] [ style [] [ text " .cls-1{fill:#294351;} " ] ]
         , Svg.path
             [ id "Croche"

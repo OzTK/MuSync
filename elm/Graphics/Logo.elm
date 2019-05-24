@@ -1,15 +1,15 @@
 module Graphics.Logo exposing (view)
 
+import Element exposing (Element, html)
 import Element.Extra as Element
 import Graphics.Palette exposing (palette)
-import Html exposing (Html)
 import Svg exposing (animateTransform, g, svg)
 import Svg.Attributes exposing (attributeName, begin, calcMode, d, dur, end, fill, id, keySplines, keyTimes, to, type_, viewBox)
 
 
-view : Html msg
+view : Element msg
 view =
-    svg [ viewBox "0 0 119 45", id "logo", fill "white" ]
+    html <| svg [ viewBox "0 0 119 45", id "logo", fill "white" ]
         [ g [ id "Text" ]
             [ g []
                 [ Svg.path

@@ -19,11 +19,9 @@ import Element.Region as Region
 import Flow exposing (ConnectionSelection(..), Flow(..), PlaylistSelectionState(..))
 import Flow.Context as Ctx
 import Graphics.Logo as Logo
-import Graphics.Note
 import Graphics.Palette exposing (fade, palette)
 import Html exposing (Html)
 import Html.Attributes as Html
-import List.Connection as Connections
 import List.Extra as List
 import Maybe.Extra as Maybe
 import MusicService exposing (DisconnectedProvider(..), MusicServiceError)
@@ -36,6 +34,7 @@ import Playlist.State exposing (PlaylistImportResult, PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
+import Spinner
 import Styles exposing (transition)
 import Task
 import Track
@@ -341,22 +340,22 @@ view model =
 
 
 newRouteMainView : Model -> Element Msg
-newRouteMainView ({ playlists, connections, page } as model) =
+newRouteMainView ({ page } as model) =
     page
         |> Page.match
-            { serviceConnection = connectView model (ConnectionsDict.connections connections)
-            , playlistSpinner = progressBar [ centerX, centerY ] (Just "Fetching your playlists")
-            , playlistsPicker = playlistsTable model playlists
-            , playlistDetails = \_ -> playlistsTable model playlists
-            , destinationPicker = \_ -> playlistsTable model playlists
-            , destinationPicked = \_ _ -> playlistsTable model playlists
-            , transferSpinner = \_ _ -> playlistsTable model playlists
-            , transferComplete = \_ -> playlistsTable model playlists
+            { serviceConnection = connectView model
+            , playlistSpinner = Spinner.progressBar [ centerX, centerY ] (Just "Fetching your playlists")
+            , playlistsPicker = playlistsTable model
+            , playlistDetails = \_ -> playlistsTable model
+            , destinationPicker = \_ -> playlistsTable model
+            , destinationPicked = \_ _ -> playlistsTable model
+            , transferSpinner = \_ _ -> playlistsTable model
+            , transferComplete = \_ -> playlistsTable model
             }
 
 
 newRoutePanel : Model -> Element Msg
-newRoutePanel ({ playlists, connections, page } as model) =
+newRoutePanel model =
     let
         d =
             dimensions model
@@ -369,11 +368,8 @@ newRoutePanel ({ playlists, connections, page } as model) =
                 Landscape ->
                     width (px d.panelHeight)
             ]
-
-        connectedConnections =
-            connections |> ConnectionsDict.connectedConnections |> SelectableList.fromList
     in
-    page
+    model.page
         |> Page.match
             { serviceConnection = Element.el placeholderStyle Element.none
             , playlistSpinner = Element.el placeholderStyle Element.none
@@ -381,63 +377,13 @@ newRoutePanel ({ playlists, connections, page } as model) =
             , playlistDetails = \key -> playlistDetail model key model.playlists
             , destinationPicker =
                 \key ->
-                    transferConfigStep2 model (Playlists.keyToCon key) connectedConnections
+                    transferConfigStep2 model (Playlists.keyToCon key) Nothing
             , destinationPicked =
                 \key con ->
-                    transferConfigStep2 model (Playlists.keyToCon key) (SelectableList.select con connectedConnections)
-            , transferSpinner = \_ _ -> playlistsTable model playlists
-            , transferComplete = \_ -> playlistsTable model playlists
+                    transferConfigStep2 model (Playlists.keyToCon key) (Just con)
+            , transferSpinner = \_ _ -> playlistsTable model
+            , transferComplete = \_ -> playlistsTable model
             }
-
-
-routePanel : Model -> Element Msg
-routePanel model =
-    let
-        d =
-            dimensions model
-
-        placeholderStyle =
-            [ case model.device.orientation of
-                Portrait ->
-                    height (px d.panelHeight)
-
-                Landscape ->
-                    width (px d.panelHeight)
-            ]
-    in
-    case model.flow of
-        PickPlaylist { selection } ->
-            case selection of
-                PlaylistSelected con id ->
-                    playlistDetail model (Playlists.key con id) model.playlists
-
-                _ ->
-                    Element.el placeholderStyle Element.none
-
-        PickOtherConnection { playlist, selection } ->
-            let
-                connectedConnections =
-                    Connections.connectedProviders <| ConnectionsDict.connections model.connections
-
-                connectionsSelection =
-                    case selection of
-                        NoConnection ->
-                            SelectableList.fromList connectedConnections
-
-                        ConnectionSelected con ->
-                            connectedConnections |> SelectableList.fromList |> SelectableList.select con
-            in
-            transferConfigStep2 model (Tuple.first playlist) connectionsSelection
-
-        Transfer { playlist } ->
-            let
-                ( con, id ) =
-                    playlist
-            in
-            playlistDetail model (Playlists.key con id) model.playlists
-
-        _ ->
-            Element.el placeholderStyle Element.none
 
 
 playlistDetail :
@@ -474,12 +420,10 @@ isPanelOpen page =
     not <| Page.oneOf page [ Page.Request.ServiceConnection, Page.Request.PlaylistsSpinner, Page.Request.PlaylistPicker ]
 
 
-isPanelOpenLegacy flow model =
-    flow |> Flow.selectedPlaylist model |> Maybe.isDefined
 
 
 overlay : Model -> Element.Attribute Msg
-overlay ({ page, flow } as model) =
+overlay ({ page } as model) =
     let
         attrs =
             [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
@@ -491,7 +435,7 @@ overlay ({ page, flow } as model) =
                 |> Result.withDefault []
     in
     Element.inFront <|
-        if isPanelOpenLegacy flow model then
+        if isPanelOpen page then
             el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none
 
         else
@@ -503,7 +447,7 @@ overlay ({ page, flow } as model) =
 
 
 panel : Model -> Element.Attribute Msg
-panel ({ device, page, flow } as model) =
+panel ({ device, page } as model) =
     let
         d =
             dimensions model
@@ -521,7 +465,7 @@ panel ({ device, page, flow } as model) =
                 Portrait ->
                     [ width fill
                     , height (px d.panelHeight)
-                    , if not <| isPanelOpenLegacy flow model then
+                    , if not <| isPanelOpen page then
                         moveDown 0
 
                       else
@@ -531,7 +475,7 @@ panel ({ device, page, flow } as model) =
                 Landscape ->
                     [ width (px d.panelHeight)
                     , height fill
-                    , if not <| isPanelOpenLegacy flow model then
+                    , if not <| isPanelOpen page then
                         moveLeft 0
 
                       else
@@ -541,20 +485,23 @@ panel ({ device, page, flow } as model) =
     in
     panelPositioner <|
         el (panelStyle ++ [ Bg.color palette.white, transition [ "transform" ] ]) <|
-            routePanel model
+            newRoutePanel model
 
 
 header : { m | device : Element.Device } -> Element msg
 header { device } =
-    case ( device.class, device.orientation ) of
-        ( Phone, Portrait ) ->
-            logo [ centerX, width (px 80) ]
+    let
+        style = case ( device.class, device.orientation ) of
+            ( Phone, Portrait ) ->
+                [ centerX, width (px 80) ]
 
-        ( Tablet, Portrait ) ->
-            logo [ centerX, width (px 100) ]
+            ( Tablet, Portrait ) ->
+                [ centerX, width (px 100) ]
 
-        _ ->
-            logo [ alignLeft, width (px 150) ]
+            _ ->
+                [ alignLeft, width (px 150) ]
+    in
+        el style Logo.view
 
 
 panelDefaultStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -608,11 +555,17 @@ transferConfigStep1 model { name } =
         ]
 
 
-transferConfigStep2 : { m | device : Element.Device } -> ConnectedProvider -> SelectableList ConnectedProvider -> Element Msg
-transferConfigStep2 model unavailable services =
+transferConfigStep2 : { m | device : Element.Device, connections: ConnectionsDict } -> ConnectedProvider -> Maybe ConnectedProvider -> Element Msg
+transferConfigStep2 model unavailable destination =
     let
         d =
             dimensions model
+
+        services =
+            model.connections
+                |> ConnectionsDict.connectedConnections
+                |> SelectableList.fromList
+                |> SelectableList.selectFirst (\c -> Maybe.map ((==) c) destination |> Maybe.withDefault False)
 
         buttonState con =
             if con == unavailable then
@@ -664,7 +617,7 @@ transferConfigStep3 model =
     in
     panelContainer model
         Nothing
-        [ progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
+        [ Spinner.progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
         , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Run in background" }
         ]
 
@@ -931,19 +884,19 @@ playlistsTableFrame model items =
             ]
 
 
-playlistsGroup : Model -> PlaylistsDict -> ConnectedProvider -> List PlaylistId -> Element Msg
-playlistsGroup model playlists connection playlistIds =
+playlistsGroup : Model -> ConnectedProvider -> List PlaylistId -> Element Msg
+playlistsGroup model connection playlistIds =
     Element.column [ width fill ] <|
         (playlistIds
             |> List.map (Playlists.key connection)
-            |> List.filterMap (\key -> Playlists.get key playlists)
+            |> List.filterMap (\key -> Playlists.get key model.playlists)
             |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
             |> List.withDefault [ text "No tracks" ]
         )
 
 
-playlistsTable : Model -> PlaylistsDict -> Element Msg
-playlistsTable model playlists =
+playlistsTable : Model -> Element Msg
+playlistsTable model =
     let
         groupByProvider p =
             p
@@ -959,14 +912,14 @@ playlistsTable model playlists =
                     (Dict.empty ConnectedProvider.connectionToString)
 
         withPlaylistsGroups f =
-            playlists
+            model.playlists
                 |> groupByProvider
                 |> Dict.map f
                 |> Dict.values
     in
     playlistsTableFrame model <|
         withPlaylistsGroups <|
-            playlistsGroup model playlists
+            playlistsGroup model
 
 
 
@@ -1029,8 +982,8 @@ serviceConnectButton model tagger connection =
         }
 
 
-connectView : Model -> List ProviderConnection -> Element Msg
-connectView model connections =
+connectView : Model -> Element Msg
+connectView model =
     let
         d =
             dimensions model
@@ -1054,7 +1007,9 @@ connectView model connections =
     in
     column [ width fill, height fill, d.mediumSpacing ]
         [ row ([ d.smallSpacing, d.mediumPaddingAll, centerX, centerY ] ++ servicesContainerStyle) <|
-            List.map (serviceConnectButton model ToggleConnect) connections
+            (model.connections
+                |> ConnectionsDict.connections
+                |> List.map (serviceConnectButton model ToggleConnect))
         , Page.navigate Page.Request.PlaylistsSpinner model
             |> Result.map
                 (\page ->
@@ -1072,35 +1027,6 @@ connectView model connections =
 
 
 -- Reusable
-
-
-progressBar : List (Element.Attribute msg) -> Maybe String -> Element msg
-progressBar attrs message =
-    let
-        ifMessage v =
-            message
-                |> Maybe.map (v << text)
-                |> Maybe.withDefault Element.none
-    in
-    column attrs
-        [ Element.html <|
-            Html.div
-                [ Html.class "progress progress-sm progress-indeterminate" ]
-                [ Html.div [ Html.class "progress-bar" ] [] ]
-        , ifMessage <|
-            \msg ->
-                paragraph [ width shrink, centerX, centerY, Font.center ] [ msg ]
-        ]
-
-
-logo : List (Element.Attribute msg) -> Element msg
-logo attrs =
-    el attrs <| html Logo.view
-
-
-note : Element msg
-note =
-    html <| Graphics.Note.view
 
 
 providerName : MusicService -> String
