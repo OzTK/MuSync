@@ -1,4 +1,4 @@
-module Playlist.Dict exposing (PlaylistData, PlaylistKey, PlaylistsDict, add, addNew, completeTransfer, destructureKey, get, isTransferComplete, isTransferring, key, keyBuilder, keyFromPlaylist, keyToCon, noPlaylists, startTransfer)
+module Playlist.Dict exposing (PlaylistData, PlaylistKey, PlaylistsDict, add, addNew, anyKey, completeTransfer, destructureKey, get, isTransferComplete, isTransferring, key, keyBuilder, keyFromPlaylist, keyToCon, noPlaylists, startTransfer)
 
 import Basics.Extra exposing (const)
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
@@ -28,6 +28,11 @@ keyFromPlaylist con p =
 key : ConnectedProvider -> PlaylistId -> PlaylistKey
 key =
     PlaylistKey
+
+
+anyKey : PlaylistKey
+anyKey =
+    PlaylistKey ConnectedProvider.any ""
 
 
 destructureKey : PlaylistKey -> ( ConnectedProvider, PlaylistId )

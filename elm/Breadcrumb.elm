@@ -1,5 +1,6 @@
 module Breadcrumb exposing (baseDot, baseSegment, breadcrumb, dot, segment)
 
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
 import Dimensions exposing (dimensions)
 import Element exposing (..)
 import Element.Background as Bg
@@ -9,6 +10,9 @@ import Flow exposing (Flow)
 import Graphics.Palette exposing (palette)
 import Html.Attributes as Html
 import List.Extra as List
+import Page exposing (Page)
+import Page.Request
+import Playlist.Dict
 import Styles exposing (delayedTransition, transition)
 
 
@@ -74,7 +78,25 @@ segment size active =
         baseSegment (size - 1) [ Bg.color palette.primaryFaded ]
 
 
-breadcrumb : List (Element.Attribute msg) -> { m | device : Element.Device, flow : Flow } -> Element msg
+indexFromPage : Page -> Int
+indexFromPage page =
+    if Page.oneOf page [ Page.Request.ServiceConnection, Page.Request.PlaylistsSpinner ] then
+        0
+
+    else if Page.oneOf page [ Page.Request.PlaylistPicker, Page.Request.PlaylistDetails Playlist.Dict.anyKey ] then
+        1
+
+    else if Page.is page <| Page.Request.DestinationPicker Playlist.Dict.anyKey then
+        2
+
+    else if Page.is page <| Page.Request.TransferSpinner Playlist.Dict.anyKey ConnectedProvider.any then
+        3
+
+    else
+        4
+
+
+breadcrumb : List (Element.Attribute msg) -> { m | device : Element.Device, page : Page } -> Element msg
 breadcrumb attrs model =
     let
         d =
@@ -89,7 +111,7 @@ breadcrumb attrs model =
                     { labelWidth = 170, paddingX = 78, fontSize = d.smallText, dotSize = 15, segSize = 5 }
 
         index =
-            Flow.currentStep model.flow
+            indexFromPage model.page
 
         bigSpot =
             dot dotSize True

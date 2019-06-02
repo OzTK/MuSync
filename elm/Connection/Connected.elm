@@ -1,4 +1,4 @@
-module Connection.Connected exposing (ConnectedProvider(..), MusicService(..), OAuthToken, OAuthTokenFormatError, connected, connectionToString, createToken, hasUser, rawToken, setUserInfo, toString, token, type_, user)
+module Connection.Connected exposing (ConnectedProvider(..), MusicService(..), OAuthToken, OAuthTokenFormatError, any, connected, connectionToString, createToken, hasUser, rawToken, setUserInfo, toString, token, type_, user)
 
 import RemoteData exposing (RemoteData(..), WebData)
 import UserInfo exposing (UserInfo)
@@ -40,6 +40,11 @@ connectionToString =
 connected : MusicService -> WebData UserInfo -> ConnectedProvider
 connected t userInfo =
     ConnectedProvider t userInfo
+
+
+any : ConnectedProvider
+any =
+    connected Amazon NotAsked
 
 
 type_ : ConnectedProvider -> MusicService

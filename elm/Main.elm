@@ -26,12 +26,13 @@ import List.Extra as List
 import Maybe.Extra as Maybe
 import MusicService exposing (DisconnectedProvider(..), MusicServiceError)
 import Page exposing (Page)
-import Page.Request
+import Page.Request exposing (NavigationError)
 import Playlist exposing (Playlist, PlaylistId)
 import Playlist.Dict as Playlists exposing (PlaylistKey, PlaylistsDict)
 import Playlist.Import exposing (PlaylistImportReport)
 import Playlist.State exposing (PlaylistImportResult, PlaylistState)
 import RemoteData exposing (RemoteData(..), WebData)
+import Result exposing (Result)
 import Result.Extra as Result
 import SelectableList exposing (SelectableList)
 import Spinner
@@ -130,7 +131,7 @@ type Msg
     | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
-    | Navigated Page
+    | Navigated (Result NavigationError Page)
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
@@ -158,25 +159,16 @@ update msg model =
             )
 
         ToggleConnect connection ->
-            ( model
-            , Connection.toggleProviderConnect ProviderDisconnected connection
-            )
+            ( model, Connection.toggleProviderConnect ProviderDisconnected connection )
 
         PlaylistSelectionCleared ->
-            ( { model | flow = Flow.clearSelection model.flow }
-            , Cmd.none
-            )
+            ( { model | flow = Flow.clearSelection model.flow }, Cmd.none )
 
         UserInfoReceived con info ->
-            ( Ctx.setUserInfo con info model
-            , Cmd.none
-            )
+            ( Ctx.setUserInfo con info model, Cmd.none )
 
         PlaylistsFetched connection (Ok playlistsData) ->
             let
-                ( flow, _ ) =
-                    Flow.udpateLoadingPlaylists connection playlistsData model model.flow
-
                 withPlaylists =
                     playlistsData
                         |> RemoteData.map (List.map .id)
@@ -195,17 +187,14 @@ update msg model =
                         |> RemoteData.withDefault model.playlists
 
                 m =
-                    { model | flow = flow, connections = withPlaylists, playlists = storedPlaylists }
+                    { model | connections = withPlaylists, playlists = storedPlaylists }
             in
-            m
-                |> Page.navigate Page.Request.PlaylistPicker
-                |> Result.map (apply m << update << Navigated)
+            Page.Request.canNavigate m Page.Request.PlaylistPicker
+                |> Result.map (apply m << update << Navigated << Page.navigate m)
                 |> Result.withDefault ( m, Cmd.none )
 
         PlaylistsFetched _ (Err _) ->
-            ( model
-            , Cmd.none
-            )
+            ( model, Cmd.none )
 
         PlaylistImported playlist (Success result) ->
             ( Ctx.playlistTransferFinished playlist result model
@@ -214,14 +203,10 @@ update msg model =
 
         -- TODO: Handle import error cases
         PlaylistImported _ _ ->
-            ( model
-            , Cmd.none
-            )
+            ( model, Cmd.none )
 
         PlaylistImportFailed _ _ _ ->
-            ( model
-            , Cmd.none
-            )
+            ( model, Cmd.none )
 
         StepFlow ->
             let
@@ -233,10 +218,21 @@ update msg model =
             in
             ( newModel, getFlowStepCmd newModel )
 
-        Navigated page ->
-            ( { model | page = page, flow = Flow.next model model.flow |> Tuple.first }
+        Navigated (Ok page) ->
+            let
+                _ =
+                    Debug.log "NAV OK: " page
+            in
+            ( { model | page = page }
             , Page.onNavigate handlers model page
             )
+
+        Navigated (Err err) ->
+            let
+                _ =
+                    Debug.log "NAV ERR: " err
+            in
+            ( model, Cmd.none )
 
         TogglePlaylistSelected connection playlist ->
             ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
@@ -374,7 +370,7 @@ newRoutePanel model =
             { serviceConnection = Element.el placeholderStyle Element.none
             , playlistSpinner = Element.el placeholderStyle Element.none
             , playlistsPicker = Element.el placeholderStyle Element.none
-            , playlistDetails = \key -> playlistDetail model key model.playlists
+            , playlistDetails = \key -> playlistDetail model key
             , destinationPicker =
                 \key ->
                     transferConfigStep2 model (Playlists.keyToCon key) Nothing
@@ -386,13 +382,9 @@ newRoutePanel model =
             }
 
 
-playlistDetail :
-    { m | device : Element.Device }
-    -> PlaylistKey
-    -> PlaylistsDict
-    -> Element Msg
-playlistDetail model playlist playlists =
-    playlists
+playlistDetail : { m | device : Element.Device, playlists : PlaylistsDict, connections : ConnectionsDict } -> PlaylistKey -> Element Msg
+playlistDetail model playlist =
+    model.playlists
         |> Playlists.get playlist
         |> Maybe.map
             (\( p, state ) ->
@@ -406,7 +398,7 @@ playlistDetail model playlist playlists =
                         |> Maybe.withDefault (transferConfigStep4 model)
 
                 else
-                    transferConfigStep1 model p
+                    transferConfigStep1 model playlist p
             )
         |> Maybe.withDefault Element.none
 
@@ -420,8 +412,6 @@ isPanelOpen page =
     not <| Page.oneOf page [ Page.Request.ServiceConnection, Page.Request.PlaylistsSpinner, Page.Request.PlaylistPicker ]
 
 
-
-
 overlay : Model -> Element.Attribute Msg
 overlay ({ page } as model) =
     let
@@ -429,14 +419,13 @@ overlay ({ page } as model) =
             [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
 
         clickHandler =
-            model
-                |> Page.navigate Page.Request.PlaylistPicker
-                |> Result.map (List.singleton << onClick << Navigated)
+            Page.Request.canNavigate model Page.Request.PlaylistPicker
+                |> Result.map (List.singleton << onClick << Navigated << Page.navigate model)
                 |> Result.withDefault []
     in
     Element.inFront <|
         if isPanelOpen page then
-            el (attrs ++ [ Bg.color palette.textFaded, onClick PlaylistSelectionCleared ]) Element.none
+            el (attrs ++ clickHandler ++ [ Bg.color palette.textFaded ]) Element.none
 
         else
             el (attrs ++ [ Element.transparent True, htmlAttribute <| Html.style "pointer-events" "none" ]) Element.none
@@ -491,17 +480,18 @@ panel ({ device, page } as model) =
 header : { m | device : Element.Device } -> Element msg
 header { device } =
     let
-        style = case ( device.class, device.orientation ) of
-            ( Phone, Portrait ) ->
-                [ centerX, width (px 80) ]
+        style =
+            case ( device.class, device.orientation ) of
+                ( Phone, Portrait ) ->
+                    [ centerX, width (px 80) ]
 
-            ( Tablet, Portrait ) ->
-                [ centerX, width (px 100) ]
+                ( Tablet, Portrait ) ->
+                    [ centerX, width (px 100) ]
 
-            _ ->
-                [ alignLeft, width (px 150) ]
+                _ ->
+                    [ alignLeft, width (px 150) ]
     in
-        el style Logo.view
+    el style Logo.view
 
 
 panelDefaultStyle : { m | device : Element.Device } -> List (Element.Attribute msg)
@@ -546,16 +536,22 @@ panelContainer model maybeTitle children =
             :: children
 
 
-transferConfigStep1 : { m | device : Element.Device } -> Playlist -> Element Msg
-transferConfigStep1 model { name } =
+transferConfigStep1 : { m | device : Element.Device, playlists : PlaylistsDict, connections : ConnectionsDict } -> PlaylistKey -> Playlist -> Element Msg
+transferConfigStep1 model key { name } =
     panelContainer model
         (Just "Transfer playlist")
         [ paragraph ([ height fill, clip, scrollbarY ] ++ panelDefaultStyle model ++ hack_forceClip) [ text name ]
-        , button (primaryButtonStyle model ++ [ width fill ]) { onPress = Just StepFlow, label = text "Next" }
+        , button (primaryButtonStyle model ++ [ width fill ])
+            { onPress =
+                Page.Request.canNavigate model (Page.Request.DestinationPicker key)
+                    |> Result.map (Navigated << Page.navigate model)
+                    |> Result.toMaybe
+            , label = text "Next"
+            }
         ]
 
 
-transferConfigStep2 : { m | device : Element.Device, connections: ConnectionsDict } -> ConnectedProvider -> Maybe ConnectedProvider -> Element Msg
+transferConfigStep2 : { m | device : Element.Device, connections : ConnectionsDict } -> ConnectedProvider -> Maybe ConnectedProvider -> Element Msg
 transferConfigStep2 model unavailable destination =
     let
         d =
@@ -766,11 +762,10 @@ playlistState model state =
 
 playlistRow :
     Model
-    -> (PlaylistId -> msg)
     -> ConnectedProvider
     -> Playlists.PlaylistData
-    -> Element msg
-playlistRow model tagger connection ( playlist, state ) =
+    -> Element Msg
+playlistRow model connection ( playlist, state ) =
     let
         d =
             dimensions model
@@ -799,12 +794,9 @@ playlistRow model tagger connection ( playlist, state ) =
     button
         style
         { onPress =
-            model
-                |> Page.navigate (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
-                |> Result.map Navigated
+            Page.Request.canNavigate model (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
+                |> Result.map (Navigated << Page.navigate model)
                 |> Result.toMaybe
-                |> Maybe.map (\_ -> Just <| tagger playlist.id)
-                |> Maybe.withDefault (Just <| tagger playlist.id)
         , label =
             row [ width fill, d.smallSpacing ] <|
                 [ providerLogoOrName [ width (px 28) ] (ConnectedProvider.type_ connection)
@@ -890,7 +882,7 @@ playlistsGroup model connection playlistIds =
         (playlistIds
             |> List.map (Playlists.key connection)
             |> List.filterMap (\key -> Playlists.get key model.playlists)
-            |> List.map (playlistRow model (TogglePlaylistSelected connection) connection)
+            |> List.map (playlistRow model connection)
             |> List.withDefault [ text "No tracks" ]
         )
 
@@ -1009,14 +1001,15 @@ connectView model =
         [ row ([ d.smallSpacing, d.mediumPaddingAll, centerX, centerY ] ++ servicesContainerStyle) <|
             (model.connections
                 |> ConnectionsDict.connections
-                |> List.map (serviceConnectButton model ToggleConnect))
-        , Page.navigate Page.Request.PlaylistsSpinner model
+                |> List.map (serviceConnectButton model ToggleConnect)
+            )
+        , Page.Request.canNavigate model Page.Request.PlaylistsSpinner
             |> Result.map
                 (\page ->
                     el (width fill :: containerPadding) <|
                         button (primaryButtonStyle model ++ centerX :: buttonStyle)
                             { label = text "Next"
-                            , onPress = Just (Navigated page)
+                            , onPress = Just (Navigated <| Page.navigate model page)
                             }
                 )
             |> (Result.withDefault <|
