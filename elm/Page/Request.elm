@@ -129,6 +129,7 @@ trySelectedDestinationPicker playlistKey connection { playlists } =
             (\_ ->
                 tryGetPlaylist DestinationPicker playlistKey playlists
             )
+        |> Result.map (\_ -> DestinationPicked playlistKey connection)
 
 
 tryPlaylistDetails : PlaylistKey -> WithPlaylists m -> Result NavigationError PagePath

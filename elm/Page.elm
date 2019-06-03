@@ -61,12 +61,9 @@ match matchers (Page page) =
             matchers.transferComplete result
 
 
-navigate :
-    WithPlaylistsAndConnections m
-    -> Request.PageRequest
-    -> Result NavigationError Page
-navigate model req =
-    Request.tryNavigate model (Request.pagePath req) |> Result.map Page
+navigate : Request.PageRequest -> Page
+navigate req =
+    Page (Request.pagePath req)
 
 
 is : Page -> Request.PagePath -> Bool

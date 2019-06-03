@@ -86,7 +86,7 @@ indexFromPage page =
     else if Page.oneOf page [ Page.Request.PlaylistPicker, Page.Request.PlaylistDetails Playlist.Dict.anyKey ] then
         1
 
-    else if Page.is page <| Page.Request.DestinationPicker Playlist.Dict.anyKey then
+    else if Page.oneOf page [ Page.Request.DestinationPicker Playlist.Dict.anyKey, Page.Request.DestinationPicked Playlist.Dict.anyKey ConnectedProvider.any ] then
         2
 
     else if Page.is page <| Page.Request.TransferSpinner Playlist.Dict.anyKey ConnectedProvider.any then

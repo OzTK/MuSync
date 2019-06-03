@@ -131,7 +131,7 @@ type Msg
     | PlaylistImported ( ConnectedProvider, PlaylistId ) (WebData PlaylistImportResult)
     | PlaylistImportFailed ( ConnectedProvider, PlaylistId ) ConnectedProvider MusicServiceError
     | BrowserResized Dimensions
-    | Navigated (Result NavigationError Page)
+    | Navigated Page
     | StepFlow
     | TogglePlaylistSelected ConnectedProvider PlaylistId
     | ToggleOtherProviderSelected ConnectedProvider
@@ -190,7 +190,7 @@ update msg model =
                     { model | connections = withPlaylists, playlists = storedPlaylists }
             in
             Page.Request.canNavigate m Page.Request.PlaylistPicker
-                |> Result.map (apply m << update << Navigated << Page.navigate m)
+                |> Result.map (apply m << update << Navigated << Page.navigate)
                 |> Result.withDefault ( m, Cmd.none )
 
         PlaylistsFetched _ (Err _) ->
@@ -218,7 +218,7 @@ update msg model =
             in
             ( newModel, getFlowStepCmd newModel )
 
-        Navigated (Ok page) ->
+        Navigated page ->
             let
                 _ =
                     Debug.log "NAV OK: " page
@@ -226,13 +226,6 @@ update msg model =
             ( { model | page = page }
             , Page.onNavigate handlers model page
             )
-
-        Navigated (Err err) ->
-            let
-                _ =
-                    Debug.log "NAV ERR: " err
-            in
-            ( model, Cmd.none )
 
         TogglePlaylistSelected connection playlist ->
             ( { model | flow = Flow.pickPlaylist connection playlist model.flow }, Cmd.none )
@@ -373,10 +366,10 @@ newRoutePanel model =
             , playlistDetails = \key -> playlistDetail model key
             , destinationPicker =
                 \key ->
-                    transferConfigStep2 model (Playlists.keyToCon key) Nothing
+                    transferConfigStep2 model key Nothing
             , destinationPicked =
                 \key con ->
-                    transferConfigStep2 model (Playlists.keyToCon key) (Just con)
+                    transferConfigStep2 model key (Just con)
             , transferSpinner = \_ _ -> playlistsTable model
             , transferComplete = \_ -> playlistsTable model
             }
@@ -420,7 +413,7 @@ overlay ({ page } as model) =
 
         clickHandler =
             Page.Request.canNavigate model Page.Request.PlaylistPicker
-                |> Result.map (List.singleton << onClick << Navigated << Page.navigate model)
+                |> Result.map (List.singleton << onClick << Navigated << Page.navigate)
                 |> Result.withDefault []
     in
     Element.inFront <|
@@ -544,15 +537,15 @@ transferConfigStep1 model key { name } =
         , button (primaryButtonStyle model ++ [ width fill ])
             { onPress =
                 Page.Request.canNavigate model (Page.Request.DestinationPicker key)
-                    |> Result.map (Navigated << Page.navigate model)
+                    |> Result.map (Navigated << Page.navigate)
                     |> Result.toMaybe
             , label = text "Next"
             }
         ]
 
 
-transferConfigStep2 : { m | device : Element.Device, connections : ConnectionsDict } -> ConnectedProvider -> Maybe ConnectedProvider -> Element Msg
-transferConfigStep2 model unavailable destination =
+transferConfigStep2 : { m | device : Element.Device, connections : ConnectionsDict, playlists : PlaylistsDict } -> PlaylistKey -> Maybe ConnectedProvider -> Element Msg
+transferConfigStep2 model key destination =
     let
         d =
             dimensions model
@@ -562,6 +555,9 @@ transferConfigStep2 model unavailable destination =
                 |> ConnectionsDict.connectedConnections
                 |> SelectableList.fromList
                 |> SelectableList.selectFirst (\c -> Maybe.map ((==) c) destination |> Maybe.withDefault False)
+
+        unavailable =
+            Playlists.keyToCon key
 
         buttonState con =
             if con == unavailable then
@@ -589,7 +585,17 @@ transferConfigStep2 model unavailable destination =
                 |> SelectableList.map
                     (\connection ->
                         button (squareToggleButtonStyle model <| buttonState connection)
-                            { onPress = Just <| ToggleOtherProviderSelected connection, label = (ConnectedProvider.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection }
+                            { onPress =
+                                if unavailable /= connection then
+                                    Page.Request.canNavigate model (Page.Request.DestinationPicked key connection)
+                                        |> Result.map Page.navigate
+                                        |> Result.toMaybe
+                                        |> Maybe.map Navigated
+
+                                else
+                                    Nothing
+                            , label = (ConnectedProvider.type_ >> providerLogoOrName [ d.buttonImageWidth, centerX ]) connection
+                            }
                     )
                 |> SelectableList.toList
             )
@@ -795,7 +801,7 @@ playlistRow model connection ( playlist, state ) =
         style
         { onPress =
             Page.Request.canNavigate model (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
-                |> Result.map (Navigated << Page.navigate model)
+                |> Result.map (Navigated << Page.navigate)
                 |> Result.toMaybe
         , label =
             row [ width fill, d.smallSpacing ] <|
@@ -1009,7 +1015,7 @@ connectView model =
                     el (width fill :: containerPadding) <|
                         button (primaryButtonStyle model ++ centerX :: buttonStyle)
                             { label = text "Next"
-                            , onPress = Just (Navigated <| Page.navigate model page)
+                            , onPress = Just (Navigated <| Page.navigate page)
                             }
                 )
             |> (Result.withDefault <|
