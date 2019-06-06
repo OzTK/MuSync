@@ -4,13 +4,11 @@ module MusicService exposing
     , MusicServiceError
     , connect
     , connecting
-    , disconnect
     , disconnected
     , fetchUserInfo
     , fromString
     , importPlaylist
     , importedPlaylist
-    , importedPlaylistKey
     , loadPlaylists
     )
 
@@ -20,7 +18,6 @@ import Connection.Connected as ConnectedProvider exposing (ConnectedProvider(..)
 import Deezer
 import List.Extra as List
 import Playlist exposing (Playlist, PlaylistId)
-import Playlist.Dict as Playlists exposing (PlaylistKey)
 import Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult)
 import Playlist.State exposing (PlaylistImportResult)
 import RemoteData exposing (RemoteData(..), WebData)
@@ -50,11 +47,6 @@ connect (DisconnectedProvider service) tok =
 disconnected : MusicService -> DisconnectedProvider
 disconnected =
     DisconnectedProvider
-
-
-disconnect : ConnectedProvider -> DisconnectedProvider
-disconnect connection =
-    DisconnectedProvider <| ConnectedProvider.type_ connection
 
 
 type ConnectingProvider
@@ -160,11 +152,6 @@ searchAllTracks connection trackList =
         |> Task.map (Tuple.mapSecond RemoteData.fromList)
         |> Task.map (\( tracks, result ) -> RemoteData.map (Tuple.pair tracks) result)
         |> Task.map (RemoteData.map List.zip)
-
-
-importedPlaylistKey : PlaylistImportResult -> PlaylistKey
-importedPlaylistKey { connection, playlist } =
-    Playlists.keyFromPlaylist connection playlist
 
 
 importedPlaylist : PlaylistImportResult -> Playlist

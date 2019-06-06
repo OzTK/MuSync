@@ -6,9 +6,10 @@ import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
 import MusicService exposing (MusicServiceError)
 import Page.Request as Request exposing (NavigationError, PagePath(..), WithPlaylistsAndConnections)
 import Playlist exposing (Playlist)
-import Playlist.Dict exposing (PlaylistKey, PlaylistsDict)
+import Playlist.Dict as Playlists exposing (PlaylistKey, PlaylistsDict)
 import Playlist.State exposing (PlaylistImportResult)
 import RemoteData exposing (RemoteData(..), WebData)
+import Result.Extra as Result
 import Task
 import UserInfo exposing (UserInfo)
 
@@ -109,11 +110,13 @@ oneOf page =
 type alias NavigationHandlers msg =
     { userInfoReceivedHandler : ConnectedProvider -> WebData UserInfo -> msg
     , playlistsFetchedHandler : ConnectedProvider -> Result MusicServiceError (WebData (List Playlist)) -> msg
+    , playlistImportCompleteHandler : PlaylistKey -> WebData PlaylistImportResult -> msg
+    , playlistImportFailedHandler : PlaylistKey -> ConnectedProvider -> MusicServiceError -> msg
     }
 
 
 onNavigate : NavigationHandlers msg -> WithPlaylistsAndConnections m -> Page -> Cmd msg
-onNavigate handlers { connections } (Page path) =
+onNavigate handlers { connections, playlists } (Page path) =
     case path of
         ServiceConnection ->
             connections
@@ -132,6 +135,18 @@ onNavigate handlers { connections } (Page path) =
                         con |> MusicService.loadPlaylists |> Task.attempt (handlers.playlistsFetchedHandler con)
                     )
                 |> Cmd.batch
+
+        TransferSpinner playlist destination ->
+            Playlists.get playlist playlists
+                |> Maybe.map Tuple.first
+                |> Maybe.map (MusicService.importPlaylist (Playlists.keyToCon playlist) destination)
+                |> Maybe.map
+                    (Task.attempt <|
+                        Result.map (handlers.playlistImportCompleteHandler playlist)
+                            >> Result.mapError (handlers.playlistImportFailedHandler playlist destination)
+                            >> Result.unwrap
+                    )
+                |> Maybe.withDefault Cmd.none
 
         _ ->
             Cmd.none

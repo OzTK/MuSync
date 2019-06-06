@@ -6,7 +6,6 @@ import Element exposing (..)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
-import Flow exposing (Flow)
 import Graphics.Palette exposing (palette)
 import Html.Attributes as Html
 import List.Extra as List
@@ -151,4 +150,4 @@ breadcrumb attrs model =
                     ]
                     (text s)
             )
-            Flow.steps
+            [ "Connect", "Pick playlist", "Pick destination", "Transfer" ]

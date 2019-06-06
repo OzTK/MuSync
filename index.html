@@ -100,10 +100,6 @@
     }
     var elmApp = elmInit('app')
 
-    elmApp.ports.disconnectDeezer.subscribe(function () {
-      saveToken('Deezer', undefined);
-    })
-
     elmApp.ports.connectS.subscribe(function () {
       if (config.local) {
         window.location.href = '/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600';

@@ -1,6 +1,7 @@
 module Connection exposing
     ( ProviderConnection(..)
     , asConnected
+    , asDisconnected
     , connected
     , connecting
     , disconnected
@@ -17,7 +18,6 @@ import Deezer
 import MusicService as P exposing (ConnectingProvider(..), DisconnectedProvider(..))
 import RemoteData exposing (WebData)
 import Spotify
-import Task
 import UserInfo exposing (UserInfo)
 
 
@@ -66,6 +66,16 @@ asConnected connection =
             Nothing
 
 
+asDisconnected : ProviderConnection -> Maybe DisconnectedProvider
+asDisconnected connection =
+    case connection of
+        Disconnected provider ->
+            Just provider
+
+        _ ->
+            Nothing
+
+
 isConnected : ProviderConnection -> Bool
 isConnected connection =
     case connection of
@@ -99,24 +109,13 @@ map f connection =
             connection
 
 
-notifyProviderDisconnected : (DisconnectedProvider -> msg) -> DisconnectedProvider -> Cmd msg
-notifyProviderDisconnected tagger connection =
-    Task.succeed () |> Task.perform (\_ -> tagger connection)
-
-
-toggleProviderConnect : (DisconnectedProvider -> msg) -> ProviderConnection -> Cmd msg
-toggleProviderConnect tagger connection =
-    case ( type_ connection, connection ) of
-        ( Deezer, Connected con ) ->
-            Cmd.batch [ Deezer.disconnectDeezer (), notifyProviderDisconnected tagger <| P.disconnect con ]
-
-        ( Deezer, Disconnected _ ) ->
+toggleProviderConnect : DisconnectedProvider -> Cmd msg
+toggleProviderConnect connection =
+    case fromDisconnected connection |> type_ of
+        Deezer ->
             Deezer.connectDeezer ()
 
-        ( Spotify, Connected con ) ->
-            notifyProviderDisconnected tagger <| P.disconnect con
-
-        ( Spotify, Disconnected _ ) ->
+        Spotify ->
             Spotify.connectS ()
 
         _ ->
