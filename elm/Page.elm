@@ -62,9 +62,9 @@ match matchers (Page page) =
             matchers.transferComplete result
 
 
-navigate : Request.PageRequest -> Page
-navigate req =
-    Page (Request.pagePath req)
+navigate : WithPlaylistsAndConnections m -> Request.PagePath -> Result NavigationError Page
+navigate model req =
+    Request.tryNavigate model req |> Result.map Page
 
 
 is : Page -> Request.PagePath -> Bool

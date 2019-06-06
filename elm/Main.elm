@@ -184,8 +184,8 @@ update msg model =
                 m =
                     { model | connections = withPlaylists, playlists = storedPlaylists }
             in
-            Page.Request.canNavigate m Page.Request.PlaylistPicker
-                |> Result.map (apply m << update << Navigated << Page.navigate)
+            Page.navigate m Page.Request.PlaylistPicker
+                |> Result.map (apply m << update << Navigated)
                 |> Result.withDefault ( m, Cmd.none )
 
         PlaylistsFetched _ (Err _) ->
@@ -201,8 +201,8 @@ update msg model =
                                 |> Playlists.addNew (resultToKey result) (MusicService.importedPlaylist result)
                     }
             in
-            Page.Request.canNavigate m (Page.Request.TransferReport result)
-                |> Result.map (apply m << update << Navigated << Page.navigate)
+            Page.navigate m (Page.Request.TransferReport result)
+                |> Result.map (apply m << update << Navigated)
                 |> Result.withDefault ( m, Cmd.none )
 
         -- TODO: Handle import error cases
@@ -379,8 +379,8 @@ overlay ({ page } as model) =
             [ height fill, width fill, transition [ "background-color" ], mouseDown [] ]
 
         clickHandler =
-            Page.Request.canNavigate model Page.Request.PlaylistPicker
-                |> Result.map (List.singleton << onClick << Navigated << Page.navigate)
+            Page.navigate model Page.Request.PlaylistPicker
+                |> Result.map (List.singleton << onClick << Navigated)
                 |> Result.withDefault []
     in
     Element.inFront <|
@@ -503,8 +503,8 @@ transferConfigStep1 model key { name } =
         [ paragraph ([ height fill, clip, scrollbarY ] ++ panelDefaultStyle model ++ hack_forceClip) [ text name ]
         , button (primaryButtonStyle model ++ [ width fill ])
             { onPress =
-                Page.Request.canNavigate model (Page.Request.DestinationPicker key)
-                    |> Result.map (Navigated << Page.navigate)
+                Page.navigate model (Page.Request.DestinationPicker key)
+                    |> Result.map Navigated
                     |> Result.toMaybe
             , label = text "Next"
             }
@@ -554,10 +554,9 @@ transferConfigStep2 model key destination =
                         button (squareToggleButtonStyle model <| buttonState connection)
                             { onPress =
                                 if unavailable /= connection then
-                                    Page.Request.canNavigate model (Page.Request.DestinationPicked key connection)
-                                        |> Result.map Page.navigate
+                                    Page.navigate model (Page.Request.DestinationPicked key connection)
+                                        |> Result.map Navigated
                                         |> Result.toMaybe
-                                        |> Maybe.map Navigated
 
                                 else
                                     Nothing
@@ -571,8 +570,8 @@ transferConfigStep2 model key destination =
                 destination
                     |> Maybe.andThen
                         (\dest ->
-                            Page.Request.canNavigate model (Page.Request.TransferSpinner key dest)
-                                |> Result.map (Navigated << Page.navigate)
+                            Page.navigate model (Page.Request.TransferSpinner key dest)
+                                |> Result.map Navigated
                                 |> Result.toMaybe
                         )
             , label = text "GO!"
@@ -591,8 +590,8 @@ transferConfigStep3 model =
         [ Spinner.progressBar [ d.smallPaddingAll, centerX, centerY ] <| Just "Transferring playlist"
         , button (primaryButtonStyle model ++ [ width fill ])
             { onPress =
-                Page.Request.canNavigate model Page.Request.PlaylistPicker
-                    |> Result.map (Navigated << Page.navigate)
+                Page.navigate model Page.Request.PlaylistPicker
+                    |> Result.map Navigated
                     |> Result.toMaybe
             , label = text "Run in background"
             }
@@ -621,8 +620,8 @@ transferConfigStep4 model =
             ]
         , button (primaryButtonStyle model ++ [ width fill ])
             { onPress =
-                Page.Request.canNavigate model Page.Request.PlaylistPicker
-                    |> Result.map (Navigated << Page.navigate)
+                Page.navigate model Page.Request.PlaylistPicker
+                    |> Result.map Navigated
                     |> Result.toMaybe
             , label = text "Back to playlists"
             }
@@ -684,8 +683,8 @@ transferConfigStep4Warnings model report =
                    )
         , button (primaryButtonStyle model ++ [ width fill ])
             { onPress =
-                Page.Request.canNavigate model Page.Request.PlaylistPicker
-                    |> Result.map (Navigated << Page.navigate)
+                Page.navigate model Page.Request.PlaylistPicker
+                    |> Result.map Navigated
                     |> Result.toMaybe
             , label = text "Back to playlists"
             }
@@ -782,8 +781,8 @@ playlistRow model connection isSelected ( playlist, state ) =
     button
         style
         { onPress =
-            Page.Request.canNavigate model (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
-                |> Result.map (Navigated << Page.navigate)
+            Page.navigate model (Page.Request.PlaylistDetails <| Playlists.key connection playlist.id)
+                |> Result.map Navigated
                 |> Result.toMaybe
         , label =
             row [ width fill, d.smallSpacing ] <|
@@ -988,13 +987,13 @@ connectView model =
                 |> ConnectionsDict.connections
                 |> List.map (serviceConnectButton model ToggleConnect)
             )
-        , Page.Request.canNavigate model Page.Request.PlaylistsSpinner
+        , Page.navigate model Page.Request.PlaylistsSpinner
             |> Result.map
                 (\page ->
                     el (width fill :: containerPadding) <|
                         button (primaryButtonStyle model ++ centerX :: buttonStyle)
                             { label = text "Next"
-                            , onPress = Just (Navigated <| Page.navigate page)
+                            , onPress = Just <| Navigated page
                             }
                 )
             |> (Result.withDefault <|
