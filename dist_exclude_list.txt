@@ -14,7 +14,7 @@ js/config.dev.js
 .vscode/
 cypress/
 cypress.json
-.dist_exclude_list.txt
+dist_exclude_list.txt
 elm.json
 Logo icon.ai
 *.sh
