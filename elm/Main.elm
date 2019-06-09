@@ -863,19 +863,17 @@ playlistsTableFrame model items =
             ]
 
 
-playlistsGroup : Model -> Maybe PlaylistKey -> ConnectedProvider -> List PlaylistId -> Element Msg
+playlistsGroup : Model -> Maybe PlaylistKey -> ConnectedProvider -> List PlaylistId -> List (Element Msg)
 playlistsGroup model selected connection playlistIds =
     let
         isSelected id =
             selected |> Maybe.map (Playlists.matches connection id) |> Maybe.withDefault False
     in
-    Element.column [ width fill ] <|
-        (playlistIds
-            |> List.map (Playlists.key connection)
-            |> List.filterMap (\key -> Playlists.get key model.playlists)
-            |> List.map (\(( playlist, _ ) as data) -> playlistRow model connection (isSelected playlist.id) data)
-            |> List.withDefault [ text "No tracks" ]
-        )
+    playlistIds
+        |> List.map (Playlists.key connection)
+        |> List.filterMap (\key -> Playlists.get key model.playlists)
+        |> List.map (\(( playlist, _ ) as data) -> playlistRow model connection (isSelected playlist.id) data)
+        |> List.withDefault [ text "No tracks" ]
 
 
 playlistsTable : Model -> Maybe PlaylistKey -> Element Msg
@@ -899,6 +897,7 @@ playlistsTable model selected =
                 |> groupByProvider
                 |> Dict.map f
                 |> Dict.values
+                |> List.flatten
     in
     playlistsTableFrame model <|
         withPlaylistsGroups <|
