@@ -4,8 +4,8 @@
   "description": "Import your playlist from and to Spotify, Deezer, Amazon Music, Google Music and so on!",
   "main": "index.js",
   "scripts": {
-    "clean": "rm -rf elm-stuff & rm -rf tests/elm-stuff",
-    "build": "elm make elm/Main.elm --output=js/elm.js --optimize",
+    "clean": "rm -rf elm-stuff & rm -rf tests/elm-stuff && rm -rf dist",
+    "build": "./build.sh",
     "build:dev": "elm make elm/Main.elm --output=js/elm.js --debug",
     "debug": "elm-live elm/Main.elm --open -- --output=js/elm.js --debug",
     "start": "elm-live elm/Main.elm --no-recover -- --output=js/elm.js",

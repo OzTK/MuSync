@@ -1,0 +1,22 @@
+elm-stuff/
+elm/
+tests/
+.travis.yml
+.jshintrc
+.gitignore
+.surgeignore
+elm-package.json
+package-lock.json
+package.json
+js/config.dev.js
+.git/
+.idea/
+.vscode/
+cypress/
+cypress.json
+.dist_exclude_list.txt
+elm.json
+Logo icon.ai
+*.sh
+node_modules/
+README.md
