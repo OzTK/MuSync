@@ -3,7 +3,7 @@ function parseQuery(query) {
     const pair = p.split('=');
     params[pair[0]] = pair[1];
     return params;
-  }, {})
+  }, {});
 }
 
 function retrieveTokens() {
@@ -19,8 +19,8 @@ function saveToken(service, tokenData) {
   const tokens = retrieveTokens();
 
   if (tokenData) {
-    var secondsBeforeExpiration = Number(tokenData.expires | tokenData.expires_in | 0) ;
-    tokenData.expiration = Date.now() + (secondsBeforeExpiration * 1000)
+    var secondsBeforeExpiration = Number(tokenData.expires | tokenData.expires_in | 0);
+    tokenData.expiration = Date.now() + (secondsBeforeExpiration * 1000);
     tokens[service] = tokenData;
   } else if (tokens[service]) {
     delete tokens[service];
