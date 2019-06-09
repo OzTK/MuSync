@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-set -euxo pipefail
-
 npm run cy:verify
+
+set -euxo pipefail
 
 mkdir it
 rsync -rv . it/ --exclude it --exclude node_modules --exclude elm-stuff --exclude .git --exclude .vscode --exclude .idea
