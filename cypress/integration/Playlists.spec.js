@@ -17,7 +17,7 @@ describe('Connecting a music provider and displaying its playlists', () => {
       .should('have.text', '8 playlists in your library');
   });
 
-  xit('selects a playlist when clicking on it', () => {
+  it('selects a playlist when clicking on it', () => {
     cy.contains('Playlists')
       .parent()
       .next()
