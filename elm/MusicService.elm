@@ -6,17 +6,16 @@ module MusicService exposing
     , connecting
     , disconnected
     , fetchUserInfo
-    , fromString
     , importPlaylist
-    , importedPlaylist
     , loadPlaylists
     )
 
 import ApiClient as Api
 import Array
-import Connection.Connected as ConnectedProvider exposing (ConnectedProvider(..), MusicService(..), OAuthToken)
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider(..), OAuthToken)
 import Deezer
 import List.Extra as List
+import MusicProvider exposing (MusicService(..))
 import Playlist exposing (Playlist, PlaylistId)
 import Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult)
 import Playlist.State exposing (PlaylistImportResult)
@@ -27,6 +26,7 @@ import Task exposing (Task)
 import Track exposing (Track)
 import Tuple
 import UserInfo exposing (UserInfo)
+import Youtube
 
 
 type MusicServiceError
@@ -58,25 +58,6 @@ connecting =
     ConnectingProvider
 
 
-fromString : String -> Maybe MusicService
-fromString pName =
-    case pName of
-        "Spotify" ->
-            Just Spotify
-
-        "Deezer" ->
-            Just Deezer
-
-        "Google" ->
-            Just Google
-
-        "Amazon" ->
-            Just Amazon
-
-        _ ->
-            Nothing
-
-
 
 -- HTTP
 
@@ -89,6 +70,9 @@ fetchUserInfo connection =
 
         ConnectedProviderWithToken Deezer tok _ ->
             Deezer.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
+
+        ConnectedProviderWithToken Youtube tok _ ->
+            Youtube.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -118,6 +102,9 @@ addSongsToPlaylist connection playlist tracks =
 
         ConnectedProviderWithToken Deezer tok _ ->
             Deezer.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist.id |> asErrorTask
+
+        ConnectedProviderWithToken Youtube tok _ ->
+            Youtube.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -152,11 +139,6 @@ searchAllTracks connection trackList =
         |> Task.map (Tuple.mapSecond RemoteData.fromList)
         |> Task.map (\( tracks, result ) -> RemoteData.map (Tuple.pair tracks) result)
         |> Task.map (RemoteData.map List.zip)
-
-
-importedPlaylist : PlaylistImportResult -> Playlist
-importedPlaylist { playlist } =
-    playlist
 
 
 importPlaylist : ConnectedProvider -> ConnectedProvider -> Playlist -> Task MusicServiceError (WebData PlaylistImportResult)
@@ -202,6 +184,9 @@ loadPlaylists connection =
 
         ConnectedProviderWithToken Spotify tok _ ->
             Spotify.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
+
+        ConnectedProviderWithToken Youtube tok _ ->
+            Youtube.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)

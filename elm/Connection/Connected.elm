@@ -1,14 +1,8 @@
-module Connection.Connected exposing (ConnectedProvider(..), MusicService(..), OAuthToken, OAuthTokenFormatError, any, connected, connectionToString, createToken, hasUser, rawToken, setUserInfo, toString, token, type_, user)
+module Connection.Connected exposing (ConnectedProvider(..), OAuthToken, OAuthTokenFormatError, any, connected, connectionToString, createToken, hasUser, rawToken, setUserInfo, toString, token, type_, user)
 
+import MusicProvider exposing (MusicService(..))
 import RemoteData exposing (RemoteData(..), WebData)
 import UserInfo exposing (UserInfo)
-
-
-type MusicService
-    = Spotify
-    | Deezer
-    | Google
-    | Amazon
 
 
 toString : MusicService -> String
@@ -25,6 +19,9 @@ toString t =
 
         Amazon ->
             "Amazon"
+
+        Youtube ->
+            "Youtube"
 
 
 type ConnectedProvider

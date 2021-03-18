@@ -1,10 +1,11 @@
 module Connection.Dict exposing (ConnectionsDict, connectedConnections, connections, fromList, init, startLoading, stopLoading, updateConnection)
 
 import Connection exposing (ProviderConnection(..))
-import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
 import Dict.Any as Dict exposing (AnyDict)
 import List.Connection as Connections
 import List.Extra as List
+import MusicProvider exposing (MusicService)
 import Playlist exposing (PlaylistId)
 import Playlist.Dict as Playlists exposing (PlaylistKey)
 import RemoteData exposing (RemoteData(..), WebData)

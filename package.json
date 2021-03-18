@@ -7,7 +7,7 @@
     "clean": "rm -rf elm-stuff & rm -rf tests/elm-stuff && rm -rf dist",
     "build": "./build.sh",
     "build:dev": "elm make elm/Main.elm --output=js/elm.js --debug",
-    "debug": "elm-live elm/Main.elm --open -- --output=js/elm.js --debug",
+    "debug": "elm-live elm/Main.elm -h playlist-importer.uk -S -p 443 --open -- --output=js/elm.js --debug",
     "start": "elm-live elm/Main.elm --no-recover -- --output=js/elm.js",
     "cy": "cypress open",
     "cy:all": "cypress run",
@@ -40,11 +40,10 @@
     "url": "https://github.com/OzTK/playlist-importer/issues"
   },
   "homepage": "https://github.com/OzTK/playlist-importer#readme",
-  "dependencies": {},
   "devDependencies": {
     "cypress": "^3.3.1",
-    "elm": "0.19.0-bugfix6",
-    "elm-live": "^3.4.1",
+    "elm": "^0.19.1-5",
+    "elm-live": "^4.0.2",
     "tar": "^4.4.8"
   }
 }

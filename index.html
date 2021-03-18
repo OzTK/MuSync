@@ -56,16 +56,6 @@
     if (/iP(?:hone|ad|od)/.test(navigator.userAgent)) {
       document.head.removeChild(document.getElementById('pwa-manifest'))
     }
-
-    if (!fetch) {
-      window.location = 'offline.html';
-    } else {
-      fetch('https://api.ipify.org?format=json').then((response) => response.json()).then((info) => {
-        if (config.offline && config.allowedIps.indexOf(info.ip) < 0 && config.allowedIps.indexOf('*') < 0) {
-          window.location = 'offline.html';
-        }
-      });
-    }
   </script>
 
   <!-- Layout -->
@@ -120,6 +110,17 @@
       window.location.href = 'https://connect.deezer.com/oauth/auth.php?app_id=' + config.deezerAppId +
         '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Deezer' +
         '&perms=manage_library,basic_access';
+    });
+
+    elmApp.ports.connectYoutube.subscribe(function () {
+        if (config.local) {
+            window.location.href = '/?service=Youtube#access_token=987654321&token_type=Bearer&expires_in=3600';
+            return;
+        }
+
+        window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + config.youtubeClientId +
+            '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Youtube' +
+            '&scope=https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
     });
   </script>
 </body>

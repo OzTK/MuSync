@@ -1,7 +1,7 @@
 module Page exposing (Page, init, is, match, navigate, onNavigate, oneOf)
 
 import Connection exposing (ProviderConnection(..))
-import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService)
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
 import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
 import MusicService exposing (MusicServiceError)
 import Page.Request as Request exposing (NavigationError, PagePath(..), WithPlaylistsAndConnections)

@@ -27,7 +27,8 @@ type alias DimensionPalette msg =
     , mediumPadding : Int
     , mediumPaddingAll : Element.Attribute msg
     , mediumPaddingTop : Element.Attribute msg
-    , largePadding : Element.Attribute msg
+    , largePadding : Int
+    , largePaddingAll : Element.Attribute msg
     , buttonImageWidth : Element.Attribute msg
     , buttonHeight : Element.Attribute msg
     , headerTopPadding : Element.Attribute msg
@@ -38,13 +39,13 @@ type alias DimensionPalette msg =
 dimensions : { m | device : Element.Device } -> DimensionPalette msg
 dimensions { device } =
     let
-        ( xSmallPadding, smallPadding, mediumPadding ) =
+        { xSmallPadding, smallPadding, mediumPadding, largePadding } =
             case device.class of
                 Phone ->
-                    ( scaled -3 |> round, scaled -2 |> round, scaled 1 |> round )
+                    { xSmallPadding = scaled -3 |> round, smallPadding = scaled -2 |> round, mediumPadding = scaled 1 |> round, largePadding = scaled 3 |> round }
 
                 _ ->
-                    ( scaled -2 |> round, scaled -1 |> round, scaled 3 |> round )
+                    { xSmallPadding = scaled -2 |> round, smallPadding = scaled -1 |> round, mediumPadding = scaled 3 |> round, largePadding = scaled 5 |> round }
     in
     case device.class of
         Phone ->
@@ -65,9 +66,10 @@ dimensions { device } =
             , mediumPadding = mediumPadding
             , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
-            , largePadding = scaled 2 |> round |> padding
+            , largePadding = largePadding
+            , largePaddingAll = largePadding |> padding
             , buttonImageWidth = scaled 4 |> round |> px |> width
-            , buttonHeight = scaled 7 |> round |> px |> height
+            , buttonHeight = scaled 5 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled -1), right = 0, bottom = 0, left = 0 }
             , panelHeight = 220
             }
@@ -90,7 +92,8 @@ dimensions { device } =
             , mediumPadding = mediumPadding
             , mediumPaddingAll = padding mediumPadding
             , mediumPaddingTop = paddingEach { top = mediumPadding, right = 0, bottom = 0, left = 0 }
-            , largePadding = scaled 5 |> round |> padding
+            , largePadding = largePadding
+            , largePaddingAll = largePadding |> padding
             , buttonImageWidth = scaled 6 |> round |> px |> width
             , buttonHeight = scaled 6 |> round |> px |> height
             , headerTopPadding = paddingEach { top = round (scaled 2), right = 0, bottom = 0, left = 0 }

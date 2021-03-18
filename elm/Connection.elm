@@ -13,12 +13,14 @@ module Connection exposing
     , type_
     )
 
-import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
 import Deezer
+import MusicProvider exposing (MusicService(..))
 import MusicService as P exposing (ConnectingProvider(..), DisconnectedProvider(..))
 import RemoteData exposing (WebData)
 import Spotify
 import UserInfo exposing (UserInfo)
+import Youtube
 
 
 
@@ -117,6 +119,9 @@ toggleProviderConnect connection =
 
         Spotify ->
             Spotify.connectS ()
+
+        Youtube ->
+            Youtube.connectYoutube ()
 
         _ ->
             Cmd.none
