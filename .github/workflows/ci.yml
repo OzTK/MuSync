@@ -13,8 +13,7 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: 15.x
-    - run: npm install
-    - run: npm run cy:verify
+    - run: npm ci
     - run: mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
     - run: npm run test:it
     - run: cd .. && rm -rf it
