@@ -14,6 +14,6 @@ jobs:
       with:
         node-version: 15.x
     - run: npm ci
-    - run: mkdir it && cp -r !(it|node_modules|elm-stuff) it/ && cd it && npm ci
+    - run: mkdir it && cp -r '!(it|node_modules|elm-stuff)' it/ && cd it && npm ci
     - run: npm run test:it
     - run: cd .. && rm -rf it
