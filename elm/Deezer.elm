@@ -1,22 +1,21 @@
 port module Deezer exposing
     ( addSongsToPlaylist
+    , api
     , connectDeezer
     , createPlaylist
-    , decodePlaylists
     , disconnectDeezer
     , getPlaylistTracks
     , getPlaylists
     , getUserInfo
-    , playlist
     , searchTrackByISRC
     , searchTrackByName
-    , track
     )
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Extra exposing (apply)
 import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, string, succeed)
 import Json.Decode.Pipeline as Decode exposing (hardcoded, optional, required, requiredAt)
+import MusicProvider
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http exposing (defaultConfig)
@@ -24,6 +23,10 @@ import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
 import Url.Builder as Url
 import UserInfo exposing (UserInfo)
+
+
+
+-- Decoders
 
 
 userInfo : Decoder UserInfo
@@ -65,6 +68,33 @@ decodePlaylists =
     succeed succeed
         |> Decode.required "data" (list playlist)
         |> Decode.resolve
+
+
+allTracks : Decoder TrackBatch
+allTracks =
+    Decode.oneOf
+        [ buildingTracks
+        , lastTrackBatch
+        ]
+
+
+tracksResult : Decoder (List Track)
+tracksResult =
+    succeed succeed
+        |> Decode.required "data" (list track)
+        |> Decode.resolve
+
+
+singleTrack : Decoder (Maybe Track)
+singleTrack =
+    Decode.oneOf
+        [ track |> Decode.map Just
+        , Decode.succeed Nothing
+        ]
+
+
+
+-- Tracks fetching
 
 
 type TrackBatch
@@ -116,47 +146,26 @@ lastTrackBatch =
         |> Decode.required "data" (list track)
 
 
-allTracks : Decoder TrackBatch
-allTracks =
-    Decode.oneOf
-        [ buildingTracks
-        , lastTrackBatch
-        ]
-
-
-tracksResult : Decoder (List Track)
-tracksResult =
-    succeed succeed
-        |> Decode.required "data" (list track)
-        |> Decode.resolve
-
-
-singleTrack : Decoder (Maybe Track)
-singleTrack =
-    Decode.oneOf
-        [ track |> Decode.map Just
-        , Decode.succeed Nothing
-        ]
-
-
 
 -- Values
 
 
 corsProxy : String
 corsProxy =
-    -- "https://thingproxy.freeboard.io/fetch"
-    "https://cors-anywhere.herokuapp.com"
+    -- "https://cors-anywhere.herokuapp.com/"
+    -- ""
+    "https://thingproxy.freeboard.io/fetch/"
 
 
 endpoint : Endpoint Base
 endpoint =
-    Api.baseEndpoint <| corsProxy ++ "/" ++ "https://api.deezer.com"
+    Api.baseEndpoint <| corsProxy ++ "https://api.deezer.com"
 
 
 withToken : String -> AnyFullEndpoint -> AnyFullEndpoint
 withToken token =
-    Api.appendQueryParam (Url.string "access_token" token) >> Api.fullQueryAsAny
+    (Api.appendQueryParam (Url.string "access_token" token) >> Api.fullQueryAsAny)
+        >> (Api.appendQueryParam (Url.string "output" "json") >> Api.fullQueryAsAny)
 
 
 
@@ -288,6 +297,18 @@ addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData (
 addSongsToPlaylist token tracks id =
     addSongsBatchToPlaylist token tracks id 0
         |> Task.map (RemoteData.map (\_ -> ()))
+
+
+api : MusicProvider.Api
+api =
+    { getUserInfo = getUserInfo
+    , searchTrackByName = searchTrackByName
+    , searchTrackByISRC = searchTrackByISRC
+    , getPlaylists = getPlaylists
+    , getPlaylistTracks = getPlaylistTracks
+    , createPlaylist = createPlaylist
+    , addSongsToPlaylist = addSongsToPlaylist
+    }
 
 
 port connectDeezer : () -> Cmd msg

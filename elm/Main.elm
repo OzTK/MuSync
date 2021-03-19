@@ -5,7 +5,7 @@ import Breadcrumb exposing (breadcrumb)
 import Browser
 import Browser.Events as Browser
 import Connection exposing (ProviderConnection(..))
-import Connection.Connected as ConnectedProvider exposing (ConnectedProvider, MusicService(..))
+import Connection.Connected as ConnectedProvider exposing (ConnectedProvider)
 import Connection.Dict as ConnectionsDict exposing (ConnectionsDict)
 import Dict.Any as Dict exposing (AnyDict)
 import Dimensions exposing (DimensionPalette, dimensions)
@@ -22,6 +22,7 @@ import Html exposing (Html)
 import Html.Attributes as Html
 import List.Extra as List
 import Maybe.Extra as Maybe
+import MusicProvider exposing (MusicService(..))
 import MusicService exposing (DisconnectedProvider(..), MusicServiceError)
 import Page exposing (Page)
 import Page.Request exposing (NavigationError)
@@ -51,14 +52,6 @@ type alias Model =
     }
 
 
-type alias M =
-    { page : Page
-    , playlists : PlaylistsDict
-    , connections : AnyDict String MusicService ( ProviderConnection, WebData (List PlaylistKey) )
-    , device : Element.Device
-    }
-
-
 type alias Dimensions =
     { height : Int
     , width : Int
@@ -76,7 +69,7 @@ deserializeTokenPair ( serviceName, token ) =
     token
         |> ConnectedProvider.createToken
         |> Result.toMaybe
-        |> Maybe.map2 Tuple.pair (MusicService.fromString serviceName)
+        |> Maybe.map2 Tuple.pair (MusicProvider.fromString serviceName)
 
 
 initConnections : { m | rawTokens : List ( String, String ) } -> ConnectionsDict
@@ -85,7 +78,7 @@ initConnections { rawTokens } =
         tokens =
             rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList ConnectedProvider.toString
     in
-    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer ]
+    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer, MusicService.disconnected Youtube ]
         |> List.map
             (\con ->
                 tokens
@@ -198,7 +191,7 @@ update msg model =
                         | playlists =
                             model.playlists
                                 |> Playlists.completeTransfer playlist result
-                                |> Playlists.addNew (resultToKey result) (MusicService.importedPlaylist result)
+                                |> Playlists.addNew (resultToKey result) result.playlist
                     }
             in
             Page.navigate m (Page.Request.TransferReport result)
@@ -951,7 +944,7 @@ serviceConnectButton model tagger connection =
         { onPress = Connection.asDisconnected connection |> Maybe.map tagger
         , label =
             column [ d.xSmallSpacing, d.smallHPadding ]
-                [ providerLogoOrName [ d.buttonImageWidth, centerX ] <| Connection.type_ connection
+                [ providerLogoOrName [ d.buttonImageWidth, d.buttonHeight, centerX ] <| Connection.type_ connection
                 , connectionStatus <| Connection.isConnected connection
                 ]
         }
@@ -966,7 +959,7 @@ connectView model =
         ( containerPadding, servicesContainerStyle, buttonStyle ) =
             case model.device.orientation of
                 Portrait ->
-                    ( [], [], [] )
+                    ( [], [ d.mediumSpacing, paddingXY d.largePadding d.mediumPadding ], [] )
 
                 Landscape ->
                     ( [ d.smallPaddingAll ]
@@ -981,7 +974,7 @@ connectView model =
                     )
     in
     column [ width fill, height fill, d.mediumSpacing ]
-        [ row ([ d.smallSpacing, d.mediumPaddingAll, centerX, centerY ] ++ servicesContainerStyle) <|
+        [ wrappedRow ([ d.smallSpacing, d.mediumPaddingAll, centerX ] ++ servicesContainerStyle) <|
             (model.connections
                 |> ConnectionsDict.connections
                 |> List.map (serviceConnectButton model ToggleConnect)
@@ -1020,25 +1013,13 @@ providerName pType =
         Google ->
             "Play"
 
+        Youtube ->
+            "Youtube"
+
 
 providerLogoOrName : List (Element.Attribute msg) -> MusicService -> Element msg
 providerLogoOrName attrs pType =
-    let
-        pName =
-            providerName pType
-    in
-    (case pType of
-        Deezer ->
-            Just "/assets/img/deezer_logo.png"
-
-        Spotify ->
-            Just "/assets/img/spotify_logo.png"
-
-        _ ->
-            Nothing
-    )
-        |> Maybe.map (\path -> image attrs { src = path, description = pName })
-        |> Maybe.withDefault (text pName)
+    el attrs <| image [] { src = MusicProvider.logoPath pType, description = providerName pType }
 
 
 icon : String -> Element msg
@@ -1108,7 +1089,7 @@ squareToggleButtonStyle model state =
         d =
             dimensions model
     in
-    [ d.largePadding
+    [ d.largePaddingAll
     , Bg.color palette.white
     , Border.rounded 8
     , Border.width 1
