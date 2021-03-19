@@ -10,23 +10,36 @@ module MusicService exposing
     , loadPlaylists
     )
 
+-- import Deezer as DeezerMod
+-- import Spotify as SpotifyMod
+
 import ApiClient as Api
 import Array
 import Connection.Connected as ConnectedProvider exposing (ConnectedProvider(..), OAuthToken)
-import Deezer
 import List.Extra as List
 import MusicProvider exposing (MusicService(..))
-import Playlist exposing (Playlist, PlaylistId)
-import Playlist.Import exposing (PlaylistImportReport, TrackAndSearchResult)
+import Playlist exposing (Playlist)
+import Playlist.Import exposing (TrackAndSearchResult)
 import Playlist.State exposing (PlaylistImportResult)
 import RemoteData exposing (RemoteData(..), WebData)
 import Set
-import Spotify
 import Task exposing (Task)
 import Track exposing (Track)
 import Tuple
 import UserInfo exposing (UserInfo)
-import Youtube
+
+
+
+-- import Youtube as YoutubeMod
+-- deezer : MusicProvider.Api
+-- deezer =
+--     DeezerMod.api
+-- spotify : MusicProvider.Api
+-- spotify =
+--     SpotifyMod.api
+-- youtube : MusicProvider.Api
+-- youtube =
+--     YoutubeMod.api
 
 
 type MusicServiceError
@@ -65,14 +78,12 @@ connecting =
 fetchUserInfo : ConnectedProvider -> Task MusicServiceError (WebData UserInfo)
 fetchUserInfo connection =
     case connection of
-        ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
-
-        ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
-
-        ConnectedProviderWithToken Youtube tok _ ->
-            Youtube.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
+        ConnectedProviderWithToken service tok _ ->
+            let
+                api =
+                    MusicProvider.api service
+            in
+            api.getUserInfo (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -81,11 +92,12 @@ fetchUserInfo connection =
 createPlaylist : ConnectedProvider -> String -> Task MusicServiceError (WebData Playlist)
 createPlaylist connection name =
     case connection of
-        ConnectedProviderWithToken Spotify tok (Success userInfo) ->
-            Spotify.createPlaylist (ConnectedProvider.rawToken tok) userInfo.id name |> asErrorTask
-
-        ConnectedProviderWithToken Deezer tok (Success userInfo) ->
-            Deezer.createPlaylist (ConnectedProvider.rawToken tok) userInfo.id name |> asErrorTask
+        ConnectedProviderWithToken service tok (Success userInfo) ->
+            let
+                api =
+                    MusicProvider.api service
+            in
+            api.createPlaylist (ConnectedProvider.rawToken tok) userInfo.id name |> asErrorTask
 
         ConnectedProvider _ _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -97,14 +109,12 @@ createPlaylist connection name =
 addSongsToPlaylist : ConnectedProvider -> Playlist -> List Track -> Task MusicServiceError (WebData ())
 addSongsToPlaylist connection playlist tracks =
     case connection of
-        ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist |> asErrorTask
-
-        ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist.id |> asErrorTask
-
-        ConnectedProviderWithToken Youtube tok _ ->
-            Youtube.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist |> asErrorTask
+        ConnectedProviderWithToken service tok _ ->
+            let
+                api =
+                    MusicProvider.api service
+            in
+            api.addSongsToPlaylist (ConnectedProvider.rawToken tok) tracks playlist |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -179,27 +189,26 @@ importPlaylist con otherConnection ({ name } as playlist) =
 loadPlaylists : ConnectedProvider -> Task MusicServiceError (WebData (List Playlist))
 loadPlaylists connection =
     case connection of
-        ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
-
-        ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
-
-        ConnectedProviderWithToken Youtube tok _ ->
-            Youtube.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
+        ConnectedProviderWithToken service tok _ ->
+            let
+                api =
+                    MusicProvider.api service
+            in
+            api.getPlaylists (ConnectedProvider.rawToken tok) |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
 
 
 loadPlaylistSongs : ConnectedProvider -> Playlist -> Task MusicServiceError (WebData (List Track))
-loadPlaylistSongs connection { id, link } =
+loadPlaylistSongs connection playlist =
     case connection of
-        ConnectedProviderWithToken Deezer tok _ ->
-            Deezer.getPlaylistTracks (ConnectedProvider.rawToken tok) id |> asErrorTask
-
-        ConnectedProviderWithToken Spotify tok _ ->
-            Spotify.getPlaylistTracksFromLink (ConnectedProvider.rawToken tok) link |> asErrorTask
+        ConnectedProviderWithToken service tok _ ->
+            let
+                api =
+                    MusicProvider.api service
+            in
+            api.getPlaylistTracks (ConnectedProvider.rawToken tok) playlist |> asErrorTask
 
         _ ->
             Task.fail (InvalidServiceConnectionError connection)
@@ -210,11 +219,12 @@ searchSongFromProvider con track =
     let
         searchFns =
             case con of
-                ConnectedProviderWithToken Spotify tok _ ->
-                    Just ( Spotify.searchTrackByISRC, Spotify.searchTrackByName, ConnectedProvider.rawToken tok )
-
-                ConnectedProviderWithToken Deezer tok _ ->
-                    Just ( Deezer.searchTrackByISRC, Deezer.searchTrackByName, ConnectedProvider.rawToken tok )
+                ConnectedProviderWithToken service tok _ ->
+                    let
+                        api =
+                            MusicProvider.api service
+                    in
+                    Just ( api.searchTrackByISRC, api.searchTrackByName, ConnectedProvider.rawToken tok )
 
                 _ ->
                     Nothing

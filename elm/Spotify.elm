@@ -1,16 +1,6 @@
-port module Spotify exposing
-    ( addSongsToPlaylist
-    , connectS
-    , createPlaylist
-    , getPlaylistTracksFromLink
-    , getPlaylists
-    , getUserInfo
-    , onConnected
-    , searchTrackByISRC
-    , searchTrackByName
-    )
+port module Spotify exposing (api, connectS)
 
-import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint, Full)
+import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Extra exposing (apply)
 import Http exposing (header)
 import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
@@ -178,8 +168,8 @@ playlistsTracksFromLink link =
         |> Maybe.map (Api.appendPath "tracks")
 
 
-getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
-getPlaylistTracksFromLink token link =
+getPlaylistTracksFromLink : String -> Playlist -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink token { link } =
     link
         |> playlistsTracksFromLink
         |> Maybe.map (\l -> Api.getWithRateLimit (config token) l playlistTracks)
@@ -208,20 +198,43 @@ addPlaylistTracksEncoder songs =
 
 
 addSongsToPlaylist : String -> List Track -> Playlist -> Task.Task Never (WebData ())
-addSongsToPlaylist token songs { link } =
-    link
-        |> playlistsTracksFromLink
-        |> Maybe.map
-            (\l ->
-                Api.post (config token) l addToPlaylistResponse (addPlaylistTracksEncoder songs)
-                    |> Api.map (\_ -> ())
-            )
-        |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
+addSongsToPlaylist token songs pl =
+    let
+        batch =
+            List.take 100 songs
+
+        rest =
+            List.drop 100 songs
+    in
+    if List.isEmpty batch then
+        Task.succeed <| Success ()
+
+    else
+        pl.link
+            |> playlistsTracksFromLink
+            |> Maybe.map
+                (\l ->
+                    Api.post (config token) l addToPlaylistResponse (addPlaylistTracksEncoder batch)
+                        |> Api.chain (\_ -> addSongsToPlaylist token rest pl)
+                        |> Api.map (\_ -> ())
+                )
+            |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl pl.link))
 
 
 config : String -> Config
 config token =
     { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token, header "Content-Type" "application/json" ] }
+
+
+api =
+    { getUserInfo = getUserInfo
+    , searchTrackByName = searchTrackByName
+    , searchTrackByISRC = searchTrackByISRC
+    , getPlaylists = getPlaylists
+    , getPlaylistTracks = getPlaylistTracksFromLink
+    , createPlaylist = createPlaylist
+    , addSongsToPlaylist = addSongsToPlaylist
+    }
 
 
 

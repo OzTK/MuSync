@@ -1,21 +1,9 @@
-port module Deezer exposing
-    ( addSongsToPlaylist
-    , api
-    , connectDeezer
-    , createPlaylist
-    , disconnectDeezer
-    , getPlaylistTracks
-    , getPlaylists
-    , getUserInfo
-    , searchTrackByISRC
-    , searchTrackByName
-    )
+port module Deezer exposing (api, connectDeezer, disconnectDeezer)
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Extra exposing (apply)
 import Json.Decode as Decode exposing (Decoder, bool, int, list, map, maybe, string, succeed)
 import Json.Decode.Pipeline as Decode exposing (hardcoded, optional, required, requiredAt)
-import MusicProvider
 import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http exposing (defaultConfig)
@@ -132,7 +120,7 @@ buildingTracks =
         |> Decode.required "next"
             (string
                 |> Decode.andThen
-                    (String.append (corsProxy ++ "/")
+                    (String.append corsProxy
                         >> Api.endpointFromLink endpoint
                         >> Maybe.map Decode.succeed
                         >> Maybe.withDefault (Decode.fail "Invalid next url")
@@ -235,8 +223,8 @@ fetchAllTracks builder =
                 |> Api.chain fetchAllTracks
 
 
-getPlaylistTracks : String -> PlaylistId -> Task Never (WebData (List Track))
-getPlaylistTracks token id =
+getPlaylistTracks : String -> Playlist -> Task Never (WebData (List Track))
+getPlaylistTracks token { id } =
     Api.actionEndpoint endpoint [ "playlist", id, "tracks" ]
         |> Api.fullAsAny
         |> withToken token
@@ -293,13 +281,12 @@ addSongsBatchToPlaylist token tracks id skipped =
             |> Api.chain (\_ -> addSongsBatchToPlaylist token tracks id next)
 
 
-addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
-addSongsToPlaylist token tracks id =
+addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
+addSongsToPlaylist token tracks { id } =
     addSongsBatchToPlaylist token tracks id 0
         |> Task.map (RemoteData.map (\_ -> ()))
 
 
-api : MusicProvider.Api
 api =
     { getUserInfo = getUserInfo
     , searchTrackByName = searchTrackByName

@@ -1,12 +1,4 @@
-port module Youtube exposing
-    ( addSongsToPlaylist
-    , connectYoutube
-    , createPlaylist
-    , getPlaylistTracksFromLink
-    , getPlaylists
-    , getUserInfo
-    , searchTrackByName
-    )
+port module Youtube exposing (api, connectYoutube)
 
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Extra exposing (apply)
@@ -18,7 +10,7 @@ import Playlist exposing (Playlist)
 import RemoteData exposing (RemoteData(..), WebData)
 import RemoteData.Http as Http exposing (Config, defaultConfig)
 import Task exposing (Task)
-import Track exposing (Track)
+import Track exposing (IdentifiedTrack, Track)
 import Url.Builder as Url
 import UserInfo exposing (UserInfo)
 
@@ -187,6 +179,11 @@ searchTrackByName token t =
         )
 
 
+searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
+searchTrackByISRC _ _ =
+    Debug.todo "No ISRC search on Youtube"
+
+
 getPlaylists : String -> Task Never (WebData (List Playlist))
 getPlaylists token =
     Api.getWithRateLimit (config token)
@@ -201,8 +198,8 @@ playlistsTracksFromLink link =
         |> Maybe.map (Api.appendPath "tracks")
 
 
-getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
-getPlaylistTracksFromLink token link =
+getPlaylistTracksFromLink : String -> Playlist -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink token { link } =
     link
         |> playlistsTracksFromLink
         |> Maybe.map (\l -> Api.getWithRateLimit (config token) l playlistTracks)
@@ -245,6 +242,17 @@ addSongsToPlaylist token songs { link } =
 config : String -> Config
 config token =
     { defaultConfig | headers = [ header "Authorization" <| "Bearer " ++ token ] }
+
+
+api =
+    { getUserInfo = getUserInfo
+    , searchTrackByName = searchTrackByName
+    , searchTrackByISRC = searchTrackByISRC
+    , getPlaylists = getPlaylists
+    , getPlaylistTracks = getPlaylistTracksFromLink
+    , createPlaylist = createPlaylist
+    , addSongsToPlaylist = addSongsToPlaylist
+    }
 
 
 
