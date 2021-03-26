@@ -13,8 +13,7 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: 15.x
+    - run: mkdir it && rsync -av --progress . it --exclude it --exclude node_modules --exclude elm-stuff --exclude .git && cd it
     - run: npm ci
-    - run: dirs=$(find . -not \( -path ./node_modules -prune \) -not \( -path ./.idea -prune \))
-    - run: mkdir it && cp $dirs it/ && cd it && npm ci
     - run: npm run test:it
     - run: cd .. && rm -rf it
