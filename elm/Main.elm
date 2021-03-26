@@ -64,6 +64,11 @@ type alias Flags =
     }
 
 
+initProviders : List DisconnectedProvider
+initProviders =
+    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer ]
+
+
 deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, ConnectedProvider.OAuthToken )
 deserializeTokenPair ( serviceName, token ) =
     token
@@ -78,7 +83,7 @@ initConnections { rawTokens } =
         tokens =
             rawTokens |> List.filterMap deserializeTokenPair |> Dict.fromList ConnectedProvider.toString
     in
-    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer, MusicService.disconnected Youtube ]
+    initProviders
         |> List.map
             (\con ->
                 tokens
