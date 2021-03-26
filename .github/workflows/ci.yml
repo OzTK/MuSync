@@ -7,6 +7,8 @@ jobs:
   pr:
     name: Run tests on PR
     runs-on: ubuntu-latest
+    env:
+      CYPRESS_TOKEN: ${{ secrets.CYPRESS_RECORD_TOKEN }}
     steps:
     - uses: actions/checkout@v2
     - name: Pre-install node
