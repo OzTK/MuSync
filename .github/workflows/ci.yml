@@ -17,5 +17,6 @@ jobs:
         node-version: 15.x
     - run: mkdir it && rsync -av --progress . it --exclude it --exclude node_modules --exclude elm-stuff --exclude .git && cd it
     - run: npm ci
+    - run: npx cypress install
     - run: npm run test:it
     - run: cd .. && rm -rf it
