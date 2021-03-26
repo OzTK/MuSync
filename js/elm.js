@@ -16588,11 +16588,11 @@ var $author$project$Connection$isConnected = function (connection) {
 var $author$project$MusicProvider$logoPath = function (provider) {
 	switch (provider.$) {
 		case 'Deezer':
-			return '/assets/img/deezer_logo.png';
+			return 'assets/img/deezer_logo.png';
 		case 'Spotify':
-			return '/assets/img/spotify_logo.png';
+			return 'assets/img/spotify_logo.png';
 		case 'Youtube':
-			return '/assets/img/youtube_logo.png';
+			return 'assets/img/youtube_logo.png';
 		default:
 			return '';
 	}

@@ -1,7 +1,7 @@
 module MusicProvider exposing (Api, MusicService(..), api, fromString, logoPath)
 
 import Deezer
-import Playlist exposing (Playlist, PlaylistId)
+import Playlist exposing (Playlist)
 import RemoteData exposing (WebData)
 import Spotify
 import Task exposing (Task)
@@ -22,13 +22,13 @@ logoPath : MusicService -> String
 logoPath provider =
     case provider of
         Deezer ->
-            "/assets/img/deezer_logo.png"
+            "assets/img/deezer_logo.png"
 
         Spotify ->
-            "/assets/img/spotify_logo.png"
+            "assets/img/spotify_logo.png"
 
         Youtube ->
-            "/assets/img/youtube_logo.png"
+            "assets/img/youtube_logo.png"
 
         _ ->
             ""
