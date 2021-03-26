@@ -1,5 +1,6 @@
 port module Deezer exposing
     ( addSongsToPlaylist
+    , api
     , connectDeezer
     , createPlaylist
     , disconnectDeezer
@@ -51,7 +52,7 @@ getPlaylists _ =
         |> Task.succeed
 
 
-getPlaylistTracks : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracks : String -> Playlist -> Task Never (WebData (List Track))
 getPlaylistTracks _ _ =
     [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu", isrc = Nothing }
     , { id = "2", artist = "Serge Gainsbourg", title = "Petit", isrc = Nothing }
@@ -66,9 +67,20 @@ getPlaylistTracks _ _ =
         |> Task.succeed
 
 
-addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
+addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
 addSongsToPlaylist _ _ _ =
     Task.succeed <| Success ()
+
+
+api =
+    { getUserInfo = getUserInfo
+    , searchTrackByName = searchTrackByName
+    , searchTrackByISRC = searchTrackByISRC
+    , getPlaylists = getPlaylists
+    , getPlaylistTracks = getPlaylistTracks
+    , createPlaylist = createPlaylist
+    , addSongsToPlaylist = addSongsToPlaylist
+    }
 
 
 port connectDeezer : () -> Cmd msg

@@ -1,5 +1,6 @@
 port module Spotify exposing
     ( addSongsToPlaylist
+    , api
     , connectS
     , createPlaylist
     , getPlaylistTracksFromLink
@@ -51,7 +52,7 @@ createPlaylist _ _ _ =
     Task.succeed <| Success { id = "5", name = "New Playlist", tracksCount = 5, link = "http://myplaylist" }
 
 
-getPlaylistTracksFromLink : String -> String -> Task Never (WebData (List Track))
+getPlaylistTracksFromLink : String -> Playlist -> Task Never (WebData (List Track))
 getPlaylistTracksFromLink _ _ =
     [ { id = "1", artist = "Johnny Halliday", title = "Allmuer le feu", isrc = Nothing }
     , { id = "2", artist = "Serge Gainsbourg", title = "Petit", isrc = Nothing }
@@ -69,6 +70,17 @@ getPlaylistTracksFromLink _ _ =
 addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
 addSongsToPlaylist _ _ _ =
     Task.succeed <| Success ()
+
+
+api =
+    { getUserInfo = getUserInfo
+    , searchTrackByName = searchTrackByName
+    , searchTrackByISRC = searchTrackByISRC
+    , getPlaylists = getPlaylists
+    , getPlaylistTracks = getPlaylistTracksFromLink
+    , createPlaylist = createPlaylist
+    , addSongsToPlaylist = addSongsToPlaylist
+    }
 
 
 
