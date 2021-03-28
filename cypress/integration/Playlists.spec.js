@@ -1,35 +1,39 @@
-describe('Connecting a music provider and displaying its playlists', () => {
+describe("Connecting a music provider and displaying its playlists", () => {
   before(() => {
-    cy.visit('/')
-      .connectProvider('Deezer')
-      .connectProvider('Spotify');
-    cy.contains('Next').click();
+    cy.visit("/").connectProvider("Deezer").connectProvider("Spotify");
+    cy.contains("Next").click();
   });
 
-  it('displays playlists from a connected provider', () => {
-    cy.contains('Playlists')
+  it("displays playlists from a connected provider", () => {
+    cy.contains("Playlists")
       .parent()
       .next()
-      .get('div[role=button]')
-      .should('have.length', 8);
+      .get("div[role=button]")
+      .should("have.length", 8);
 
-    cy.contains('playlists in your library')
-      .should('have.text', '8 playlists in your library');
+    cy.contains("playlists in your library").should(
+      "have.text",
+      "8 playlists in your library"
+    );
   });
 
-  it('selects a playlist when clicking on it', () => {
-    cy.contains('Playlists')
+  it("selects a playlist when clicking on it", () => {
+    cy.contains("Playlists")
       .parent()
       .next()
-      .get('div[role=button]')
-      .as('playlists');
+      .get("div[role=button]")
+      .as("playlists");
 
-    cy.get('@playlists').first().click();
-    cy.contains('Transfer playlist').parent().parent().find('p').should('contain', 'Chouchou');
+    cy.get("@playlists").first().click();
+    cy.contains("Transfer playlist")
+      .parent()
+      .parent()
+      .find("p")
+      .should("contain", "Chouchou");
   });
 
-  xit('deselect the playlist when clicking in the overlay', () => {
-    cy.get('.fr > .hf').click();
-    cy.contains('Transfer playlist').should('not.exist');
+  it("deselect the playlist when clicking in the overlay", () => {
+    cy.get(".fr > .hf").click();
+    cy.contains("Transfer playlist").should("not.exist");
   });
 });
