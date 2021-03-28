@@ -142,12 +142,13 @@ corsProxy : String
 corsProxy =
     -- "https://thingproxy.freeboard.io/fetch/"
     -- "https://cors-anywhere.herokuapp.com/"
-    "https://cors-proxy.htmldriven.com/?url="
+    -- "https://yacdn.org/proxy/"
+    "https://cors.bridged.cc/"
 
 
 endpoint : Endpoint Base
 endpoint =
-    Api.baseEndpoint <| corsProxy ++ "https://api.deezer.com"
+    Api.baseEndpointProxied { endpoint = "https://api.deezer.com", proxy = corsProxy }
 
 
 withToken : String -> AnyFullEndpoint -> AnyFullEndpoint
