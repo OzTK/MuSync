@@ -1,0 +1,128 @@
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="dzn" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link id="pwa-manifest" rel="manifest" href="manifest.json">
+
+  <title>MuSync</title>
+  <link rel="stylesheet" href="assets/css/shoelace.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/css/fira_code.css">
+  <style>
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    .spinning {
+      animation: spin 1s linear infinite;
+    }
+    .hack_forceClip > s {
+      flex-shrink: 1;
+    }
+
+    .active-segment {
+      transform-origin: 0 0;
+      transform: scaleX(1.03);
+    }
+
+    .inactive-segment {
+      transform-origin: 0 0;
+      transform: scaleX(0);
+    }
+
+    .active-dot {
+      transform: scale(1);
+    }
+
+    .inactive-dot {
+      transform: scale(0);
+    }
+  </style>
+  <script async src="https://cdn.jsdelivr.net/npm/pwacompat@2.0.7/pwacompat.min.js"
+    integrity="sha384-ptgwb3/v69WGur7IwSnWOowVxE7hcRB3DG/EiHdejrw2sFNwUHynFbiRMPxc4hdS"
+    crossorigin="anonymous"></script>
+
+  <!-- Handle OAuth returns -->
+  <script src="js/oauth.js"></script>
+</head>
+
+<body>
+  <!-- Config -->
+  <script src="js/config.js"></script>
+  <script src="js/config.dev.js"></script>
+  <script>
+    // Remove manifest on IOS to work around bug
+    if (/iP(?:hone|ad|od)/.test(navigator.userAgent)) {
+      document.head.removeChild(document.getElementById('pwa-manifest'))
+    }
+  </script>
+
+  <!-- Layout -->
+  <div class="app"></div>
+  <script>
+    if (navigator.serviceWorker.controller) {
+      console.log('Active service worker found, no need to register')
+    } else {
+      //Register the ServiceWorker
+      navigator.serviceWorker.register('service-worker.js', {
+        scope: './'
+      }).then(function (reg) {
+        console.log('Service worker has been registered for scope: ' + reg.scope);
+      });
+    }
+  </script>
+
+  <!-- Elm (ports, init, ...) -->
+  <script src="js/elm.js"></script>
+  <script>
+    function elmInit(node) {
+      return Elm.Main.init({
+        node: document.getElementsByClassName(node)[0],
+        flags: {
+          window: {
+            height: window.innerHeight,
+            width: window.innerWidth
+          },
+          rawTokens
+        }
+      });
+    }
+    var elmApp = elmInit('app')
+
+    elmApp.ports.connectS.subscribe(function () {
+      if (config.local) {
+        window.location.href = '/?service=Spotify#access_token=123456789&token_type=Bearer&expires_in=3600';
+        return;
+      }
+
+      window.location.href = 'https://accounts.spotify.com/authorize?client_id=' + config.spotifyClientId +
+        '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Spotify' +
+        '&scope=playlist-modify-private%20playlist-modify-public%20playlist-read-private&show_dialog=false';
+    });
+
+    elmApp.ports.connectDeezer.subscribe(function () {
+      if (config.local) {
+        window.location.href = '/?service=Deezer#access_token=987654321&token_type=Bearer&expires_in=3600';
+        return;
+      }
+
+      window.location.href = 'https://connect.deezer.com/oauth/auth.php?app_id=' + config.deezerAppId +
+        '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Deezer' +
+        '&perms=manage_library,basic_access';
+    });
+
+    elmApp.ports.connectYoutube.subscribe(function () {
+        if (config.local) {
+            window.location.href = '/?service=Youtube#access_token=987654321&token_type=Bearer&expires_in=3600';
+            return;
+        }
+
+        window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + config.youtubeClientId +
+            '&response_type=token&redirect_uri=' + config.scheme + '://' + config.domain + '/?service=Youtube' +
+            '&scope=https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
+    });
+  </script>
+</body>
+
+</html>
