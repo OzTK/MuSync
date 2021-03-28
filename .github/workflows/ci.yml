@@ -16,16 +16,25 @@ jobs:
       with:
         node-version: 15.x
     - run: npm ci
-    - run: npm run build
-    - run: mkdir it && rsync -av --progress . it --exclude it --exclude node_modules --exclude elm-stuff --exclude .git --exclude dist && cd it
-    - run: npm ci
     - run: npx cypress install
     - run: npm run test:it
-    - run: cd .. && rm -rf it
-    
-    - name: Deploy to Github Pages
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
+  
+  release:
+    name: Deploy website to Github Pages
+    needs: [pr]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Pre-install node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 15.x
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Github Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+
 
