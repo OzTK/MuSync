@@ -13,8 +13,6 @@ import Youtube
 type MusicService
     = Spotify
     | Deezer
-    | Google
-    | Amazon
     | Youtube
 
 
@@ -30,9 +28,6 @@ logoPath provider =
         Youtube ->
             "assets/img/youtube_logo.png"
 
-        _ ->
-            ""
-
 
 fromString : String -> Maybe MusicService
 fromString pName =
@@ -42,12 +37,6 @@ fromString pName =
 
         "Deezer" ->
             Just Deezer
-
-        "Google" ->
-            Just Google
-
-        "Amazon" ->
-            Just Amazon
 
         "Youtube" ->
             Just Youtube
@@ -78,6 +67,3 @@ api provider =
 
         Youtube ->
             Youtube.api
-
-        _ ->
-            Debug.todo "Not implemented provider"

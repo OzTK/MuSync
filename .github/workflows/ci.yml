@@ -20,3 +20,11 @@ jobs:
     - run: npx cypress install
     - run: npm run test:it
     - run: cd .. && rm -rf it
+    - run: npm ci
+    - run: npm run build
+    - name: Deploy to Github Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist
+

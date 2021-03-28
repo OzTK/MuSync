@@ -14,12 +14,6 @@ toString t =
         Deezer ->
             "Deezer"
 
-        Google ->
-            "Google"
-
-        Amazon ->
-            "Amazon"
-
         Youtube ->
             "Youtube"
 
@@ -41,7 +35,7 @@ connected t userInfo =
 
 any : ConnectedProvider
 any =
-    connected Amazon NotAsked
+    connected Deezer NotAsked
 
 
 type_ : ConnectedProvider -> MusicService

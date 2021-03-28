@@ -1012,12 +1012,6 @@ providerName pType =
         Deezer ->
             "Deezer"
 
-        Amazon ->
-            "Amazon Prime"
-
-        Google ->
-            "Play"
-
         Youtube ->
             "Youtube"
 

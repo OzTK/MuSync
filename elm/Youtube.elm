@@ -181,7 +181,7 @@ searchTrackByName token t =
 
 searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
 searchTrackByISRC _ _ =
-    Debug.todo "No ISRC search on Youtube"
+    Task.succeed <| RemoteData.Success Nothing
 
 
 getPlaylists : String -> Task Never (WebData (List Playlist))

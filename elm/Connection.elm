@@ -122,6 +122,3 @@ toggleProviderConnect connection =
 
         Youtube ->
             Youtube.connectYoutube ()
-
-        _ ->
-            Cmd.none
