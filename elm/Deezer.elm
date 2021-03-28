@@ -141,7 +141,8 @@ lastTrackBatch =
 corsProxy : String
 corsProxy =
     -- "https://thingproxy.freeboard.io/fetch/"
-    "https://cors-anywhere.herokuapp.com/"
+    -- "https://cors-anywhere.herokuapp.com/"
+    "https://cors-proxy.htmldriven.com/?url="
 
 
 endpoint : Endpoint Base
