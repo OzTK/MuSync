@@ -5959,7 +5959,7 @@ var $elm$core$List$drop = F2(
 	});
 var $author$project$ApiClient$Endpoint = $elm$core$Basics$identity;
 var $author$project$ApiClient$baseEndpoint = $elm$core$Basics$identity;
-var $author$project$Deezer$corsProxy = 'https://cors-anywhere.herokuapp.com/';
+var $author$project$Deezer$corsProxy = 'https://cors-proxy.htmldriven.com/?url=';
 var $author$project$Deezer$endpoint = $author$project$ApiClient$baseEndpoint($author$project$Deezer$corsProxy + 'https://api.deezer.com');
 var $author$project$ApiClient$fullEndpointUrl = function (endpoint) {
 	if (!endpoint.$) {
