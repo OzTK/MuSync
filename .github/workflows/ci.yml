@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    env:
+      CYPRESS_TOKEN: ${{ secrets.CYPRESS_RECORD_TOKEN }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Pre-install node
+      uses: actions/setup-node@v1
+      with:
+        node-version: 15.x
+    - run: npm ci
+    - run: npx cypress install
+    - run: npm run test:it
+  
+  release:
+    name: Deploy website to Github Pages
+    needs: [tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v2
+      - name: Pre-install node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 15.x
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Github Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+
+

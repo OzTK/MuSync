@@ -8,6 +8,7 @@ module ApiClient exposing
     , appendPath
     , appendQueryParam
     , baseEndpoint
+    , baseEndpointProxied
     , chain
     , chain2
     , endpointFromLink
@@ -30,6 +31,7 @@ import RemoteData.Http as Http exposing (Config)
 import Task exposing (Task)
 import Url
 import Url.Builder as Url exposing (QueryParameter)
+import Url.Parser exposing (query)
 
 
 
@@ -69,8 +71,17 @@ withRateLimit task =
 -- Model
 
 
+type alias EndpointInfo =
+    { proxy : String, endpoint : String }
+
+
 type Endpoint m
-    = Endpoint String
+    = Endpoint EndpointInfo
+
+
+updateEndpointUrl : Endpoint m -> Url.Url -> Endpoint m
+updateEndpointUrl (Endpoint e) u =
+    Endpoint { e | endpoint = Url.toString u }
 
 
 type Base
@@ -83,13 +94,13 @@ type AnyFullEndpoint
 
 
 fullEndpointUrl : AnyFullEndpoint -> String
-fullEndpointUrl endpoint =
-    case endpoint of
-        FullNoQuery (Endpoint u) ->
-            u
+fullEndpointUrl ep =
+    case ep of
+        FullNoQuery (Endpoint { proxy, endpoint }) ->
+            proxy ++ endpoint
 
-        FullWithQuery (Endpoint u) ->
-            u
+        FullWithQuery (Endpoint { proxy, endpoint }) ->
+            proxy ++ endpoint
 
 
 type Full
@@ -101,31 +112,40 @@ type FullAndQuery
 
 
 baseEndpoint : String -> Endpoint Base
-baseEndpoint =
+baseEndpoint e =
+    Endpoint { proxy = "", endpoint = e }
+
+
+baseEndpointProxied : EndpointInfo -> Endpoint Base
+baseEndpointProxied =
     Endpoint
 
 
 actionEndpoint : Endpoint Base -> List String -> Endpoint Full
 actionEndpoint (Endpoint base) path =
-    Endpoint <| Url.crossOrigin base path []
+    Endpoint <| { base | endpoint = Url.crossOrigin base.endpoint path [] }
 
 
 queryEndpoint : Endpoint Base -> List String -> List QueryParameter -> AnyFullEndpoint
 queryEndpoint (Endpoint base) path query =
-    FullWithQuery <| Endpoint <| Url.crossOrigin base path query
+    FullWithQuery <| Endpoint <| { base | endpoint = Url.crossOrigin base.endpoint path query }
 
 
 endpointFromLink : Endpoint Base -> String -> Maybe AnyFullEndpoint
-endpointFromLink (Endpoint domain) link =
+endpointFromLink domain link =
+    let
+        (Endpoint endpoint) =
+            domain
+    in
     Url.fromString link
         |> Maybe.andThen
             (\{ host, query } ->
-                case ( String.contains host domain, query ) of
+                case ( String.contains host endpoint.endpoint, query ) of
                     ( True, Nothing ) ->
-                        Just <| fullAsAny (Endpoint link)
+                        Just <| fullAsAny (Endpoint { endpoint | endpoint = link })
 
                     ( True, Just _ ) ->
-                        Just <| fullQueryAsAny (Endpoint link)
+                        Just <| fullQueryAsAny (Endpoint { endpoint | endpoint = link })
 
                     _ ->
                         Nothing
@@ -146,13 +166,13 @@ appendPath : String -> AnyFullEndpoint -> AnyFullEndpoint
 appendPath segment endpoint =
     case endpoint of
         FullNoQuery (Endpoint url) ->
-            Endpoint (url ++ "/" ++ Url.percentEncode segment) |> fullAsAny
+            Endpoint { url | endpoint = url.endpoint ++ "/" ++ Url.percentEncode segment } |> fullAsAny
 
         FullWithQuery (Endpoint url) ->
-            url
+            url.endpoint
                 |> Url.fromString
                 |> Maybe.map (\u -> { u | path = u.path ++ "/" ++ segment })
-                |> Maybe.map (fullQueryAsAny << Endpoint << Url.toString)
+                |> Maybe.map (fullQueryAsAny << updateEndpointUrl (Endpoint url))
                 |> Maybe.withDefault endpoint
 
 
@@ -164,17 +184,17 @@ appendQueryParam param endpoint =
     in
     case endpoint of
         FullNoQuery (Endpoint actionUrl) ->
-            actionUrl
+            actionUrl.endpoint
                 |> Url.fromString
                 |> Maybe.map
                     (\url ->
                         { url | query = Just encodedParam }
                     )
-                |> Maybe.map (Endpoint << Url.toString)
+                |> Maybe.map (\u -> Endpoint { actionUrl | endpoint = Url.toString u })
                 |> Maybe.withDefault (Endpoint actionUrl)
 
         FullWithQuery (Endpoint queryUrl) ->
-            queryUrl
+            queryUrl.endpoint
                 |> Url.fromString
                 |> Maybe.map
                     (\url ->
@@ -185,7 +205,7 @@ appendQueryParam param endpoint =
                                     |> Maybe.withDefault (Just encodedParam)
                         }
                     )
-                |> Maybe.map (Endpoint << Url.toString)
+                |> Maybe.map (updateEndpointUrl (Endpoint queryUrl))
                 |> Maybe.withDefault (Endpoint queryUrl)
 
 

@@ -13,8 +13,7 @@
     "cy:all": "cypress run",
     "cy:verify": "cypress verify",
     "pretest:it": "./test_run.sh",
-    "test:it": "cypress run --record --key ${CYPRESS_TOKEN}",
-    "posttest:it": "pkill -f elm-live"
+    "test:it": "cypress run --record --key ${CYPRESS_TOKEN}"
   },
   "repository": {
     "type": "git",

@@ -1,17 +1,18 @@
-module MusicProvider exposing (Api, MusicService(..), fromString, logoPath)
+module MusicProvider exposing (Api, MusicService(..), api, fromString, logoPath)
 
-import Playlist exposing (Playlist, PlaylistId)
+import Deezer
+import Playlist exposing (Playlist)
 import RemoteData exposing (WebData)
+import Spotify
 import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
 import UserInfo exposing (UserInfo)
+import Youtube
 
 
 type MusicService
     = Spotify
     | Deezer
-    | Google
-    | Amazon
     | Youtube
 
 
@@ -19,16 +20,13 @@ logoPath : MusicService -> String
 logoPath provider =
     case provider of
         Deezer ->
-            "/assets/img/deezer_logo.png"
+            "assets/img/deezer_logo.png"
 
         Spotify ->
-            "/assets/img/spotify_logo.png"
+            "assets/img/spotify_logo.png"
 
         Youtube ->
-            "/assets/img/youtube_logo.png"
-
-        _ ->
-            ""
+            "assets/img/youtube_logo.png"
 
 
 fromString : String -> Maybe MusicService
@@ -39,12 +37,6 @@ fromString pName =
 
         "Deezer" ->
             Just Deezer
-
-        "Google" ->
-            Just Google
-
-        "Amazon" ->
-            Just Amazon
 
         "Youtube" ->
             Just Youtube
@@ -58,7 +50,20 @@ type alias Api =
     , searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
     , searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
     , getPlaylists : String -> Task Never (WebData (List Playlist))
-    , getPlaylistTracks : String -> PlaylistId -> Task Never (WebData (List Track))
+    , getPlaylistTracks : String -> Playlist -> Task Never (WebData (List Track))
     , createPlaylist : String -> String -> String -> Task Never (WebData Playlist)
-    , addSongsToPlaylist : String -> List Track -> PlaylistId -> Task Never (WebData ())
+    , addSongsToPlaylist : String -> List Track -> Playlist -> Task Never (WebData ())
     }
+
+
+api : MusicService -> Api
+api provider =
+    case provider of
+        Spotify ->
+            Spotify.api
+
+        Deezer ->
+            Deezer.api
+
+        Youtube ->
+            Youtube.api
