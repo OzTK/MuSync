@@ -3,12 +3,12 @@ port module Youtube exposing (api, connectYoutube)
 import ApiClient as Api exposing (AnyFullEndpoint, Base, Endpoint)
 import Basics.Extra exposing (apply)
 import Http exposing (header)
-import Json.Decode as Decode exposing (Decoder, fail, int, list, nullable, string, succeed)
+import Json.Decode as Decode exposing (Decoder, int, list, string, succeed)
 import Json.Decode.Pipeline as Pip
 import Json.Encode as JE
-import Playlist exposing (Playlist)
+import Playlist exposing (Playlist, PlaylistId)
 import RemoteData exposing (RemoteData(..), WebData)
-import RemoteData.Http as Http exposing (Config, defaultConfig)
+import RemoteData.Http exposing (Config, defaultConfig)
 import Task exposing (Task)
 import Track exposing (IdentifiedTrack, Track)
 import Url.Builder as Url
@@ -26,36 +26,13 @@ userInfo =
         |> Pip.required "name" string
 
 
-type alias Artist =
-    { name : String }
-
-
-artist : Decoder Artist
-artist =
-    Decode.succeed Artist |> Pip.required "name" string
-
-
-toArtistName : List { a | name : String } -> Decoder String
-toArtistName artists =
-    case artists of
-        first :: _ ->
-            succeed first.name
-
-        [] ->
-            fail "No artists found"
-
-
 track : Decoder Track
 track =
     Decode.succeed Track
-        |> Pip.required "id" string
-        |> Pip.required "name" string
-        |> Pip.custom
-            (Decode.succeed toArtistName
-                |> Pip.requiredAt [ "artists" ] (list artist)
-                |> Pip.resolve
-            )
-        |> Pip.optionalAt [ "external_ids", "isrc" ] (nullable string) Nothing
+        |> Pip.requiredAt [ "contentDetails", "videoId" ] string
+        |> Pip.requiredAt [ "snippet", "title" ] string
+        |> Pip.hardcoded ""
+        |> Pip.hardcoded Nothing
 
 
 trackEntry : Decoder Track
@@ -84,22 +61,24 @@ playlistsResponse =
 playlistTracks : Decoder (List Track)
 playlistTracks =
     Decode.succeed succeed
-        |> Pip.required "items" (list trackEntry)
+        |> Pip.required "items" (list track)
         |> Pip.resolve
 
 
 searchResponse : Decoder (List Track)
 searchResponse =
     Decode.succeed succeed
-        |> Pip.requiredAt [ "tracks", "items" ] (list track)
+        |> Pip.requiredAt [ "items" ] (list track)
         |> Pip.resolve
 
 
-addToPlaylistResponse : Decoder String
+addToPlaylistResponse : Decoder Track
 addToPlaylistResponse =
-    Decode.succeed succeed
-        |> Pip.requiredAt [ "snapshot_id" ] string
-        |> Pip.resolve
+    Decode.succeed Track
+        |> Pip.required "id" string
+        |> Pip.required "title" string
+        |> Pip.hardcoded ""
+        |> Pip.hardcoded Nothing
 
 
 
@@ -159,8 +138,9 @@ searchTrack : String -> String -> Task Never (WebData (Maybe Track))
 searchTrack token query =
     Api.queryEndpoint (endpoint YT)
         [ "search" ]
-        [ Url.string "type" "track"
-        , Url.int "limit" 1
+        [ Url.string "type" "video"
+        , Url.string "part" "snippet"
+        , Url.int "maxResults" 1
         , Url.string "q" query
         ]
         |> Api.getWithRateLimit (config token)
@@ -171,12 +151,7 @@ searchTrack token query =
 searchTrackByName : String -> Track -> Task Never (WebData (Maybe Track))
 searchTrackByName token t =
     searchTrack token
-        ("artist:\""
-            ++ t.artist
-            ++ "\" track:\""
-            ++ t.title
-            ++ "\""
-        )
+        (t.title ++ " - " ++ t.artist)
 
 
 searchTrackByISRC : String -> IdentifiedTrack -> Task Never (WebData (Maybe Track))
@@ -191,52 +166,70 @@ getPlaylists token =
         playlistsResponse
 
 
-playlistsTracksFromLink : String -> Maybe AnyFullEndpoint
-playlistsTracksFromLink link =
-    link
-        |> Api.endpointFromLink (endpoint YT)
-        |> Maybe.map (Api.appendPath "tracks")
+playlistsTracksFromLinkEndpoint : String -> AnyFullEndpoint
+playlistsTracksFromLinkEndpoint id =
+    Api.queryEndpoint (endpoint YT)
+        [ "playlistItems" ]
+        [ Url.string "playlistId" id
+        , Url.string "part" "contentDetails,snippet"
+        , Url.int "maxResults" 50
+        ]
 
 
 getPlaylistTracksFromLink : String -> Playlist -> Task Never (WebData (List Track))
-getPlaylistTracksFromLink token { link } =
-    link
-        |> playlistsTracksFromLink
-        |> Maybe.map (\l -> Api.getWithRateLimit (config token) l playlistTracks)
-        |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
+getPlaylistTracksFromLink token { id } =
+    id
+        |> playlistsTracksFromLinkEndpoint
+        |> (\e -> Api.getWithRateLimit (config token) e playlistTracks)
 
 
 createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist)
-createPlaylist token user name =
+createPlaylist token _ name =
     Api.post
         (config token)
-        (Api.actionEndpoint (endpoint YT) [ "users", user, "playlists" ] |> Api.fullAsAny)
+        (Api.queryEndpoint (endpoint YT) [ "playlists" ] [ Url.string "part" "snippet" ])
         playlist
-        (JE.object [ ( "name", JE.string name ) ])
+        (JE.object
+            [ ( "snippet"
+              , JE.object
+                    [ ( "title", JE.string name )
+                    ]
+              )
+            ]
+        )
 
 
-addPlaylistTracksEncoder : List Track -> JE.Value
-addPlaylistTracksEncoder songs =
+addPlaylistTrackEncoder : PlaylistId -> Track -> JE.Value
+addPlaylistTrackEncoder pid song =
     JE.object
-        [ ( "uris"
-          , songs
-                |> List.map .id
-                |> List.map ((++) "spotify:track:")
-                |> JE.list JE.string
+        [ ( "snippet"
+          , JE.object
+                [ ( "playlistId", JE.string pid )
+                , ( "resourceId", JE.string song.id )
+                ]
           )
         ]
 
 
+addSongToPlaylist : String -> PlaylistId -> Track -> Task Never (WebData Track)
+addSongToPlaylist token playlistId s =
+    Api.post
+        (config token)
+        (Api.queryEndpoint (endpoint YT) [ "playlistItems" ] [ Url.string "part" "snippet" ])
+        addToPlaylistResponse
+        (addPlaylistTrackEncoder playlistId s)
+
+
 addSongsToPlaylist : String -> List Track -> Playlist -> Task.Task Never (WebData ())
-addSongsToPlaylist token songs { link } =
-    link
-        |> playlistsTracksFromLink
-        |> Maybe.map
-            (\l ->
-                Api.post (config token) l addToPlaylistResponse (addPlaylistTracksEncoder songs)
-                    |> Api.map (\_ -> ())
-            )
-        |> Maybe.withDefault (Task.succeed <| Failure (Http.BadUrl link))
+addSongsToPlaylist token songs { id } =
+    songs
+        |> List.map (addSongToPlaylist token id)
+        |> Task.sequence
+        |> Task.map (\r -> RemoteData.fromList r |> RemoteData.map (\_ -> ()))
+
+
+
+-- |> Task.succeed
 
 
 config : String -> Config
