@@ -29,19 +29,6 @@ import Tuple
 import UserInfo exposing (UserInfo)
 
 
-
--- import Youtube as YoutubeMod
--- deezer : MusicProvider.Api
--- deezer =
---     DeezerMod.api
--- spotify : MusicProvider.Api
--- spotify =
---     SpotifyMod.api
--- youtube : MusicProvider.Api
--- youtube =
---     YoutubeMod.api
-
-
 type MusicServiceError
     = InvalidServiceConnectionError ConnectedProvider
     | MissingUserInfo ConnectedProvider
