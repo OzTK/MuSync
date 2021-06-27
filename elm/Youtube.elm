@@ -35,11 +35,13 @@ track =
         |> Pip.hardcoded Nothing
 
 
-trackEntry : Decoder Track
-trackEntry =
-    Decode.succeed succeed
-        |> Pip.requiredAt [ "track" ] track
-        |> Pip.resolve
+searchedTrack : Decoder Track
+searchedTrack =
+    Decode.succeed Track
+        |> Pip.requiredAt [ "id", "videoId" ] string
+        |> Pip.requiredAt [ "snippet", "title" ] string
+        |> Pip.hardcoded ""
+        |> Pip.hardcoded Nothing
 
 
 playlist : Decoder Playlist
@@ -68,7 +70,7 @@ playlistTracks =
 searchResponse : Decoder (List Track)
 searchResponse =
     Decode.succeed succeed
-        |> Pip.requiredAt [ "items" ] (list track)
+        |> Pip.requiredAt [ "items" ] (list searchedTrack)
         |> Pip.resolve
 
 
@@ -76,7 +78,7 @@ addToPlaylistResponse : Decoder Track
 addToPlaylistResponse =
     Decode.succeed Track
         |> Pip.required "id" string
-        |> Pip.required "title" string
+        |> Pip.requiredAt [ "snippet", "title" ] string
         |> Pip.hardcoded ""
         |> Pip.hardcoded Nothing
 
@@ -187,7 +189,7 @@ createPlaylist : String -> String -> String -> Task.Task Never (WebData Playlist
 createPlaylist token _ name =
     Api.post
         (config token)
-        (Api.queryEndpoint (endpoint YT) [ "playlists" ] [ Url.string "part" "snippet" ])
+        (Api.queryEndpoint (endpoint YT) [ "playlists" ] [ Url.string "part" "snippet,contentDetails" ])
         playlist
         (JE.object
             [ ( "snippet"
@@ -205,7 +207,12 @@ addPlaylistTrackEncoder pid song =
         [ ( "snippet"
           , JE.object
                 [ ( "playlistId", JE.string pid )
-                , ( "resourceId", JE.string song.id )
+                , ( "resourceId"
+                  , JE.object
+                        [ ( "kind", JE.string "youtube#video" )
+                        , ( "videoId", JE.string song.id )
+                        ]
+                  )
                 ]
           )
         ]

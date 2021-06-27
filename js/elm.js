@@ -7827,7 +7827,16 @@ var $author$project$Youtube$addPlaylistTrackEncoder = F2(
 								$elm$json$Json$Encode$string(pid)),
 								_Utils_Tuple2(
 								'resourceId',
-								$elm$json$Json$Encode$string(song.id))
+								$elm$json$Json$Encode$object(
+									_List_fromArray(
+										[
+											_Utils_Tuple2(
+											'kind',
+											$elm$json$Json$Encode$string('youtube#video')),
+											_Utils_Tuple2(
+											'videoId',
+											$elm$json$Json$Encode$string(song.id))
+										])))
 							])))
 				]));
 	});
@@ -7838,8 +7847,9 @@ var $author$project$Youtube$addToPlaylistResponse = A2(
 		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
 		'',
 		A3(
-			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
-			'title',
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+			_List_fromArray(
+				['snippet', 'title']),
 			$elm$json$Json$Decode$string,
 			A3(
 				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
@@ -7948,7 +7958,7 @@ var $author$project$Youtube$createPlaylist = F3(
 					['playlists']),
 				_List_fromArray(
 					[
-						A2($elm$url$Url$Builder$string, 'part', 'snippet')
+						A2($elm$url$Url$Builder$string, 'part', 'snippet,contentDetails')
 					])),
 			$author$project$Youtube$playlist,
 			$elm$json$Json$Encode$object(
@@ -8062,12 +8072,29 @@ var $author$project$Youtube$searchTrackByISRC = F2(
 		return $elm$core$Task$succeed(
 			$krisajenkins$remotedata$RemoteData$Success($elm$core$Maybe$Nothing));
 	});
+var $author$project$Youtube$searchedTrack = A2(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+	$elm$core$Maybe$Nothing,
+	A2(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+		'',
+		A3(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+			_List_fromArray(
+				['snippet', 'title']),
+			$elm$json$Json$Decode$string,
+			A3(
+				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+				_List_fromArray(
+					['id', 'videoId']),
+				$elm$json$Json$Decode$string,
+				$elm$json$Json$Decode$succeed($author$project$Track$Track)))));
 var $author$project$Youtube$searchResponse = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
 	A3(
 		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
 		_List_fromArray(
 			['items']),
-		$elm$json$Json$Decode$list($author$project$Youtube$track),
+		$elm$json$Json$Decode$list($author$project$Youtube$searchedTrack),
 		$elm$json$Json$Decode$succeed($elm$json$Json$Decode$succeed)));
 var $author$project$Youtube$searchTrack = F2(
 	function (token, query) {
