@@ -1,5 +1,5 @@
 describe('Visiting the website and connecting music providers', () => {
-  let serviceCount = 2
+  const serviceCount = 3
 
   before(() => {
     cy.visit('/')
