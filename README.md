@@ -2,4 +2,4 @@
 
 **Work in progress! :)**
 
-Your music data should not
+Your music data should not belong to someone else!
