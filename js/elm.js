@@ -5370,9 +5370,7 @@ var $author$project$Connection$Connected$createToken = function (rawValue) {
 	return (rawValue === '') ? $elm$core$Result$Err($author$project$Connection$Connected$EmptyTokenError) : $elm$core$Result$Ok(
 		$author$project$Connection$Connected$OAuthToken(rawValue));
 };
-var $author$project$MusicProvider$Amazon = {$: 'Amazon'};
 var $author$project$MusicProvider$Deezer = {$: 'Deezer'};
-var $author$project$MusicProvider$Google = {$: 'Google'};
 var $author$project$MusicProvider$Spotify = {$: 'Spotify'};
 var $author$project$MusicProvider$Youtube = {$: 'Youtube'};
 var $author$project$MusicProvider$fromString = function (pName) {
@@ -5381,10 +5379,6 @@ var $author$project$MusicProvider$fromString = function (pName) {
 			return $elm$core$Maybe$Just($author$project$MusicProvider$Spotify);
 		case 'Deezer':
 			return $elm$core$Maybe$Just($author$project$MusicProvider$Deezer);
-		case 'Google':
-			return $elm$core$Maybe$Just($author$project$MusicProvider$Google);
-		case 'Amazon':
-			return $elm$core$Maybe$Just($author$project$MusicProvider$Amazon);
 		case 'Youtube':
 			return $elm$core$Maybe$Just($author$project$MusicProvider$Youtube);
 		default:
@@ -5610,10 +5604,6 @@ var $author$project$Connection$Connected$toString = function (t) {
 			return 'Spotify';
 		case 'Deezer':
 			return 'Deezer';
-		case 'Google':
-			return 'Google';
-		case 'Amazon':
-			return 'Amazon';
 		default:
 			return 'Youtube';
 	}
@@ -5783,7 +5773,8 @@ var $author$project$MusicService$disconnected = $author$project$MusicService$Dis
 var $author$project$Main$initProviders = _List_fromArray(
 	[
 		$author$project$MusicService$disconnected($author$project$MusicProvider$Spotify),
-		$author$project$MusicService$disconnected($author$project$MusicProvider$Deezer)
+		$author$project$MusicService$disconnected($author$project$MusicProvider$Deezer),
+		$author$project$MusicService$disconnected($author$project$MusicProvider$Youtube)
 	]);
 var $elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
@@ -5990,16 +5981,19 @@ var $elm$core$List$drop = F2(
 var $author$project$ApiClient$Endpoint = function (a) {
 	return {$: 'Endpoint', a: a};
 };
-var $author$project$ApiClient$baseEndpoint = $author$project$ApiClient$Endpoint;
-var $author$project$Deezer$corsProxy = 'https://thingproxy.freeboard.io/fetch/';
-var $author$project$Deezer$endpoint = $author$project$ApiClient$baseEndpoint($author$project$Deezer$corsProxy + 'https://api.deezer.com');
-var $author$project$ApiClient$fullEndpointUrl = function (endpoint) {
-	if (endpoint.$ === 'FullNoQuery') {
-		var u = endpoint.a.a;
-		return u;
+var $author$project$ApiClient$baseEndpointProxied = $author$project$ApiClient$Endpoint;
+var $author$project$Deezer$corsProxy = 'https://cors.bridged.cc/';
+var $author$project$Deezer$endpoint = $author$project$ApiClient$baseEndpointProxied(
+	{endpoint: 'https://api.deezer.com', proxy: $author$project$Deezer$corsProxy});
+var $author$project$ApiClient$fullEndpointUrl = function (ep) {
+	if (ep.$ === 'FullNoQuery') {
+		var proxy = ep.a.a.proxy;
+		var endpoint = ep.a.a.endpoint;
+		return _Utils_ap(proxy, endpoint);
 	} else {
-		var u = endpoint.a.a;
-		return u;
+		var proxy = ep.a.a.proxy;
+		var endpoint = ep.a.a.endpoint;
+		return _Utils_ap(proxy, endpoint);
 	}
 };
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
@@ -6561,7 +6555,11 @@ var $author$project$ApiClient$queryEndpoint = F3(
 		var base = _v0.a;
 		return $author$project$ApiClient$FullWithQuery(
 			$author$project$ApiClient$Endpoint(
-				A3($elm$url$Url$Builder$crossOrigin, base, path, query)));
+				_Utils_update(
+					base,
+					{
+						endpoint: A3($elm$url$Url$Builder$crossOrigin, base.endpoint, path, query)
+					})));
 	});
 var $elm$url$Url$Builder$QueryParameter = F2(
 	function (a, b) {
@@ -6745,6 +6743,16 @@ var $elm$url$Url$toString = function (url) {
 					_Utils_ap(http, url.host)),
 				url.path)));
 };
+var $author$project$ApiClient$updateEndpointUrl = F2(
+	function (_v0, u) {
+		var e = _v0.a;
+		return $author$project$ApiClient$Endpoint(
+			_Utils_update(
+				e,
+				{
+					endpoint: $elm$url$Url$toString(u)
+				}));
+	});
 var $author$project$ApiClient$appendQueryParam = F2(
 	function (param, endpoint) {
 		var encodedParam = A2(
@@ -6760,7 +6768,14 @@ var $author$project$ApiClient$appendQueryParam = F2(
 				$author$project$ApiClient$Endpoint(actionUrl),
 				A2(
 					$elm$core$Maybe$map,
-					A2($elm$core$Basics$composeL, $author$project$ApiClient$Endpoint, $elm$url$Url$toString),
+					function (u) {
+						return $author$project$ApiClient$Endpoint(
+							_Utils_update(
+								actionUrl,
+								{
+									endpoint: $elm$url$Url$toString(u)
+								}));
+					},
 					A2(
 						$elm$core$Maybe$map,
 						function (url) {
@@ -6770,7 +6785,7 @@ var $author$project$ApiClient$appendQueryParam = F2(
 									query: $elm$core$Maybe$Just(encodedParam)
 								});
 						},
-						$elm$url$Url$fromString(actionUrl))));
+						$elm$url$Url$fromString(actionUrl.endpoint))));
 		} else {
 			var queryUrl = endpoint.a.a;
 			return A2(
@@ -6778,7 +6793,8 @@ var $author$project$ApiClient$appendQueryParam = F2(
 				$author$project$ApiClient$Endpoint(queryUrl),
 				A2(
 					$elm$core$Maybe$map,
-					A2($elm$core$Basics$composeL, $author$project$ApiClient$Endpoint, $elm$url$Url$toString),
+					$author$project$ApiClient$updateEndpointUrl(
+						$author$project$ApiClient$Endpoint(queryUrl)),
 					A2(
 						$elm$core$Maybe$map,
 						function (url) {
@@ -6796,7 +6812,7 @@ var $author$project$ApiClient$appendQueryParam = F2(
 											url.query))
 								});
 						},
-						$elm$url$Url$fromString(queryUrl))));
+						$elm$url$Url$fromString(queryUrl.endpoint))));
 		}
 	});
 var $author$project$ApiClient$fullQueryAsAny = $author$project$ApiClient$FullWithQuery;
@@ -6922,7 +6938,11 @@ var $author$project$ApiClient$actionEndpoint = F2(
 	function (_v0, path) {
 		var base = _v0.a;
 		return $author$project$ApiClient$Endpoint(
-			A3($elm$url$Url$Builder$crossOrigin, base, path, _List_Nil));
+			_Utils_update(
+				base,
+				{
+					endpoint: A3($elm$url$Url$Builder$crossOrigin, base.endpoint, path, _List_Nil)
+				}));
 	});
 var $author$project$Deezer$BuildingTrackList = F2(
 	function (a, b) {
@@ -6939,26 +6959,33 @@ var $author$project$ApiClient$FullNoQuery = function (a) {
 };
 var $author$project$ApiClient$fullAsAny = $author$project$ApiClient$FullNoQuery;
 var $author$project$ApiClient$endpointFromLink = F2(
-	function (_v0, link) {
-		var domain = _v0.a;
+	function (domain, link) {
+		var _v0 = domain;
+		var endpoint = _v0.a;
 		return A2(
 			$elm$core$Maybe$andThen,
 			function (_v1) {
 				var host = _v1.host;
 				var query = _v1.query;
 				var _v2 = _Utils_Tuple2(
-					A2($elm$core$String$contains, host, domain),
+					A2($elm$core$String$contains, host, endpoint.endpoint),
 					query);
 				if (_v2.a) {
 					if (_v2.b.$ === 'Nothing') {
 						var _v3 = _v2.b;
 						return $elm$core$Maybe$Just(
 							$author$project$ApiClient$fullAsAny(
-								$author$project$ApiClient$Endpoint(link)));
+								$author$project$ApiClient$Endpoint(
+									_Utils_update(
+										endpoint,
+										{endpoint: link}))));
 					} else {
 						return $elm$core$Maybe$Just(
 							$author$project$ApiClient$fullQueryAsAny(
-								$author$project$ApiClient$Endpoint(link)));
+								$author$project$ApiClient$Endpoint(
+									_Utils_update(
+										endpoint,
+										{endpoint: link}))));
 					}
 				} else {
 					return $elm$core$Maybe$Nothing;
@@ -7464,7 +7491,11 @@ var $author$project$ApiClient$appendPath = F2(
 			var url = endpoint.a.a;
 			return $author$project$ApiClient$fullAsAny(
 				$author$project$ApiClient$Endpoint(
-					url + ('/' + $elm$url$Url$percentEncode(segment))));
+					_Utils_update(
+						url,
+						{
+							endpoint: url.endpoint + ('/' + $elm$url$Url$percentEncode(segment))
+						})));
 		} else {
 			var url = endpoint.a.a;
 			return A2(
@@ -7474,8 +7505,9 @@ var $author$project$ApiClient$appendPath = F2(
 					$elm$core$Maybe$map,
 					A2(
 						$elm$core$Basics$composeL,
-						A2($elm$core$Basics$composeL, $author$project$ApiClient$fullQueryAsAny, $author$project$ApiClient$Endpoint),
-						$elm$url$Url$toString),
+						$author$project$ApiClient$fullQueryAsAny,
+						$author$project$ApiClient$updateEndpointUrl(
+							$author$project$ApiClient$Endpoint(url))),
 					A2(
 						$elm$core$Maybe$map,
 						function (u) {
@@ -7483,9 +7515,13 @@ var $author$project$ApiClient$appendPath = F2(
 								u,
 								{path: u.path + ('/' + segment)});
 						},
-						$elm$url$Url$fromString(url))));
+						$elm$url$Url$fromString(url.endpoint))));
 		}
 	});
+var $author$project$ApiClient$baseEndpoint = function (e) {
+	return $author$project$ApiClient$Endpoint(
+		{endpoint: e, proxy: ''});
+};
 var $author$project$Spotify$version = 'v1';
 var $author$project$Spotify$endpoint = $author$project$ApiClient$baseEndpoint(
 	A3(
@@ -7775,33 +7811,51 @@ var $author$project$Spotify$searchTrackByName = F2(
 		return A2($author$project$Spotify$searchTrack, token, 'artist:\"' + (t.artist + ('\" track:\"' + (t.title + '\"'))));
 	});
 var $author$project$Spotify$api = {addSongsToPlaylist: $author$project$Spotify$addSongsToPlaylist, createPlaylist: $author$project$Spotify$createPlaylist, getPlaylistTracks: $author$project$Spotify$getPlaylistTracksFromLink, getPlaylists: $author$project$Spotify$getPlaylists, getUserInfo: $author$project$Spotify$getUserInfo, searchTrackByISRC: $author$project$Spotify$searchTrackByISRC, searchTrackByName: $author$project$Spotify$searchTrackByName};
-var $author$project$Youtube$addPlaylistTracksEncoder = function (songs) {
-	return $elm$json$Json$Encode$object(
-		_List_fromArray(
-			[
-				_Utils_Tuple2(
-				'uris',
-				A2(
-					$elm$json$Json$Encode$list,
-					$elm$json$Json$Encode$string,
-					A2(
-						$elm$core$List$map,
-						$elm$core$Basics$append('spotify:track:'),
-						A2(
-							$elm$core$List$map,
-							function ($) {
-								return $.id;
-							},
-							songs))))
-			]));
-};
-var $author$project$Youtube$addToPlaylistResponse = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
-	A3(
-		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
-		_List_fromArray(
-			['snapshot_id']),
-		$elm$json$Json$Decode$string,
-		$elm$json$Json$Decode$succeed($elm$json$Json$Decode$succeed)));
+var $author$project$Youtube$YT = {$: 'YT'};
+var $author$project$Youtube$addPlaylistTrackEncoder = F2(
+	function (pid, song) {
+		return $elm$json$Json$Encode$object(
+			_List_fromArray(
+				[
+					_Utils_Tuple2(
+					'snippet',
+					$elm$json$Json$Encode$object(
+						_List_fromArray(
+							[
+								_Utils_Tuple2(
+								'playlistId',
+								$elm$json$Json$Encode$string(pid)),
+								_Utils_Tuple2(
+								'resourceId',
+								$elm$json$Json$Encode$object(
+									_List_fromArray(
+										[
+											_Utils_Tuple2(
+											'kind',
+											$elm$json$Json$Encode$string('youtube#video')),
+											_Utils_Tuple2(
+											'videoId',
+											$elm$json$Json$Encode$string(song.id))
+										])))
+							])))
+				]));
+	});
+var $author$project$Youtube$addToPlaylistResponse = A2(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+	$elm$core$Maybe$Nothing,
+	A2(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+		'',
+		A3(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+			_List_fromArray(
+				['snippet', 'title']),
+			$elm$json$Json$Decode$string,
+			A3(
+				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+				'id',
+				$elm$json$Json$Decode$string,
+				$elm$json$Json$Decode$succeed($author$project$Track$Track)))));
 var $author$project$Youtube$config = function (token) {
 	return _Utils_update(
 		$ohanhi$remotedata_http$RemoteData$Http$defaultConfig,
@@ -7812,7 +7866,6 @@ var $author$project$Youtube$config = function (token) {
 				])
 		});
 };
-var $author$project$Youtube$YT = {$: 'YT'};
 var $author$project$Youtube$sectionToPrefix = function (section) {
 	if (section.$ === 'Auth') {
 		return 'www';
@@ -7839,39 +7892,41 @@ var $author$project$Youtube$endpoint = function (section) {
 			$author$project$Youtube$sectionToSegment(section),
 			_List_Nil));
 };
-var $author$project$Youtube$playlistsTracksFromLink = function (link) {
-	return A2(
-		$elm$core$Maybe$map,
-		$author$project$ApiClient$appendPath('tracks'),
-		A2(
-			$author$project$ApiClient$endpointFromLink,
-			$author$project$Youtube$endpoint($author$project$Youtube$YT),
-			link));
-};
+var $author$project$Youtube$addSongToPlaylist = F3(
+	function (token, playlistId, s) {
+		return A4(
+			$author$project$ApiClient$post,
+			$author$project$Youtube$config(token),
+			A3(
+				$author$project$ApiClient$queryEndpoint,
+				$author$project$Youtube$endpoint($author$project$Youtube$YT),
+				_List_fromArray(
+					['playlistItems']),
+				_List_fromArray(
+					[
+						A2($elm$url$Url$Builder$string, 'part', 'snippet')
+					])),
+			$author$project$Youtube$addToPlaylistResponse,
+			A2($author$project$Youtube$addPlaylistTrackEncoder, playlistId, s));
+	});
 var $author$project$Youtube$addSongsToPlaylist = F3(
 	function (token, songs, _v0) {
-		var link = _v0.link;
+		var id = _v0.id;
 		return A2(
-			$elm$core$Maybe$withDefault,
-			$elm$core$Task$succeed(
-				$krisajenkins$remotedata$RemoteData$Failure(
-					$elm$http$Http$BadUrl(link))),
-			A2(
-				$elm$core$Maybe$map,
-				function (l) {
-					return A2(
-						$author$project$ApiClient$map,
-						function (_v1) {
-							return _Utils_Tuple0;
-						},
-						A4(
-							$author$project$ApiClient$post,
-							$author$project$Youtube$config(token),
-							l,
-							$author$project$Youtube$addToPlaylistResponse,
-							$author$project$Youtube$addPlaylistTracksEncoder(songs)));
-				},
-				$author$project$Youtube$playlistsTracksFromLink(link)));
+			$elm$core$Task$map,
+			function (r) {
+				return A2(
+					$krisajenkins$remotedata$RemoteData$map,
+					function (_v1) {
+						return _Utils_Tuple0;
+					},
+					$krisajenkins$remotedata$RemoteData$fromList(r));
+			},
+			$elm$core$Task$sequence(
+				A2(
+					$elm$core$List$map,
+					A2($author$project$Youtube$addSongToPlaylist, token, id),
+					songs)));
 	});
 var $author$project$Youtube$playlist = A3(
 	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
@@ -7892,96 +7947,81 @@ var $author$project$Youtube$playlist = A3(
 				$elm$json$Json$Decode$string,
 				$elm$json$Json$Decode$succeed($author$project$Playlist$Playlist)))));
 var $author$project$Youtube$createPlaylist = F3(
-	function (token, user, name) {
+	function (token, _v0, name) {
 		return A4(
 			$author$project$ApiClient$post,
 			$author$project$Youtube$config(token),
-			$author$project$ApiClient$fullAsAny(
-				A2(
-					$author$project$ApiClient$actionEndpoint,
-					$author$project$Youtube$endpoint($author$project$Youtube$YT),
-					_List_fromArray(
-						['users', user, 'playlists']))),
+			A3(
+				$author$project$ApiClient$queryEndpoint,
+				$author$project$Youtube$endpoint($author$project$Youtube$YT),
+				_List_fromArray(
+					['playlists']),
+				_List_fromArray(
+					[
+						A2($elm$url$Url$Builder$string, 'part', 'snippet,contentDetails')
+					])),
 			$author$project$Youtube$playlist,
 			$elm$json$Json$Encode$object(
 				_List_fromArray(
 					[
 						_Utils_Tuple2(
-						'name',
-						$elm$json$Json$Encode$string(name))
+						'snippet',
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'title',
+									$elm$json$Json$Encode$string(name))
+								])))
 					])));
 	});
-var $author$project$Youtube$Artist = function (name) {
-	return {name: name};
-};
-var $author$project$Youtube$artist = A3(
-	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
-	'name',
-	$elm$json$Json$Decode$string,
-	$elm$json$Json$Decode$succeed($author$project$Youtube$Artist));
-var $author$project$Youtube$toArtistName = function (artists) {
-	if (artists.b) {
-		var first = artists.a;
-		return $elm$json$Json$Decode$succeed(first.name);
-	} else {
-		return $elm$json$Json$Decode$fail('No artists found');
-	}
-};
-var $author$project$Youtube$track = A4(
-	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$optionalAt,
-	_List_fromArray(
-		['external_ids', 'isrc']),
-	$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string),
+var $author$project$Youtube$track = A2(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
 	$elm$core$Maybe$Nothing,
 	A2(
-		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$custom,
-		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+		'',
+		A3(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+			_List_fromArray(
+				['snippet', 'title']),
+			$elm$json$Json$Decode$string,
 			A3(
 				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
 				_List_fromArray(
-					['artists']),
-				$elm$json$Json$Decode$list($author$project$Youtube$artist),
-				$elm$json$Json$Decode$succeed($author$project$Youtube$toArtistName))),
-		A3(
-			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
-			'name',
-			$elm$json$Json$Decode$string,
-			A3(
-				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
-				'id',
+					['contentDetails', 'videoId']),
 				$elm$json$Json$Decode$string,
 				$elm$json$Json$Decode$succeed($author$project$Track$Track)))));
-var $author$project$Youtube$trackEntry = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
-	A3(
-		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
-		_List_fromArray(
-			['track']),
-		$author$project$Youtube$track,
-		$elm$json$Json$Decode$succeed($elm$json$Json$Decode$succeed)));
 var $author$project$Youtube$playlistTracks = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
 	A3(
 		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
 		'items',
-		$elm$json$Json$Decode$list($author$project$Youtube$trackEntry),
+		$elm$json$Json$Decode$list($author$project$Youtube$track),
 		$elm$json$Json$Decode$succeed($elm$json$Json$Decode$succeed)));
+var $author$project$Youtube$playlistsTracksFromLinkEndpoint = function (id) {
+	return A3(
+		$author$project$ApiClient$queryEndpoint,
+		$author$project$Youtube$endpoint($author$project$Youtube$YT),
+		_List_fromArray(
+			['playlistItems']),
+		_List_fromArray(
+			[
+				A2($elm$url$Url$Builder$string, 'playlistId', id),
+				A2($elm$url$Url$Builder$string, 'part', 'contentDetails,snippet'),
+				A2($elm$url$Url$Builder$int, 'maxResults', 50)
+			]));
+};
 var $author$project$Youtube$getPlaylistTracksFromLink = F2(
 	function (token, _v0) {
-		var link = _v0.link;
-		return A2(
-			$elm$core$Maybe$withDefault,
-			$elm$core$Task$succeed(
-				$krisajenkins$remotedata$RemoteData$Failure(
-					$elm$http$Http$BadUrl(link))),
-			A2(
-				$elm$core$Maybe$map,
-				function (l) {
-					return A3(
-						$author$project$ApiClient$getWithRateLimit,
-						$author$project$Youtube$config(token),
-						l,
-						$author$project$Youtube$playlistTracks);
-				},
-				$author$project$Youtube$playlistsTracksFromLink(link)));
+		var id = _v0.id;
+		return function (e) {
+			return A3(
+				$author$project$ApiClient$getWithRateLimit,
+				$author$project$Youtube$config(token),
+				e,
+				$author$project$Youtube$playlistTracks);
+		}(
+			$author$project$Youtube$playlistsTracksFromLinkEndpoint(id));
 	});
 var $author$project$Youtube$playlistsResponse = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
 	A3(
@@ -8027,22 +8067,34 @@ var $author$project$Youtube$getUserInfo = function (token) {
 					['userinfo']))),
 		$author$project$Youtube$userInfo);
 };
-var $elm$core$Debug$todo = _Debug_todo;
 var $author$project$Youtube$searchTrackByISRC = F2(
 	function (_v0, _v1) {
-		return _Debug_todo(
-			'Youtube',
-			{
-				start: {line: 184, column: 5},
-				end: {line: 184, column: 15}
-			})('No ISRC search on Youtube');
+		return $elm$core$Task$succeed(
+			$krisajenkins$remotedata$RemoteData$Success($elm$core$Maybe$Nothing));
 	});
+var $author$project$Youtube$searchedTrack = A2(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+	$elm$core$Maybe$Nothing,
+	A2(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$hardcoded,
+		'',
+		A3(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+			_List_fromArray(
+				['snippet', 'title']),
+			$elm$json$Json$Decode$string,
+			A3(
+				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
+				_List_fromArray(
+					['id', 'videoId']),
+				$elm$json$Json$Decode$string,
+				$elm$json$Json$Decode$succeed($author$project$Track$Track)))));
 var $author$project$Youtube$searchResponse = $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$resolve(
 	A3(
 		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$requiredAt,
 		_List_fromArray(
-			['tracks', 'items']),
-		$elm$json$Json$Decode$list($author$project$Youtube$track),
+			['items']),
+		$elm$json$Json$Decode$list($author$project$Youtube$searchedTrack),
 		$elm$json$Json$Decode$succeed($elm$json$Json$Decode$succeed)));
 var $author$project$Youtube$searchTrack = F2(
 	function (token, query) {
@@ -8062,14 +8114,15 @@ var $author$project$Youtube$searchTrack = F2(
 							['search']),
 						_List_fromArray(
 							[
-								A2($elm$url$Url$Builder$string, 'type', 'track'),
-								A2($elm$url$Url$Builder$int, 'limit', 1),
+								A2($elm$url$Url$Builder$string, 'type', 'video'),
+								A2($elm$url$Url$Builder$string, 'part', 'snippet'),
+								A2($elm$url$Url$Builder$int, 'maxResults', 1),
 								A2($elm$url$Url$Builder$string, 'q', query)
 							])))));
 	});
 var $author$project$Youtube$searchTrackByName = F2(
 	function (token, t) {
-		return A2($author$project$Youtube$searchTrack, token, 'artist:\"' + (t.artist + ('\" track:\"' + (t.title + '\"'))));
+		return A2($author$project$Youtube$searchTrack, token, t.title + (' - ' + t.artist));
 	});
 var $author$project$Youtube$api = {addSongsToPlaylist: $author$project$Youtube$addSongsToPlaylist, createPlaylist: $author$project$Youtube$createPlaylist, getPlaylistTracks: $author$project$Youtube$getPlaylistTracksFromLink, getPlaylists: $author$project$Youtube$getPlaylists, getUserInfo: $author$project$Youtube$getUserInfo, searchTrackByISRC: $author$project$Youtube$searchTrackByISRC, searchTrackByName: $author$project$Youtube$searchTrackByName};
 var $author$project$MusicProvider$api = function (provider) {
@@ -8078,15 +8131,8 @@ var $author$project$MusicProvider$api = function (provider) {
 			return $author$project$Spotify$api;
 		case 'Deezer':
 			return $author$project$Deezer$api;
-		case 'Youtube':
-			return $author$project$Youtube$api;
 		default:
-			return _Debug_todo(
-				'MusicProvider',
-				{
-					start: {line: 83, column: 13},
-					end: {line: 83, column: 23}
-				})('Not implemented provider');
+			return $author$project$Youtube$api;
 	}
 };
 var $author$project$MusicService$NeverError = {$: 'NeverError'};
@@ -9439,10 +9485,8 @@ var $author$project$Connection$toggleProviderConnect = function (connection) {
 			return $author$project$Deezer$connectDeezer(_Utils_Tuple0);
 		case 'Spotify':
 			return $author$project$Spotify$connectS(_Utils_Tuple0);
-		case 'Youtube':
-			return $author$project$Youtube$connectYoutube(_Utils_Tuple0);
 		default:
-			return $elm$core$Platform$Cmd$none;
+			return $author$project$Youtube$connectYoutube(_Utils_Tuple0);
 	}
 };
 var $author$project$Connection$Dict$updateConnection = F2(
@@ -15167,7 +15211,7 @@ var $author$project$Connection$Connected$connected = F2(
 	function (t, userInfo) {
 		return A2($author$project$Connection$Connected$ConnectedProvider, t, userInfo);
 	});
-var $author$project$Connection$Connected$any = A2($author$project$Connection$Connected$connected, $author$project$MusicProvider$Amazon, $krisajenkins$remotedata$RemoteData$NotAsked);
+var $author$project$Connection$Connected$any = A2($author$project$Connection$Connected$connected, $author$project$MusicProvider$Deezer, $krisajenkins$remotedata$RemoteData$NotAsked);
 var $author$project$Playlist$Dict$anyKey = A2($author$project$Playlist$Dict$PlaylistKey, $author$project$Connection$Connected$any, '');
 var $author$project$Page$is = F2(
 	function (_v0, path) {
@@ -16591,10 +16635,8 @@ var $author$project$MusicProvider$logoPath = function (provider) {
 			return 'assets/img/deezer_logo.png';
 		case 'Spotify':
 			return 'assets/img/spotify_logo.png';
-		case 'Youtube':
-			return 'assets/img/youtube_logo.png';
 		default:
-			return '';
+			return 'assets/img/youtube_logo.png';
 	}
 };
 var $author$project$Main$providerName = function (pType) {
@@ -16603,10 +16645,6 @@ var $author$project$Main$providerName = function (pType) {
 			return 'Spotify';
 		case 'Deezer':
 			return 'Deezer';
-		case 'Amazon':
-			return 'Amazon Prime';
-		case 'Google':
-			return 'Play';
 		default:
 			return 'Youtube';
 	}

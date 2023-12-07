@@ -66,7 +66,7 @@ type alias Flags =
 
 initProviders : List DisconnectedProvider
 initProviders =
-    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer ]
+    [ MusicService.disconnected Spotify, MusicService.disconnected Deezer, MusicService.disconnected Youtube ]
 
 
 deserializeTokenPair : ( String, String ) -> Maybe ( MusicService, ConnectedProvider.OAuthToken )
